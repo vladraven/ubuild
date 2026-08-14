@@ -1,0 +1,40 @@
+import * as THREE from 'three';
+
+const steelMat = new THREE.MeshStandardMaterial({ color: 0x475569, metalness: 0.5, roughness: 0.5 });
+
+export function createGirtsGroup(width, length, height, enabled) {
+    const group = new THREE.Group();
+    if (!enabled) return group;
+
+    const wallThick = 0.1;
+    const innerW = width - wallThick * 2;
+    const innerL = length - wallThick * 2;
+    const girtThick = 0.08;
+
+    const stepY = 1.2;
+    const numGirts = Math.floor(height / stepY);
+
+    for (let i = 1; i <= numGirts; i++) {
+        const y = i * stepY;
+
+        // Левый и правый прогоны
+        const gL = new THREE.Mesh(new THREE.BoxGeometry(girtThick, girtThick, innerL), steelMat);
+        gL.position.set(-innerW / 2 + girtThick / 2, y, 0);
+        group.add(gL);
+
+        const gR = new THREE.Mesh(new THREE.BoxGeometry(girtThick, girtThick, innerL), steelMat);
+        gR.position.set(innerW / 2 - girtThick / 2, y, 0);
+        group.add(gR);
+
+        // Передний и задний прогоны
+        const gF = new THREE.Mesh(new THREE.BoxGeometry(innerW - girtThick * 2, girtThick, girtThick), steelMat);
+        gF.position.set(0, y, innerL / 2 - girtThick / 2);
+        group.add(gF);
+
+        const gB = new THREE.Mesh(new THREE.BoxGeometry(innerW - girtThick * 2, girtThick, girtThick), steelMat);
+        gB.position.set(0, y, -innerL / 2 + girtThick / 2);
+        group.add(gB);
+    }
+
+    return group;
+}
