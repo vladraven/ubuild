@@ -234,6 +234,122 @@ function bindSimpleSliderAndInput(sliderId, inputId, renderCallback) {
     });
 }
 
+function updateSidebarSummary() {
+    const dimensionsEl =
+        document.getElementById('sidebar-summary-dimensions');
+
+    const roofEl =
+        document.getElementById('sidebar-summary-roof');
+
+    const colorsEl =
+        document.getElementById('sidebar-summary-colors');
+
+    if (!dimensionsEl || !roofEl || !colorsEl) {
+        return;
+    }
+
+    const width =
+        document.getElementById('valW')?.value
+        || '';
+
+    const length =
+        document.getElementById('valL')?.value
+        || '';
+
+    const height =
+        document.getElementById('valH')?.value
+        || '';
+
+    const unit =
+        isMetric
+            ? 'm'
+            : 'ft';
+
+    const roofTypeSelect =
+        document.getElementById('roofType');
+
+    const roofType =
+        roofTypeSelect?.selectedOptions?.[0]?.text
+        || '';
+
+    const pitchInput =
+        document.getElementById('valPitch');
+
+    const pitch =
+        pitchInput?.value
+        || '';
+
+    const roofProfileSelect =
+        document.getElementById('roofProfile');
+
+    const roofProfile =
+        roofProfileSelect?.selectedOptions?.[0]?.text
+        || '';
+
+    const getSelectedColorName = (id) => {
+        const select =
+            document.getElementById(id);
+
+        if (!select) {
+            return '';
+        }
+
+        return (
+            select.selectedOptions?.[0]?.text
+            || ''
+        ).trim();
+    };
+
+    const roofColor =
+        getSelectedColorName(
+            'colorRoof'
+        );
+
+    const wallColor =
+        getSelectedColorName(
+            'colorWall'
+        );
+
+    const trimColor =
+        getSelectedColorName(
+            'colorTrim'
+        );
+
+    const eaveTrimColor =
+        getSelectedColorName(
+            'colorEaveTrim'
+        );
+
+    const wainscotColor =
+        getSelectedColorName(
+            'colorWainscot'
+        );
+
+    dimensionsEl.textContent =
+        `${width}${unit} x ${length}${unit} x ${height}${unit}`;
+
+    roofEl.innerHTML =
+        `${escapeHtml(roofType)}`
+        + (
+            pitch
+                ? ` · ${escapeHtml(pitch)}`
+                : ''
+        )
+        + (
+            roofProfile
+                ? ` · ${escapeHtml(roofProfile)}`
+                : ''
+        );
+
+    colorsEl.innerHTML = `
+        <div>Roof: <strong>${escapeHtml(roofColor || '—')}</strong></div>
+        <div>Walls: <strong>${escapeHtml(wallColor || '—')}</strong></div>
+        <div>Trim: <strong>${escapeHtml(trimColor || '—')}</strong></div>
+        <div>Eave Trim: <strong>${escapeHtml(eaveTrimColor || '—')}</strong></div>
+        <div>Wainscot: <strong>${escapeHtml(wainscotColor || '—')}</strong></div>
+    `;
+}
+
 export function initUI(renderCallback, renderer, scene, cameraObj, controlsObj) {
     const activeControls = controlsObj || controls;
     const constraints = window.ConfiguratorBackendConstraints || {};

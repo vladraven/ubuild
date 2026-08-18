@@ -158,19 +158,20 @@ function get_color_defaults_optimized($color_categories, $color_defaults)
         <button id="btn-trigger-quote-modal" class="btn btn-primary border-light text-uppercase position-relative animated-button mb-3 w-100" data-bs-toggle="modal" data-bs-target="#quoteModal">Request a free Quote</button>
 
         <!-- Small live summary directly under the Quote CTA -->
-        <div class="card p-2 mb-3 border" id="sidebar-summary-card" style="background: #f8fafc; border-radius: 6px;">
-            <div class="d-flex gap-2 align-items-center">
-                <div id="sidebar-summary-image-container" style="width: 56px; height: 44px; flex-shrink: 0; background: #e2e8f0; border-radius: 4px; overflow: hidden; display: flex; align-items: center; justify-content: center;">
-                    <img id="sidebar-summary-thumb" src="" alt="Building Snapshot" style="width: 100%; height: 100%; object-fit: cover; display: none;">
-                    <i id="sidebar-summary-fallback" class="bi bi-building text-secondary" style="font-size: 18px;"></i>
-                </div>
-                <div style="font-size: 12px; line-height: 1.4;">
-                    <div class="fw-bold text-dark" id="sidebar-summary-dimensions">60' x 100' x 16'</div>
-                    <div class="text-muted" id="sidebar-summary-roof">Gable Roof</div>
-                </div>
-            </div>
-        </div>
+		<div class="card p-2 mb-3 border" id="sidebar-summary-card" style="background: #f8fafc; border-radius: 6px;">
+			<div class="d-flex gap-2 align-items-top">
+				<div id="sidebar-summary-image-container" style="width: 56px; height: 44px; flex-shrink: 0; background: #e2e8f0; border-radius: 4px; overflow: hidden; display: flex; align-items: center; justify-content: center;">
+					<img id="sidebar-summary-thumb" src="" alt="Building Snapshot" style="width: 100%; height: 100%; object-fit: cover; display: none;">
+					<i id="sidebar-summary-fallback" class="bi bi-building text-secondary" style="font-size: 18px;"></i>
+				</div>
 
+				<div class="smallest">
+					<div class="fw-bold text-dark" id="sidebar-summary-dimensions">60ft x 100ft x 16ft</div>
+					<div class="text-muted" id="sidebar-summary-roof">Gable Roof</div>
+					<div class="text-muted mt-1" id="sidebar-summary-colors"></div>
+				</div>
+			</div>
+		</div>
         <div class="form-check form-switch mb-3 pb-2 border-bottom">
             <input class="form-check-input" type="checkbox" id="unitToggle">
             <label class="form-check-label" id="unitToggleLabel">System: Imperial (ft)</label>

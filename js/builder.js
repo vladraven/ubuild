@@ -106,7 +106,13 @@ export function updateBuilding() {
         mainGroup.add(createLogoGroup(width, length, height, pitchRatio, roofType));
     }
 
-    updateSidebarSummary(width, length, height, roofType);
+    updateSidebarSummary(
+        width,
+        length,
+        height,
+        pitchRatio,
+        roofType
+    );
 }
 
 /**
@@ -115,25 +121,133 @@ export function updateBuilding() {
  * it's cheap enough to call on every slider drag; the quote modal's own
  * snapshot logic (tools-actions.js) still handles the actual photo.
  */
-function updateSidebarSummary(widthM, lengthM, heightM, roofType) {
-    const dimsEl = document.getElementById('sidebar-summary-dimensions');
-    const roofEl = document.getElementById('sidebar-summary-roof');
+function updateSidebarSummary(
+    widthM,
+    lengthM,
+    heightM,
+    pitchRatio,
+    roofType
+) {
+    const dimsEl =
+        document.getElementById(
+            'sidebar-summary-dimensions'
+        );
+
+    const roofEl =
+        document.getElementById(
+            'sidebar-summary-roof'
+        );
+
+    const colorsEl =
+        document.getElementById(
+            'sidebar-summary-colors'
+        );
+
+    const roofProfileSelect =
+        document.getElementById(
+            'roofProfile'
+        );
+
+    const wallProfileSelect =
+        document.getElementById(
+            'wallProfile'
+        );
+
+    const roofColorSelect =
+        document.getElementById(
+            'colorRoof'
+        );
+
+    const wallColorSelect =
+        document.getElementById(
+            'colorWall'
+        );
 
     if (dimsEl) {
-        const unit = getU();
-        const mult = isMetric ? 1 : 3.28084;
-        const w = (widthM * mult).toFixed(0);
-        const l = (lengthM * mult).toFixed(0);
-        const h = (heightM * mult).toFixed(0);
-        dimsEl.textContent = `${w}${unit} x ${l}${unit} x ${h}${unit}`;
+        const unit =
+            getU();
+
+        const mult =
+            isMetric
+                ? 1
+                : 3.28084;
+
+        const w =
+            (
+                widthM * mult
+            ).toFixed(0);
+
+        const l =
+            (
+                lengthM * mult
+            ).toFixed(0);
+
+        const h =
+            (
+                heightM * mult
+            ).toFixed(0);
+
+        const pitchValue =
+            (
+                pitchRatio * 12
+            ).toFixed(1)
+            .replace(
+                '.0',
+                ''
+            );
+
+        dimsEl.textContent =
+            `${w}${unit} x ${l}${unit} x ${h}${unit} · ${pitchValue}:12`;
     }
 
+    const roofLabels = {
+        'gabled':
+            'Gable Roof',
+
+        'left-sloped':
+            'Left Sloped Roof',
+
+        'right-sloped':
+            'Right Sloped Roof'
+    };
+
+    const roofTypeLabel =
+        roofLabels[
+            roofType
+        ]
+        || 'Gable Roof';
+
+    const roofProfile =
+        roofProfileSelect
+            ?.selectedOptions?.[0]
+            ?.text
+        || '';
+
+    const wallProfile =
+        wallProfileSelect
+            ?.selectedOptions?.[0]
+            ?.text
+        || '';
+
+    const roofColor =
+        roofColorSelect
+            ?.selectedOptions?.[0]
+            ?.text
+        || '';
+
+    const wallColor =
+        wallColorSelect
+            ?.selectedOptions?.[0]
+            ?.text
+        || '';
+
     if (roofEl) {
-        const roofLabels = {
-            'gabled': 'Gable Roof',
-            'left-sloped': 'Left Sloped Roof',
-            'right-sloped': 'Right Sloped Roof'
-        };
-        roofEl.textContent = roofLabels[roofType] || 'Gable Roof';
+        roofEl.textContent =
+            `Roof: ${roofTypeLabel} · ${roofProfile} · ${roofColor}`;
+    }
+
+    if (colorsEl) {
+        colorsEl.textContent =
+            `Walls: ${wallProfile} · ${wallColor}`;
     }
 }

@@ -246,3 +246,19 @@ label span { font-size: 12px !important; }
 div.col-6:has(.info-toast) {
 	position: relative;
 }
+
+.smallest {
+	font-size: 12px;
+}
+
+#sidebar-summary-colors {
+	display: flex;
+	flex-wrap: wrap;
+	gap: .4rem; /* или любой нужный отступ */
+}
+
+#sidebar-summary-colors > div {
+	flex: 0 0 calc((100% - .8rem) / 2); /* (100% - 2 * gap) / 3 */
+	max-width: calc((100% - .8rem) / 2);
+	box-sizing: border-box;
+}

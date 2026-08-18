@@ -11,3 +11,45 @@
 
 Насыщенность травы — тривиально, в scene.js цвет травы генерируется через colorObj.setHSL(hue, saturation, lightness) с saturation = 0.5 + noise*0.15 — одна константа, снизить легко.
 Реорганизация сайдбара — тоже полностью реализуемо, это чисто вёрстка (3d-design-tool-new.php, аккордеон уже используется как паттерн) + добавление блока summary под кнопкой Quote. JS-обработчики (ui.js) в основном завязаны на id элементов, а не на их расположение в DOM, так что перестановка блоков в HTML их не сломает — нужно только аккуратно свести это с уже существующим отдельным блоком "Your Building Summary" в модалке квоута (в tools-actions.js/PHP), чтобы не дублировать логику.
+/****************************************************************************************************/
+1. Steel colors → более металлические панели
+Проблема: MeshStandardMaterial уже с metalness/roughness, но нет environment map. Отражать нечему → панели выглядят матовыми/пластиковыми.
+
+ФайлЧто правитьjs/colorise.jsМатериалы roofMat, wallMat, trimMat, eaveTrimMat, wainscotMat — metalness/roughness/envMapIntensity (уже частично есть: roof 0.35/0.45, trim 0.5/0.35). Подкрутить значения и убедиться, что envMap назначается.js/scene.jsДобавить env map: PMREMGenerator + простая sky/HDRI или RoomEnvironment. Сейчас только HemisphereLight + AmbientLight + DirectionalLight — без envMap PBR почти «мёртвый».js/texturiser.jsЕсли профили панелей дают текстуры — проверить, не затирают ли они metalness.
+Суть правки: env map в scene.js + чуть выше metalness / ниже roughness для trim/roof/wall в colorise.js. Без «зеркала» — умеренный блеск.
+
+2. Blue bar по центру 3D viewport
+Это синий alert #information → «This is conseptual design tool…».
+Сейчас в CSS:
+CSS#information {
+  position: absolute;
+  bottom: -15px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 100%;
+  max-width: 960px;
+}
+Центрируется относительно всей страницы, а справа есть #settings-panel (420px) → визуально бар смещён вправо относительно 3D-области.
+
+ФайлЧто правитьjs/template-style.cssПравила #information (около строк 181–189 и media 198–203). Центрировать относительно #canvas-container, а не body/#app-container.3d-design-tool-new.php (опционально)Перенести #information внутрь #canvas-container, тогда left: 50% + translateX(-50%) будет относительно viewport.
+Рекомендуемый вариант: перенести HTML-блок #information внутрь #canvas-container и оставить left: 50%; transform: translateX(-50%) + width/max-width под ширину canvas.
+
+3. Eave & corner trims — тоньше, ближе к зданию
+Проблема подтверждена кодом:
+
+Углы: сплошной BoxGeometry(tS, colH, tS) — брус, не гнутый профиль.
+Eave/rake: прямоугольное сечение, tS: 0.12 (12 см) — толсто и с глубоким свесом.
+
+ФайлЧто правитьjs/trims.jsОсновной файл.TRIM_CONFIG.tS (сейчас 0.12) → уменьшить, напр. 0.04–0.06.createEaveTrim() / createRakeTrim() — заменить прямоугольник на L/J/Z-профиль через THREE.Shape (техника уже есть у gutter/ridge в этом же файле).Угловые стойки (~строки 240–253): вместо BoxGeometry — тонкий L-уголок (два полки), прижатый к стенам.Смещения eaveLengthOffset, позиции ±halfW - overL — уменьшить вынос, чтобы trim сидел ближе к панели.
+Вторично: если цвета eave/trim обновляются только через colorise.js — геометрия всё равно в trims.js.
+
+4. Rigid frame visibility (columns / rafters)
+Проблема:
+
+Main frames: 0x334155, roughness 0.5, metalness 0.4
+Girts/purlins: 0x475569, roughness 0.5, metalness 0.5
+
+Цвета почти одинаковые → двутавр теряется на фоне прогонов. Геометрия рам уже детальная (tapered I-beam), вторичка — простые BoxGeometry.
+
+ФайлЧто правитьjs/main-frames.jsМатериал frameMat (строки 3–7): светлее/контрастнее (например 0x1e293b или чуть холоднее + metalness ↑, roughness ↓). Опционально чуть увеличить flangeW / webT для читаемости.js/girts.jssteelMat 0x475569 → светлее/серее и выше roughness, чтобы вторичка ушла на второй план.js/purlins.jsТо же, что girts — развести цвет/roughness от main frames.js/builder.jsПорядок добавления в scene: frames до/после girts-purlins уже есть; при необходимости можно чуть поднять frames по renderOrder или не прятать их геометрией стен.
+Идея: primary structure (frames) — темнее + чуть металличнее; secondary (girts/purlins) — светлее и матовее.
