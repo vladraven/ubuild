@@ -133,7 +133,7 @@ function createHillyTerrain() {
 
         // 1. Формирование холмов
         if (distFromCenter > 90) {
-            const factor = Math.min(1.0, (distFromCenter - 90) / 150);
+            const factor = Math.min(1.0, (distFromCenter - 90) / 350);
             const z = (Math.sin(x * 0.012) * Math.cos(y * 0.012) * 3.0 + Math.sin(x * 0.003) * 5.0) * factor;
             position.setZ(i, z);
         } else {
@@ -145,9 +145,9 @@ function createHillyTerrain() {
         const noise = (Math.sin(x * 0.005) + Math.cos(y * 0.006) + Math.sin((x + y) * 0.002)) / 3;
         
         // Базовый цвет травы (оттенок HSL: зелёный). Смешиваем шум с яркостью и насыщенностью.
-        const hue = 0.28 + (noise * 0.03); // Слегка меняем тон
-        const saturation = 0.36 + (noise * 0.12); // Пятна разной насыщенности (снижено для менее "кислотного" вида)
-        const lightness = 0.35 + (noise * 0.1); // Светлые и темные пятна
+        const hue = 0.18 + (noise * 0.03); // Слегка меняем тон
+        const saturation = 0.01 + (noise * 0.012); // Пятна разной насыщенности (снижено для менее "кислотного" вида)
+        const lightness = 0.25 + (noise * 0.1); // Светлые и темные пятна
 
         colorObj.setHSL(hue, saturation, lightness);
         
