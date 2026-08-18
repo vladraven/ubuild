@@ -33,6 +33,7 @@ scene.add(dragGhostMesh);
 
 // Загрузка текстуры травы
 const textureLoader = new THREE.TextureLoader();
+textureLoader.setCrossOrigin('anonymous');
 const grassTex = textureLoader.load('https://cdn.jsdelivr.net/gh/mrdoob/three.js@r148/examples/textures/terrain/grasslight-big.jpg');
 grassTex.wrapS = THREE.RepeatWrapping;
 grassTex.wrapT = THREE.RepeatWrapping;
@@ -50,12 +51,22 @@ const grassMeshMat = new THREE.MeshStandardMaterial({
     metalness: 0.0
 });
 
+// Skybox куб текстур из оригинальных коммитов
+const skyPath = 'https://cdn.jsdelivr.net/gh/mrdoob/three.js@r148/examples/textures/cube/skyboxsun25deg/';
+const cubeTextureLoader = new THREE.CubeTextureLoader();
+cubeTextureLoader.setCrossOrigin('anonymous');
+const skyboxTexture = cubeTextureLoader.load([
+    skyPath + 'px.jpg',
+    skyPath + 'nx.jpg',
+    skyPath + 'py.jpg',
+    skyPath + 'ny.jpg',
+    skyPath + 'pz.jpg',
+    skyPath + 'nz.jpg'
+]);
+
 export function initScene(container) {
-    // Bright, clear blue sky background instead of a grey/hazy tone
-    scene.background = new THREE.Color(0x87CEEB); 
-    // Fog reduced drastically (kept only as a very subtle depth cue on the far
-    // horizon) so it no longer washes the whole scene out grey/gloomy.
-    scene.fog = new THREE.FogExp2(0x87CEEB, 0.0003);
+    scene.background = skyboxTexture;
+    scene.fog = new THREE.FogExp2(0xdce7f3, 0.0006);
 
     camera = new THREE.PerspectiveCamera(45, container.clientWidth / container.clientHeight, 0.1, 5000);
     camera.position.set(70, 15, 70); 
