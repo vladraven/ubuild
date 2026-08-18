@@ -47,7 +47,7 @@ const grassMeshMat = new THREE.MeshStandardMaterial({
     bumpMap: grassTex,     // Используем ту же текстуру для объема
     bumpScale: 0.15,       // Высота травинок
     vertexColors: true,    // Включаем макро-цвета (пятна на ландшафте)
-    roughness: 0.95,
+    roughness: 1.95,
     metalness: 0.0
 });
 
@@ -90,14 +90,14 @@ export function initScene(container) {
     controls.autoRotateSpeed = 0.2;
 
     // Much brighter environment lighting overall
-    const hemiLight = new THREE.HemisphereLight(0xffffff, 0x5a5a6a, 1.5);
+    const hemiLight = new THREE.HemisphereLight(0xdedede, 0x5a5a6a, .75);
     hemiLight.position.set(0, 200, 0);
     scene.add(hemiLight);
 
-    const ambientLight = new THREE.AmbientLight(0xffffff, 1.3);
+    const ambientLight = new THREE.AmbientLight(0xdedede, .75);
     scene.add(ambientLight);
 
-    const sun = new THREE.DirectionalLight(0xfffaea, 2.8);
+    const sun = new THREE.DirectionalLight(0xdedede, 1.5);
     sun.position.set(150, 250, 120);
     sun.castShadow = true;
 
@@ -136,6 +136,9 @@ function createHillyTerrain() {
     const worldSize = 3000;
     const segments = 128;
 
+
+
+
     const terrainGeo = new THREE.PlaneGeometry(worldSize, worldSize, segments, segments);
     const position = terrainGeo.attributes.position;
     
@@ -161,12 +164,11 @@ function createHillyTerrain() {
         // Используем комбинацию синусоид для создания случайных природных пятен (noise)
         const noise = (Math.sin(x * 0.005) + Math.cos(y * 0.006) + Math.sin((x + y) * 0.002)) / 3;
         
-        // Яркий, насыщенный зелёный газон (FIX 2: было слишком серо/тускло: sat ~0.01-0.02, light ~0.25-0.35)
-        const hue = 0.32 + (noise * 0.025); // Чистый зелёный тон
-        const saturation = 0.55 + (noise * 0.12); // Насыщенные, но естественные пятна травы
-        const lightness = 0.4 + (noise * 0.08); // Заметно светлее, без сероватого налёта
-
-        colorObj.setHSL(hue, saturation, lightness);
+		// Яркий, насыщенный зелёный газон (FIX 2: было слишком серо/тускло: sat ~0.01-0.02, light ~0.25-0.35)
+		const hue = 0.3 + (noise * 0.12);         // Чистый сочный тон травы
+		const saturation = 0.25 + (noise * 0.08);  // Сочность (чем выше, тем ярче)
+		const lightness = 0.3 + (noise * 0.08);   // <-- ЯРКОСТЬ: поднимите до 0.38 - 0.45
+		colorObj.setHSL(hue, saturation, lightness);
         
         colors[i * 3] = colorObj.r;
         colors[i * 3 + 1] = colorObj.g;
