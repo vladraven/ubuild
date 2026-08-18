@@ -5,6 +5,15 @@ import { wallMat, roofMat, wainscotMat, intWallMat } from './colorise.js';
 let cachedWallNormalMap = null;
 let cachedRoofNormalMap = null;
 
+// FIX 3: physical panel-rib pitch (in feet). Wall texture tiling is derived from
+// real-world feet, not from raw meter values or a normalized 0..1 UV range, so
+// the rib density scales proportionally with the building's actual size
+// (a 300ft wall gets proportionally more ribs than a 20ft wall) instead of the
+// texture simply stretching to fit.
+const METERS_TO_FEET = 3.28084;
+const PANEL_PITCH_FT = 1.0;   // ~1 rib per foot of wall length (baseline density)
+const PANEL_HEIGHT_FT = 1.0;  // reference unit for vertical tiling
+
 // Создание контрастной и резкой нормаль-карты профилированного листа
 function createRibbedNormalTexture(width = 512, height = 512, ribCount = 16) {
     const canvas = document.createElement('canvas');
@@ -81,12 +90,21 @@ export function updateBuildingTextures(buildingW = 18, buildingL = 30, buildingH
 
     if (wallProfile !== 'imp') {
         const density = wallDensities[wallProfile] || 1.0;
-        
+
+        // FIX 3: repeat is derived from PHYSICAL feet (length AND height), so
+        // changing L, W, or H scales the rib count proportionally instead of
+        // stretching/squishing the panel profile.
+        const wallLengthFt = buildingL * METERS_TO_FEET;
+        const wallHeightFt = buildingH * METERS_TO_FEET;
+
+        const repeatX = (wallLengthFt / PANEL_PITCH_FT) * density;
+        const repeatY = wallHeightFt / PANEL_HEIGHT_FT;
+
         // Тайлинг для стен
-        wallTex.repeat.set(buildingL * density, 1);
+        wallTex.repeat.set(repeatX, repeatY);
         
         // Тайлинг для цоколя (должен совпадать по X, чтобы ребра стыковались)
-        wainscotTex.repeat.set(buildingL * density, 1);
+        wainscotTex.repeat.set(repeatX, repeatY);
 
         wallMat.normalMap = wallTex;
         wallMat.normalScale.set(.5, .5); 

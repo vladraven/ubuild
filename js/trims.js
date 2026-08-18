@@ -73,6 +73,29 @@ function createGutter(length) {
     geo.translate(0, 0, -safeLength / 2);
     const mesh = new THREE.Mesh(geo, eaveTrimMat);
     mesh.castShadow = true;
+    mesh.renderOrder = 2;
+
+    // The trough shape above only fills the material (channel wall), leaving the
+    // hollow interior open at both ends. Add flat end-cap plates (matching the
+    // gutter's outer silhouette) to close off that hollow cross-section.
+    const capShape = new THREE.Shape();
+    capShape.moveTo(0, h);
+    capShape.lineTo(0, 0);
+    capShape.absarc(w / 2, 0, w / 2, Math.PI, 0, true);
+    capShape.lineTo(w, h);
+    capShape.closePath();
+    const capGeo = new THREE.ShapeGeometry(capShape);
+
+    const capFront = new THREE.Mesh(capGeo, eaveTrimMat);
+    capFront.position.z = safeLength / 2;
+    capFront.renderOrder = 2;
+    mesh.add(capFront);
+
+    const capBack = new THREE.Mesh(capGeo, eaveTrimMat);
+    capBack.position.z = -safeLength / 2;
+    capBack.renderOrder = 2;
+    mesh.add(capBack);
+
     return mesh;
 }
 
@@ -139,9 +162,13 @@ function createDownspout(eaveY, sideX, overhang, width) {
         const shiftX = (topElbowLen / 2) * Math.sin(topAngleRad);
         const shiftY = (topElbowLen / 2) * Math.cos(topAngleRad);
 
+        // NOTE: intentionally NOT applying GUTTER_CONFIG.topElbow.offsetY here.
+        // pipeTopY/actualPipeTopY are derived directly from gutterBottomY above,
+        // so the elbow's far end lands exactly on the gutter's bottom face
+        // (downspout connects directly to the gutter with no floating gap).
         topMesh.position.set(
             wallX + (sideX * shiftX) + (sideX * GUTTER_CONFIG.topElbow.offsetX), 
-            actualPipeTopY + shiftY + GUTTER_CONFIG.topElbow.offsetY, 
+            actualPipeTopY + shiftY, 
             GUTTER_CONFIG.topElbow.offsetZ
         );
         topMesh.rotation.z = topRotZ;
@@ -184,14 +211,29 @@ function createDownspout(eaveY, sideX, overhang, width) {
     return group;
 }
 
+// Beveled Z/L-profile eave trim (real metal flashing profile), instead of a plain box.
+// Cross-section (in the local X/Y plane, extruded along Z = wall length direction):
+//  - a top "hem" lip that returns slightly toward the wall (rigidity fold)
+//  - an angled main face
+//  - a kicked-out drip edge at the bottom so water sheds away from the wall
 function createEaveTrim(len, sideX, tS, extraH) {
     const shape = new THREE.Shape();
     const h = tS + extraH;
-    
+    const w = tS;
+    const t = Math.max(0.006, tS * 0.15);
+    const lip = w * 0.4;
+    const drip = w * 0.28;
+
     shape.moveTo(0, h / 2);
-    shape.lineTo(0, -h / 2);
-    shape.lineTo(sideX * tS, -h / 2);
-    shape.lineTo(sideX * tS, h / 2);
+    shape.lineTo(sideX * lip, h / 2);
+    shape.lineTo(sideX * lip, h / 2 - t);
+    shape.lineTo(sideX * (lip - t), h / 2 - t);
+    shape.lineTo(sideX * (lip - t), -h / 2 + t + drip);
+    shape.lineTo(sideX * w, -h / 2 + drip);
+    shape.lineTo(sideX * w, -h / 2);
+    shape.lineTo(sideX * (w - t), -h / 2);
+    shape.lineTo(sideX * (w - t), -h / 2 + t);
+    shape.lineTo(0, -h / 2 + t);
     shape.closePath();
 
     const safeLength = Math.max(0.01, len);
@@ -199,7 +241,29 @@ function createEaveTrim(len, sideX, tS, extraH) {
     geo.translate(0, 0, -safeLength / 2);
     const mesh = new THREE.Mesh(geo, eaveTrimMat);
     mesh.castShadow = true;
+    // Render on top of wall/roof panels so underlying textures never bleed through
+    mesh.renderOrder = 2;
     return mesh;
+}
+
+// Small L-shaped angle-bracket profile for corner trim (replaces the plain box column).
+function createCornerTrimGeo(colH, tS, sx, sz) {
+    const halfT = tS / 2;
+    const legT = tS * 0.28;
+    const shape = new THREE.Shape();
+
+    shape.moveTo(sx * -halfT, sz * -halfT);
+    shape.lineTo(sx * halfT, sz * -halfT);
+    shape.lineTo(sx * halfT, sz * (-halfT + legT));
+    shape.lineTo(sx * (-halfT + legT), sz * (-halfT + legT));
+    shape.lineTo(sx * (-halfT + legT), sz * halfT);
+    shape.lineTo(sx * -halfT, sz * halfT);
+    shape.closePath();
+
+    const geo = new THREE.ExtrudeGeometry(shape, { depth: colH, bevelEnabled: false });
+    // Extrusion runs along Z by default; rotate so it runs along Y (building height)
+    geo.rotateX(-Math.PI / 2);
+    return geo;
 }
 
 function createRakeTrim(len, signZ, tS, extraH) {
@@ -218,12 +282,17 @@ function createRakeTrim(len, signZ, tS, extraH) {
     geo.translate(0, 0, -safeLength / 2);
     const mesh = new THREE.Mesh(geo, trimMat);
     mesh.castShadow = true;
+    mesh.renderOrder = 1;
     return mesh;
 }
 
 export function createTrimsGroup(width, length, height, pitchRatio, roofType, enabled, overL = 0, overR = 0, guttersEnabled = false) {
     const group = new THREE.Group();
-    if (!enabled) return group;
+    // Trims and gutters are independent visual layers: bail out only when BOTH
+    // are disabled. This lets the "Gutters & Downspouts" toggle work even when
+    // "Show Trim" is switched off (previously the trims `enabled` flag gated
+    // the entire group, hiding gutters too).
+    if (!enabled && !guttersEnabled) return group;
 
     const tS = TRIM_CONFIG.tS; 
     const extraH = TRIM_CONFIG.eaveHeightExtra;
@@ -237,21 +306,26 @@ export function createTrimsGroup(width, length, height, pitchRatio, roofType, en
     const totalRise = isSingle ? width * pitchRatio : halfW * pitchRatio;
     const ang = Math.atan2(totalRise, isSingle ? width : halfW);
 
-    // Угловые колонны
-    [[-1, 1], [1, 1], [1, -1], [-1, -1]].forEach(([sx, sz]) => {
-        let colH = height;
-        if (sx > 0 && isLSloped) colH = height + totalRise;
-        if (sx < 0 && isRSloped) colH = height + totalRise;
+    // Угловые колонны (L-shaped angle trim, only part of the "Show Trim" layer)
+    if (enabled) {
+        [[-1, 1], [1, 1], [1, -1], [-1, -1]].forEach(([sx, sz]) => {
+            let colH = height;
+            if (sx > 0 && isLSloped) colH = height + totalRise;
+            if (sx < 0 && isRSloped) colH = height + totalRise;
 
-        const posX = sx * halfW;
-        const posZ = sz * halfL;
+            const posX = sx * halfW;
+            const posZ = sz * halfL;
 
-        const corner = new THREE.Mesh(new THREE.BoxGeometry(tS, colH, tS), trimMat);
-        corner.position.set(posX, colH / 2, posZ);
-        corner.castShadow = true;
-        group.add(corner);
-    });
+            const corner = new THREE.Mesh(createCornerTrimGeo(colH, tS, sx, sz), trimMat);
+            corner.position.set(posX, 0, posZ);
+            corner.castShadow = true;
+            corner.renderOrder = 1;
+            group.add(corner);
+        });
+    }
 
+    // Eave height calculations are shared by both the eave trim AND the gutters,
+    // so they must be computed unconditionally (not gated by `enabled`).
     const eaveDropL = overL * pitchRatio;
     const eaveDropR = overR * pitchRatio;
     
@@ -261,17 +335,19 @@ export function createTrimsGroup(width, length, height, pitchRatio, roofType, en
     if (isLSloped) rightEaveY = height + totalRise + eaveDropR + (extraH / 2) + TRIM_CONFIG.eaveYOffset;
     if (isRSloped) leftEaveY = height + totalRise + eaveDropL + (extraH / 2) + TRIM_CONFIG.eaveYOffset;
 
-    const eaveLength = length + (tS * 2) + TRIM_CONFIG.eaveLengthOffset; 
+    if (enabled) {
+        const eaveLength = length + (tS * 2) + TRIM_CONFIG.eaveLengthOffset; 
 
-    const eaveL = createEaveTrim(eaveLength, -1, tS, extraH);
-    eaveL.position.set(-halfW - overL, leftEaveY, 0);
-    group.add(eaveL);
+        const eaveL = createEaveTrim(eaveLength, -1, tS, extraH);
+        eaveL.position.set(-halfW - overL, leftEaveY, 0);
+        group.add(eaveL);
 
-    const eaveR = createEaveTrim(eaveLength, 1, tS, extraH);
-    eaveR.position.set(halfW + overR, rightEaveY, 0);
-    group.add(eaveR);
+        const eaveR = createEaveTrim(eaveLength, 1, tS, extraH);
+        eaveR.position.set(halfW + overR, rightEaveY, 0);
+        group.add(eaveR);
+    }
 
-    // Водостоки
+    // Водостоки (independent of the "Show Trim" toggle - only guttersEnabled matters)
     if (guttersEnabled) {
         const gutterL = createGutter(length);
         gutterL.scale.x = -1; 
@@ -291,13 +367,19 @@ export function createTrimsGroup(width, length, height, pitchRatio, roofType, en
             
             const dsL = createDownspout(leftEaveY, -1, overL, width);
             dsL.position.set(0, 0, zPos);
+            // Tag with wall side + position-along-wall so door-collision auto-hide
+            // (updateDownspoutVisibility in gutters.js) can find and toggle it.
+            dsL.userData = { isDownspout: true, side: 'L', wallPos: zPos };
             group.add(dsL);
 
             const dsR = createDownspout(rightEaveY, 1, overR, width);
             dsR.position.set(0, 0, zPos);
+            dsR.userData = { isDownspout: true, side: 'R', wallPos: zPos };
             group.add(dsR);
         }
     }
+
+    if (!enabled) return group;
 
     // Передний и задний трим
     for (let sZ of [-1, 1]) {
@@ -339,11 +421,14 @@ export function createTrimsGroup(width, length, height, pitchRatio, roofType, en
         }
     }
 
-    // Конёк
+    // Конёк (Ridge Cap) - must sit exactly at the roof apex with no gap
     if (isG) {
-        const capWidth = 0.65;  
-        const capThickness = 0.03; 
-        const capPeakH = capWidth * Math.tan(ang) + 0.04; 
+        const capWidth = 0.4; // ~15.75in - realistic ridge cap width (within 12-18in range)
+        const capThickness = 0.03;
+        const overlapMargin = 0.02; // small extra rise so the flanks fully overlap the roof surface
+        // Flank slope must match the actual roof pitch angle so the cap sits flush
+        // against both roof panels with no visible gap.
+        const capPeakH = (capWidth / 2) * Math.tan(ang) + overlapMargin;
 
         const shape = new THREE.Shape();
         shape.moveTo(-capWidth / 2, 0);
@@ -359,9 +444,14 @@ export function createTrimsGroup(width, length, height, pitchRatio, roofType, en
         const ridgeGeo = new THREE.ExtrudeGeometry(shape, { depth: ridgeLength, bevelEnabled: false });
         ridgeGeo.translate(0, 0, -ridgeLength / 2);
 
+        // apexY = eaveHeight + (buildingWidth/2) * tan(roofPitchAngle)
+        // totalRise already equals halfW * pitchRatio (= halfW * tan(ang)), so:
+        const apexY = height + totalRise;
+
         const ridgeCap = new THREE.Mesh(ridgeGeo, trimMat);
-        ridgeCap.position.set(0, height + totalRise + 0.01 + TRIM_CONFIG.eaveHeightExtra, 0);
+        ridgeCap.position.set(0, apexY, 0);
         ridgeCap.castShadow = true;
+        ridgeCap.renderOrder = 2;
         group.add(ridgeCap);
     }
 

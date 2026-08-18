@@ -15,6 +15,8 @@ const mouse = new THREE.Vector2();
 
 let draggedOpening = null;    
 let currentSelectedOpening = null;
+let dragOffsetX = 0;
+let dragOffsetY = 0;
 
 const ghostMaterial = new THREE.MeshBasicMaterial({
     color: 0x3b82f6,
@@ -49,8 +51,11 @@ const grassMeshMat = new THREE.MeshStandardMaterial({
 });
 
 export function initScene(container) {
-    scene.background = new THREE.Color(0xdce7f3); 
-    scene.fog = new THREE.FogExp2(0xdce7f3, 0.0015); // Слегка раздвигаем туман для лучшей видимости горизонта
+    // Bright, clear blue sky background instead of a grey/hazy tone
+    scene.background = new THREE.Color(0x87CEEB); 
+    // Fog reduced drastically (kept only as a very subtle depth cue on the far
+    // horizon) so it no longer washes the whole scene out grey/gloomy.
+    scene.fog = new THREE.FogExp2(0x87CEEB, 0.0003);
 
     camera = new THREE.PerspectiveCamera(45, container.clientWidth / container.clientHeight, 0.1, 5000);
     camera.position.set(70, 15, 70); 
@@ -73,14 +78,15 @@ export function initScene(container) {
     controls.autoRotate = true;
     controls.autoRotateSpeed = 0.2;
 
-    const hemiLight = new THREE.HemisphereLight(0xe6f0fa, 0x444455, 0.65);
+    // Much brighter environment lighting overall
+    const hemiLight = new THREE.HemisphereLight(0xffffff, 0x5a5a6a, 1.5);
     hemiLight.position.set(0, 200, 0);
     scene.add(hemiLight);
 
-    const ambientLight = new THREE.AmbientLight(0xffffff, 0.3);
+    const ambientLight = new THREE.AmbientLight(0xffffff, 1.3);
     scene.add(ambientLight);
 
-    const sun = new THREE.DirectionalLight(0xfffaea, 1.4);
+    const sun = new THREE.DirectionalLight(0xfffaea, 2.8);
     sun.position.set(150, 250, 120);
     sun.castShadow = true;
 
@@ -144,10 +150,10 @@ function createHillyTerrain() {
         // Используем комбинацию синусоид для создания случайных природных пятен (noise)
         const noise = (Math.sin(x * 0.005) + Math.cos(y * 0.006) + Math.sin((x + y) * 0.002)) / 3;
         
-        // Базовый цвет травы (оттенок HSL: зелёный). Смешиваем шум с яркостью и насыщенностью.
-        const hue = 0.18 + (noise * 0.03); // Слегка меняем тон
-        const saturation = 0.01 + (noise * 0.012); // Пятна разной насыщенности (снижено для менее "кислотного" вида)
-        const lightness = 0.25 + (noise * 0.1); // Светлые и темные пятна
+        // Яркий, насыщенный зелёный газон (FIX 2: было слишком серо/тускло: sat ~0.01-0.02, light ~0.25-0.35)
+        const hue = 0.32 + (noise * 0.025); // Чистый зелёный тон
+        const saturation = 0.55 + (noise * 0.12); // Насыщенные, но естественные пятна травы
+        const lightness = 0.4 + (noise * 0.08); // Заметно светлее, без сероватого налёта
 
         colorObj.setHSL(hue, saturation, lightness);
         
@@ -204,6 +210,30 @@ function resolveStrictCollisions(side, currentOpId, targetX, targetY, currW, cur
     return clampedX;
 }
 
+// FIX 7: Shared raw wall-plane raycast used by both pointerdown (to capture the
+// click offset) and pointermove (to re-derive the hit each frame). Returns the
+// intersection point in wall-local coordinates (X along the wall, raw world Y),
+// or null if the current raycaster ray doesn't hit the opening's wall plane.
+function getRawWallHit(opening) {
+    const side = opening.side;
+    if (!opening.meshGroup || !opening.meshGroup.parent) return null;
+
+    const planeNormal = new THREE.Vector3();
+    if (side === 'F') planeNormal.set(0, 0, 1);
+    else if (side === 'B') planeNormal.set(0, 0, -1);
+    else if (side === 'L') planeNormal.set(-1, 0, 0);
+    else if (side === 'R') planeNormal.set(1, 0, 0);
+
+    const plane = new THREE.Plane();
+    plane.setFromNormalAndCoplanarPoint(planeNormal, opening.meshGroup.parent.position);
+
+    const intersection = new THREE.Vector3();
+    if (!raycaster.ray.intersectPlane(plane, intersection)) return null;
+
+    const localX = (side === 'F' || side === 'B') ? intersection.x : intersection.z;
+    return { localX, worldY: intersection.y };
+}
+
 function setupDragAndDrop(container) {
     const stopAutoRotation = () => {
         if (controls && controls.autoRotate) {
@@ -257,6 +287,23 @@ function setupDragAndDrop(container) {
                     const def = openingDefs[draggedOpening.opData.type];
                     const opW = draggedOpening.opData.w || (def ? def.w : 1.0);
                     const opH = draggedOpening.opData.h || (def ? def.h : 1.0);
+
+                    // FIX 7: capture the offset between the opening's current
+                    // center and the raw raycast hit at the moment of click, so
+                    // dragging preserves where the user actually grabbed the
+                    // opening instead of snapping its center to the cursor.
+                    const initHit = getRawWallHit(draggedOpening);
+                    if (initHit) {
+                        dragOffsetX = draggedOpening.opData.x - initHit.localX;
+                        const currentYOff = (draggedOpening.opData.type === 'Window')
+                            ? (draggedOpening.opData.yOff !== undefined ? draggedOpening.opData.yOff : 1.0)
+                            : 0;
+                        const hitYOff = Math.max(0, initHit.worldY - opH / 2);
+                        dragOffsetY = currentYOff - hitYOff;
+                    } else {
+                        dragOffsetX = 0;
+                        dragOffsetY = 0;
+                    }
 
                     dragGhostMesh.geometry.dispose();
                     dragGhostMesh.geometry = new THREE.PlaneGeometry(opW, opH);
@@ -312,6 +359,14 @@ function setupDragAndDrop(container) {
                 localY = 0;
             }
 
+            // FIX 7: re-apply the offset captured on pointerdown so the opening
+            // keeps its position relative to the initial click instead of
+            // jumping so its center snaps to the raw raycast hit.
+            localX = localX + dragOffsetX;
+            if (draggedOpening.opData.type === 'Window') {
+                localY = Math.max(0, localY + dragOffsetY);
+            }
+
             localX = resolveStrictCollisions(side, draggedOpening.opData.id, localX, localY, opW, opH);
 
             const minBound = -wallLength / 2 + halfOpW;
@@ -333,6 +388,8 @@ function setupDragAndDrop(container) {
                 dragGhostMesh.parent.remove(dragGhostMesh);
             }
             draggedOpening = null;
+            dragOffsetX = 0;
+            dragOffsetY = 0;
             controls.enabled = true;
             updateBuilding();
         }

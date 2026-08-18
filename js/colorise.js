@@ -40,7 +40,11 @@ export const trimMat = new THREE.MeshStandardMaterial({
     roughness: 0.28,
     side: THREE.DoubleSide,
     shadowSide: THREE.DoubleSide,
-    envMapIntensity: 1.2
+    envMapIntensity: 1.2,
+    // Ensure trim renders in front of wall/roof panels so textures don't bleed through
+    polygonOffset: true,
+    polygonOffsetFactor: -1,
+    polygonOffsetUnits: -1
 });
 
 export const eaveTrimMat = new THREE.MeshStandardMaterial({
@@ -49,7 +53,11 @@ export const eaveTrimMat = new THREE.MeshStandardMaterial({
     roughness: 0.28,
     side: THREE.DoubleSide,
     shadowSide: THREE.DoubleSide,
-    envMapIntensity: 1.2
+    envMapIntensity: 1.2,
+    // Ensure trim renders in front of wall/roof panels so textures don't bleed through
+    polygonOffset: true,
+    polygonOffsetFactor: -1,
+    polygonOffsetUnits: -1
 });
 
 export const steelMat = new THREE.MeshStandardMaterial({

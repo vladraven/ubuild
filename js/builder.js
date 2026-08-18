@@ -10,6 +10,7 @@ import { createCraneGroup } from './crane.js';
 
 import { createMainFramesGroup } from './main-frames.js';
 import { createTrimsGroup } from './trims.js';
+import { updateDownspoutVisibility } from './gutters.js';
 import { createGirtsGroup } from './girts.js';
 import { createPurlinsGroup } from './purlins.js';
 import { createEndWallColumnsGroup } from './end-wall-columns.js';
@@ -88,7 +89,11 @@ export function updateBuilding() {
 
     const checkTrims = document.getElementById('checkTrims')?.checked ?? true;
     const checkGutters = document.getElementById('checkGutters')?.checked ?? false;
-    mainGroup.add(createTrimsGroup(width, length, height, pitchRatio, roofType, checkTrims, overL, overR, checkGutters));
+    const trimsGroup = createTrimsGroup(width, length, height, pitchRatio, roofType, checkTrims, overL, overR, checkGutters);
+    mainGroup.add(trimsGroup);
+    // FIX 6: hide any downspout that overlaps a door on the same wall (auto-runs
+    // on every rebuild, i.e. whenever a door is added, moved, or deleted).
+    updateDownspoutVisibility(trimsGroup);
 
     const checkGirts = document.getElementById('checkGirts')?.checked ?? true;
     mainGroup.add(createGirtsGroup(width, length, height, checkGirts));

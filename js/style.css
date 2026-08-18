@@ -179,13 +179,81 @@ hr {
 }
 
 .btn-delete {
-	background: #e63946;
+	background: #7f8c8d;
 	color: #fff;
 	border: none;
 	padding: 2px 8px;
 	font-size: 11px;
 	border-radius: 2px;
 	cursor: pointer;
+}
+
+/* --- FIX 8: Monochromatic button palette ---
+   Bootstrap's default btn-primary (blue), btn-secondary (grey-blue), btn-light,
+   and btn-outline-danger (red) mixed several unrelated accent colors across the
+   toolbar/sidebar buttons. Replace them with a single neutral palette:
+   #2c3e50 (dark slate) for primary actions, #ecf0f1 (light grey) backgrounds,
+   #7f8c8d (muted grey) for secondary/outline elements, white text throughout. */
+.btn-primary,
+.btn-primary:hover,
+.btn-primary:focus,
+.btn-primary:active {
+	background-color: #2c3e50 !important;
+	border-color: #2c3e50 !important;
+	color: #ffffff !important;
+	box-shadow: none !important;
+}
+
+.btn-secondary,
+.btn-secondary:hover,
+.btn-secondary:focus,
+.btn-secondary:active {
+	background-color: #7f8c8d !important;
+	border-color: #7f8c8d !important;
+	color: #ffffff !important;
+	box-shadow: none !important;
+}
+
+.btn-light,
+.btn-light:hover,
+.btn-light:focus,
+.btn-light:active {
+	background-color: #ecf0f1 !important;
+	border-color: #ecf0f1 !important;
+	color: #2c3e50 !important;
+	box-shadow: none !important;
+}
+
+.btn-outline-secondary,
+.btn-outline-secondary:hover,
+.btn-outline-secondary:focus {
+	color: #2c3e50 !important;
+	border-color: #7f8c8d !important;
+	background-color: transparent !important;
+}
+.btn-outline-secondary:hover {
+	background-color: #ecf0f1 !important;
+}
+
+.btn-outline-danger,
+.btn-outline-danger:hover,
+.btn-outline-danger:focus {
+	color: #2c3e50 !important;
+	border-color: #7f8c8d !important;
+	background-color: transparent !important;
+}
+.btn-outline-danger:hover {
+	background-color: #ecf0f1 !important;
+	color: #2c3e50 !important;
+}
+
+/* Any leftover per-button animated/gradient accent (e.g. .animated-button) is
+   neutralised to the same flat dark-slate treatment, with animation removed. */
+.animated-button {
+	background-color: #2c3e50 !important;
+	background-image: none !important;
+	animation: none !important;
+	color: #ffffff !important;
 }
 
 /* --- Модальные окна и Оверлеи --- */
@@ -270,7 +338,7 @@ hr {
 }
 
 .compare-specs li b {
-	color: #00ffcc;
+	color: #ecf0f1;
 }
 
 /* --- Адаптивность --- */
