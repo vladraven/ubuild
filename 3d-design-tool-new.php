@@ -103,6 +103,17 @@ function get_color_defaults_optimized($color_categories, $color_defaults)
     <span>Loading 3D Model...</span>
 </div>
 
+<div id="information">
+<div class="alert alert-primary alert-dismissible fade show" role="alert">
+	<svg xmlns="http://www.w3.org/2000/svg" class="bi flex-shrink-0 me-2" viewBox="0 0 16 16" role="img" aria-label="Warning:" style="width: 14px;">
+	<path d="M8.982 1.566a1.13 1.13 0 0 0-1.96 0L.165 13.233c-.457.778.091 1.767.98 1.767h13.713c.889 0 1.438-.99.98-1.767L8.982 1.566zM8 5c.535 0 .954.462.9.995l-.35 3.507a.552.552 0 0 1-1.1 0L7.1 5.995A.905.905 0 0 1 8 5zm.002 6a1 1 0 1 1 0 2 1 1 0 0 1 0-2z"/>
+	</svg>
+	This is conseptual design tool. Our team will review your project and help finalize every detail.
+	<button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close" style="transform: transkateY(-10px); font-size: 12px;"></button>
+
+</div>
+</div>
+
 <div id="app-container">
     <div id="canvas-container">
         <div id="top-tools">
@@ -143,8 +154,22 @@ function get_color_defaults_optimized($color_categories, $color_defaults)
     
     <div id="settings-panel" class="pt-3 px-3">
         <h5 class="mb-3">Building Configurator</h5>
-        
+
         <button id="btn-trigger-quote-modal" class="btn btn-primary border-light text-uppercase position-relative animated-button mb-3 w-100" data-bs-toggle="modal" data-bs-target="#quoteModal">Request a free Quote</button>
+
+        <!-- Small live summary directly under the Quote CTA -->
+        <div class="card p-2 mb-3 border" id="sidebar-summary-card" style="background: #f8fafc; border-radius: 6px;">
+            <div class="d-flex gap-2 align-items-center">
+                <div id="sidebar-summary-image-container" style="width: 56px; height: 44px; flex-shrink: 0; background: #e2e8f0; border-radius: 4px; overflow: hidden; display: flex; align-items: center; justify-content: center;">
+                    <img id="sidebar-summary-thumb" src="" alt="Building Snapshot" style="width: 100%; height: 100%; object-fit: cover; display: none;">
+                    <i id="sidebar-summary-fallback" class="bi bi-building text-secondary" style="font-size: 18px;"></i>
+                </div>
+                <div style="font-size: 12px; line-height: 1.4;">
+                    <div class="fw-bold text-dark" id="sidebar-summary-dimensions">60' x 100' x 16'</div>
+                    <div class="text-muted" id="sidebar-summary-roof">Gable Roof</div>
+                </div>
+            </div>
+        </div>
 
         <div class="form-check form-switch mb-3 pb-2 border-bottom">
             <input class="form-check-input" type="checkbox" id="unitToggle">
@@ -153,64 +178,15 @@ function get_color_defaults_optimized($color_categories, $color_defaults)
 
         <div class="custom-accordion" id="configuratorAccordion">
 
+            <!-- ================= 1. BUILDING ================= -->
             <div class="custom-accordion-item mb-2 active">
                 <div class="custom-accordion-header bg-dark text-white fw-bold py-3 px-3 text-uppercase">
-                    Colors & Dimensions
+                    Building
                     <i class="bi bi-chevron-down float-end accordion-arrow"></i>
                 </div>
 
                 <div class="custom-accordion-content border p-3">
                     <div class="accordion-body px-1 py-3">
-                        <div class="col-12 mb-3"><label class="control-label">Roof Color</label>
-                            <select class="form-select color-select" id="colorRoof">
-                                <?php foreach ($roofColors as $color) {
-                                    $roofDefaultColor = (trim(strtolower($color['color_name'])) === 'stone grey') ? 'selected' : ''; ?>
-                                    <option value="<?php echo esc_attr($color['color_hexcode']); ?>" <?php echo $roofDefaultColor; ?>>
-                                        <?php echo esc_html($color['color_name']); ?>
-                                    </option>
-                                <?php } ?>
-                            </select>
-                        </div>
-                        <div class="col-12 mb-3"><label class="control-label">Wall Color</label>
-                            <select class="form-select color-select" id="colorWall">
-                                <?php foreach ($wallColors as $color) {
-                                    $wallDefaultColor = (trim(strtolower($color['color_name'])) === 'white white') ? 'selected' : ''; ?>
-                                    <option value="<?php echo esc_attr($color['color_hexcode']); ?>" <?php echo $wallDefaultColor; ?>>
-                                        <?php echo esc_html($color['color_name']); ?>
-                                    </option>
-                                <?php } ?>
-                            </select>
-                        </div>
-                        <div class="col-12 mb-3"><label class="control-label">Trim Color</label>
-                            <select class="form-select color-select" id="colorTrim">
-                                  <?php foreach ($trimColors as $color) {
-                                        $trimDefaultColor = (trim(strtolower($color['color_name'])) === 'royal blue') ? 'selected' : ''; ?>
-                                        <option value="<?php echo esc_attr($color['color_hexcode']); ?>" <?php echo $trimDefaultColor; ?>>
-                                            <?php echo esc_html($color['color_name']); ?>
-                                        </option>
-                                    <?php } ?>
-                            </select>
-                        </div>
-                        <div class="col-12 mb-3"><label class="control-label">Eave Trim Color</label>
-                            <select class="form-select color-select" id="colorEaveTrim">
-                                  <?php foreach ($trimColors as $color) {
-                                        $eaveDefaultColor = (trim(strtolower($color['color_name'])) === 'royal blue') ? 'selected' : ''; ?>
-                                        <option value="<?php echo esc_attr($color['color_hexcode']); ?>" <?php echo $eaveDefaultColor; ?>>
-                                            <?php echo esc_html($color['color_name']); ?>
-                                        </option>
-                                    <?php } ?>
-                            </select>
-                        </div>
-                        <div class="col-12 mb-3"><label class="control-label">Wainscot Color</label>
-                            <select class="form-select color-select" id="colorWainscot">
-                                 <?php foreach ($wainscotColors as $color) {
-                                        $wainscotDefaultColor = (trim(strtolower($color['color_name'])) === 'royal blue') ? 'selected' : ''; ?>
-                                        <option value="<?php echo esc_attr($color['color_hexcode']); ?>" <?php echo $wainscotDefaultColor; ?>>
-                                            <?php echo esc_html($color['color_name']); ?>
-                                        </option>
-                                    <?php } ?>
-                            </select>
-                        </div>
 
                         <div class="mb-3">
                             <label class="control-label">Roof Type <i class="bi bi-question-circle" data-bs-toggle="tooltip" title="Select between standard Gabled, Single Slope, or Side Sloped designs."></i></label>
@@ -266,6 +242,101 @@ function get_color_defaults_optimized($color_categories, $color_defaults)
                             <div class="col-3"><input type="text" class="form-control form-control-sm text-end" id="valPitch" value="0.6:12"></div>
                         </div>
 
+                    </div>
+                </div>
+            </div>
+
+            <!-- ================= 2. COLORS ================= -->
+            <div class="custom-accordion-item mb-2">
+                <div class="custom-accordion-header bg-dark text-white fw-bold py-3 px-3 text-uppercase">
+                    Colors
+                    <i class="bi bi-chevron-down float-end accordion-arrow"></i>
+                </div>
+
+                <div class="custom-accordion-content border p-3">
+                    <div class="accordion-body px-1 py-3">
+                        <div class="col-12 mb-3"><label class="control-label">Roof Color</label>
+                            <select class="form-select color-select" id="colorRoof">
+                                <?php foreach ($roofColors as $color) {
+                                    $roofDefaultColor = (trim(strtolower($color['color_name'])) === 'stone grey') ? 'selected' : ''; ?>
+                                    <option value="<?php echo esc_attr($color['color_hexcode']); ?>" <?php echo $roofDefaultColor; ?>>
+                                        <?php echo esc_html($color['color_name']); ?>
+                                    </option>
+                                <?php } ?>
+                            </select>
+                        </div>
+                        <div class="col-12 mb-3"><label class="control-label">Wall Color</label>
+                            <select class="form-select color-select" id="colorWall">
+                                <?php foreach ($wallColors as $color) {
+                                    $wallDefaultColor = (trim(strtolower($color['color_name'])) === 'white white') ? 'selected' : ''; ?>
+                                    <option value="<?php echo esc_attr($color['color_hexcode']); ?>" <?php echo $wallDefaultColor; ?>>
+                                        <?php echo esc_html($color['color_name']); ?>
+                                    </option>
+                                <?php } ?>
+                            </select>
+                        </div>
+                        <div class="col-12 mb-3"><label class="control-label">Trim Color</label>
+                            <select class="form-select color-select" id="colorTrim">
+                                  <?php foreach ($trimColors as $color) {
+                                        $trimDefaultColor = (trim(strtolower($color['color_name'])) === 'royal blue') ? 'selected' : ''; ?>
+                                        <option value="<?php echo esc_attr($color['color_hexcode']); ?>" <?php echo $trimDefaultColor; ?>>
+                                            <?php echo esc_html($color['color_name']); ?>
+                                        </option>
+                                    <?php } ?>
+                            </select>
+                        </div>
+                        <div class="col-12 mb-3"><label class="control-label">Eave Trim Color</label>
+                            <select class="form-select color-select" id="colorEaveTrim">
+                                  <?php foreach ($trimColors as $color) {
+                                        $eaveDefaultColor = (trim(strtolower($color['color_name'])) === 'royal blue') ? 'selected' : ''; ?>
+                                        <option value="<?php echo esc_attr($color['color_hexcode']); ?>" <?php echo $eaveDefaultColor; ?>>
+                                            <?php echo esc_html($color['color_name']); ?>
+                                        </option>
+                                    <?php } ?>
+                            </select>
+                        </div>
+                        <div class="col-12 mb-3"><label class="control-label">Wainscot Color</label>
+                            <select class="form-select color-select" id="colorWainscot">
+                                 <?php foreach ($wainscotColors as $color) {
+                                        $wainscotDefaultColor = (trim(strtolower($color['color_name'])) === 'royal blue') ? 'selected' : ''; ?>
+                                        <option value="<?php echo esc_attr($color['color_hexcode']); ?>" <?php echo $wainscotDefaultColor; ?>>
+                                            <?php echo esc_html($color['color_name']); ?>
+                                        </option>
+                                    <?php } ?>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ================= 3. DOORS & WINDOWS ================= -->
+            <div class="custom-accordion-item mb-2">
+                <div class="custom-accordion-header bg-dark text-white fw-bold py-3 px-3 text-uppercase">
+                    Doors &amp; Windows
+                    <i class="bi bi-chevron-down float-end accordion-arrow"></i>
+                </div>
+                <div class="custom-accordion-content border p-3">
+                    <div class="accordion-body px-1 py-3">
+                        <p class="text-muted">Drag placed openings on the wall to move them.</p>
+                        <div class="mb-2">
+                            <select class="form-select form-select-sm mb-1" id="addOpeningWall"></select>
+                            <select class="form-select form-select-sm mb-2" id="addOpeningType"></select>
+                            <button class="btn btn-primary border-light text-uppercase position-relative animated-button mb-3 w-100 mt-2" id="btnAddOpening">Add Opening</button>
+                        </div>
+                        <div id="openingsList" class="mt-3"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ================= 4. BUILDING OPTIONS ================= -->
+            <div class="custom-accordion-item mb-2">
+                <div class="custom-accordion-header bg-dark text-white fw-bold py-3 px-3 text-uppercase">
+                    Building Options
+                    <i class="bi bi-chevron-down float-end accordion-arrow"></i>
+                </div>
+                <div class="custom-accordion-content border p-3">
+                    <div class="accordion-body px-1 py-3">
+
                         <div class="form-check form-switch mb-2">
                             <input class="form-check-input" type="checkbox" id="wainscotEn" checked>
                             <label class="form-check-label">Enable Wainscot</label>
@@ -277,19 +348,33 @@ function get_color_defaults_optimized($color_categories, $color_defaults)
                                 <div class="col-3"><div class="input-group input-group-sm"><input type="number" class="form-control text-end" id="valWS" value="3.9" step="0.1"><span class="input-group-text px-1 unit-label" style="font-size:11px;">ft</span></div></div>
                             </div>
                         </div>
-                    </div>
-                </div>
-            </div>
 
-            <div class="custom-accordion-item mb-2">
-                <div class="custom-accordion-header bg-dark text-white fw-bold py-3 px-3 text-uppercase">
-                    Elements and Walls
-                    <i class="bi bi-chevron-down float-end accordion-arrow"></i>
-                </div>
-                <div class="custom-accordion-content border p-3">
-                    <div class="accordion-body px-1 py-3">
-                        <div class="fw-bold text-secondary text-uppercase small mb-2 pb-1 border-bottom">Interior Elements</div>
-                        
+                        <div class="fw-bold text-secondary text-uppercase small mt-3 mb-2 pb-1 border-bottom">Roof Overhangs</div>
+                        <div class="d-flex flex-column gap-2 mb-3">
+                            <div class="row g-2 align-items-center">
+                                <div class="col-3"><span class="control-label mb-0">Left (L):</span></div>
+                                <div class="col-6"><input type="range" class="form-range dist-slider" id="overL" data-target="overL_val" min="0" max="<?php echo $max_oh_ft; ?>" step="0.1" data-m-min="0" data-m-max="<?php echo $max_oh_m; ?>" data-m-step="0.05" data-current-m="0" value="0"></div>
+                                <div class="col-3"><div class="input-group input-group-sm"><input type="number" class="form-control text-end px-1" id="overL_val" value="0" step="0.1"><span class="input-group-text px-1 unit-label" style="font-size: 11px;">ft</span></div></div>
+                            </div>
+                            <div class="row g-2 align-items-center">
+                                <div class="col-3"><span class="control-label mb-0">Right (R):</span></div>
+                                <div class="col-6"><input type="range" class="form-range dist-slider" id="overR" data-target="overR_val" min="0" max="<?php echo $max_oh_ft; ?>" step="0.1" data-m-min="0" data-m-max="<?php echo $max_oh_m; ?>" data-m-step="0.05" data-current-m="0" value="0"></div>
+                                <div class="col-3"><div class="input-group input-group-sm"><input type="number" class="form-control text-end px-1" id="overR_val" value="0" step="0.1"><span class="input-group-text px-1 unit-label" style="font-size: 11px;">ft</span></div></div>
+                            </div>
+                            <div class="row g-2 align-items-center">
+                                <div class="col-3"><span class="control-label mb-0">Front (F):</span></div>
+                                <div class="col-6"><input type="range" class="form-range dist-slider" id="overF" data-target="overF_val" min="0" max="<?php echo $max_oh_ft; ?>" step="0.1" data-m-min="0" data-m-max="<?php echo $max_oh_m; ?>" data-m-step="0.05" data-current-m="0" value="0"></div>
+                                <div class="col-3"><div class="input-group input-group-sm"><input type="number" class="form-control text-end px-1" id="overF_val" value="0" step="0.1"><span class="input-group-text px-1 unit-label" style="font-size: 11px;">ft</span></div></div>
+                            </div>
+                            <div class="row g-2 align-items-center">
+                                <div class="col-3"><span class="control-label mb-0">Back (B):</span></div>
+                                <div class="col-6"><input type="range" class="form-range dist-slider" id="overB" data-target="overB_val" min="0" max="<?php echo $max_oh_ft; ?>" step="0.1" data-m-min="0" data-m-max="<?php echo $max_oh_m; ?>" data-m-step="0.05" data-current-m="0" value="0"></div>
+                                <div class="col-3"><div class="input-group input-group-sm"><input type="number" class="form-control text-end px-1" id="overB_val" value="0" step="0.1"><span class="input-group-text px-1 unit-label" style="font-size: 11px;">ft</span></div></div>
+                            </div>
+                        </div>
+
+                        <div class="fw-bold text-secondary text-uppercase small mt-3 mb-2 pb-1 border-bottom">Interior &amp; Structure</div>
+
                         <div class="form-check form-switch mt-2" style="<?php echo $allow_interior_liner ? '' : 'display:none;'; ?>">
                             <input class="form-check-input" type="checkbox" id="intWallsEn" <?php echo $allow_interior_liner ? '' : 'disabled'; ?>>
                             <label class="form-check-label">Interior Liner <small class="d-inline-block position-relative" style="font-size: 14px; top: -.5rem">(936 Cladding Profile)</small></label>
@@ -312,9 +397,7 @@ function get_color_defaults_optimized($color_categories, $color_defaults)
                             <label class="form-check-label">Overhead Loading Crane</label>
                         </div>
 
-                        <div class="fw-bold text-secondary text-uppercase small mt-4 mb-2 pb-1 border-bottom">Exterior Elements</div>
-
-<!-- -->
+<!-- Awnings/lean-tos: kept hidden exactly as before, only its container moved along with the rest of "Elements and Walls" -->
 <div style="display: none;">
                         <label class="control-label mb-1">Show Awnings:</label>
                         <div class="toggles-grid mb-3">
@@ -462,33 +545,31 @@ function get_color_defaults_optimized($color_categories, $color_defaults)
                             </div>
                         </div>
 </div>
-<!-- -->                        
-                        <label class="control-label mt-2 mb-2">Additional Roof Overhangs:</label>
-                        <div class="d-flex flex-column gap-2 mb-3">
-                            <div class="row g-2 align-items-center">
-                                <div class="col-3"><span class="control-label mb-0">Left (L):</span></div>
-                                <div class="col-6"><input type="range" class="form-range dist-slider" id="overL" data-target="overL_val" min="0" max="<?php echo $max_oh_ft; ?>" step="0.1" data-m-min="0" data-m-max="<?php echo $max_oh_m; ?>" data-m-step="0.05" data-current-m="0" value="0"></div>
-                                <div class="col-3"><div class="input-group input-group-sm"><input type="number" class="form-control text-end px-1" id="overL_val" value="0" step="0.1"><span class="input-group-text px-1 unit-label" style="font-size: 11px;">ft</span></div></div>
-                            </div>
-                            <div class="row g-2 align-items-center">
-                                <div class="col-3"><span class="control-label mb-0">Right (R):</span></div>
-                                <div class="col-6"><input type="range" class="form-range dist-slider" id="overR" data-target="overR_val" min="0" max="<?php echo $max_oh_ft; ?>" step="0.1" data-m-min="0" data-m-max="<?php echo $max_oh_m; ?>" data-m-step="0.05" data-current-m="0" value="0"></div>
-                                <div class="col-3"><div class="input-group input-group-sm"><input type="number" class="form-control text-end px-1" id="overR_val" value="0" step="0.1"><span class="input-group-text px-1 unit-label" style="font-size: 11px;">ft</span></div></div>
-                            </div>
-                            <div class="row g-2 align-items-center">
-                                <div class="col-3"><span class="control-label mb-0">Front (F):</span></div>
-                                <div class="col-6"><input type="range" class="form-range dist-slider" id="overF" data-target="overF_val" min="0" max="<?php echo $max_oh_ft; ?>" step="0.1" data-m-min="0" data-m-max="<?php echo $max_oh_m; ?>" data-m-step="0.05" data-current-m="0" value="0"></div>
-                                <div class="col-3"><div class="input-group input-group-sm"><input type="number" class="form-control text-end px-1" id="overF_val" value="0" step="0.1"><span class="input-group-text px-1 unit-label" style="font-size: 11px;">ft</span></div></div>
-                            </div>
-                            <div class="row g-2 align-items-center">
-                                <div class="col-3"><span class="control-label mb-0">Back (B):</span></div>
-                                <div class="col-6"><input type="range" class="form-range dist-slider" id="overB" data-target="overB_val" min="0" max="<?php echo $max_oh_ft; ?>" step="0.1" data-m-min="0" data-m-max="<?php echo $max_oh_m; ?>" data-m-step="0.05" data-current-m="0" value="0"></div>
-                                <div class="col-3"><div class="input-group input-group-sm"><input type="number" class="form-control text-end px-1" id="overB_val" value="0" step="0.1"><span class="input-group-text px-1 unit-label" style="font-size: 11px;">ft</span></div></div>
-                            </div>
+<!-- end hidden awnings block -->
+
+                        <div class="fw-bold text-secondary text-uppercase small mt-3 mb-2 pb-1 border-bottom">Drainage &amp; Site</div>
+
+                        <div class="form-check form-switch mb-1">
+                            <input class="form-check-input" type="checkbox" id="checkGutters">
+                            <label class="form-check-label">Gutters &amp; Downspouts</label>
                         </div>
 
-                        <hr class="my-2">
-                        <label class="control-label">Show Elements & Walls:</label>
+                        <div class="form-check form-switch mb-1"><input class="form-check-input" type="checkbox" id="drivewayEn"><label class="form-check-label">Show Driveway</label></div>
+
+                    </div>
+                </div>
+            </div>
+
+            <!-- ================= 5. VIEW ================= -->
+            <div class="custom-accordion-item mb-2">
+                <div class="custom-accordion-header bg-dark text-white fw-bold py-3 px-3 text-uppercase">
+                    View
+                    <i class="bi bi-chevron-down float-end accordion-arrow"></i>
+                </div>
+                <div class="custom-accordion-content border p-3">
+                    <div class="accordion-body px-1 py-3">
+
+                        <label class="control-label">Show Elements &amp; Walls:</label>
                         <div class="toggles-grid">
                             <div class="form-check form-switch"><input class="form-check-input" type="checkbox" id="wF" checked><label class="form-check-label">Front</label></div>
                             <div class="form-check form-switch"><input class="form-check-input" type="checkbox" id="wB" checked><label class="form-check-label">Back</label></div>
@@ -499,45 +580,22 @@ function get_color_defaults_optimized($color_categories, $color_defaults)
                         </div>
 
                         <hr class="my-2">
-                        <label class="control-label">Framing & Drainage Controls:</label>
+                        <label class="control-label">Framing Controls:</label>
                         <div class="toggles-grid">
                             <div class="form-check form-switch"><input class="form-check-input" type="checkbox" id="checkTrims" checked><label class="form-check-label">Show Trim</label></div>
                             <div class="form-check form-switch"><input class="form-check-input" type="checkbox" id="checkGirts" checked><label class="form-check-label">Show Girts</label></div>
                             <div class="form-check form-switch"><input class="form-check-input" type="checkbox" id="checkPurlins" checked><label class="form-check-label">Show Purlins</label></div>
                             <div class="form-check form-switch"><input class="form-check-input" type="checkbox" id="checkEWColumns" checked><label class="form-check-label">Show End Walls Columns</label></div>
-                            <div class="form-check form-switch">
-                                <input class="form-check-input" type="checkbox" id="checkGutters">
-                                <label class="form-check-label">Show Gutters & Downspouts</label>
-                            </div>
                         </div>
 
-                        <hr class="my-2">
-                        <div class="form-check form-switch mb-1"><input class="form-check-input" type="checkbox" id="drivewayEn"><label class="form-check-label">Show Driveway</label></div>
                     </div>
                 </div>
             </div>
 
+            <!-- ================= 6. REFERENCE OBJECTS ================= -->
             <div class="custom-accordion-item mb-2">
                 <div class="custom-accordion-header bg-dark text-white fw-bold py-3 px-3 text-uppercase">
-                    Elements and Walls (Openings)
-                    <i class="bi bi-chevron-down float-end accordion-arrow"></i>
-                </div>
-                <div class="custom-accordion-content border p-3">
-                    <div class="accordion-body px-1 py-3">
-                        <p class="text-muted">Drag placed openings on the wall to move them.</p>
-                        <div class="mb-2">
-                            <select class="form-select form-select-sm mb-1" id="addOpeningWall"></select>
-                            <select class="form-select form-select-sm mb-2" id="addOpeningType"></select>
-                            <button class="btn btn-primary border-light text-uppercase position-relative animated-button mb-3 w-100 mt-2" id="btnAddOpening">Add Opening</button>
-                        </div>
-                        <div id="openingsList" class="mt-3"></div>
-                    </div>
-                </div>
-            </div>
-
-            <div class="custom-accordion-item mb-2">
-                <div class="custom-accordion-header bg-dark text-white fw-bold py-3 px-3 text-uppercase">
-                    External Reference Models
+                    Reference Objects
                     <i class="bi bi-chevron-down float-end accordion-arrow"></i>
                 </div>
                 <div class="custom-accordion-content border p-3">
@@ -564,7 +622,7 @@ function get_color_defaults_optimized($color_categories, $color_defaults)
                 </div>
             </div>
 
-        </div> 
+        </div>
     </div>
 </div>
 
@@ -682,16 +740,7 @@ function get_color_defaults_optimized($color_categories, $color_defaults)
     </div>
 </div>
 
-<div id="information">
-<div class="alert alert-primary alert-dismissible fade show" role="alert">
-	<svg xmlns="http://www.w3.org/2000/svg" class="bi flex-shrink-0 me-2" viewBox="0 0 16 16" role="img" aria-label="Warning:" style="width: 14px;">
-	<path d="M8.982 1.566a1.13 1.13 0 0 0-1.96 0L.165 13.233c-.457.778.091 1.767.98 1.767h13.713c.889 0 1.438-.99.98-1.767L8.982 1.566zM8 5c.535 0 .954.462.9.995l-.35 3.507a.552.552 0 0 1-1.1 0L7.1 5.995A.905.905 0 0 1 8 5zm.002 6a1 1 0 1 1 0 2 1 1 0 0 1 0-2z"/>
-	</svg>
-	This is conseptual design tool. Our team will review your project and help finalize every detail.
-	<button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close" style="transform: transkateY(-10px); font-size: 12px;"></button>
 
-</div>
-</div>
 <script type="importmap">
 {
   "imports": {

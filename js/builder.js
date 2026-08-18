@@ -1,4 +1,5 @@
 import { mainGroup } from './scene.js';
+import { isMetric, getU } from './state.js';
 import { createFoundationGroup } from './foundation.js';
 import { createBuildingGroup } from './building.js';
 import { createWainscotGroup } from './wainscot.js';
@@ -103,5 +104,36 @@ export function updateBuilding() {
 
     if (vis.wF) {
         mainGroup.add(createLogoGroup(width, length, height, pitchRatio, roofType));
+    }
+
+    updateSidebarSummary(width, length, height, roofType);
+}
+
+/**
+ * Keeps the small summary card under the "Request a free Quote" button
+ * in sync with the current building. Text-only (no thumbnail render) so
+ * it's cheap enough to call on every slider drag; the quote modal's own
+ * snapshot logic (tools-actions.js) still handles the actual photo.
+ */
+function updateSidebarSummary(widthM, lengthM, heightM, roofType) {
+    const dimsEl = document.getElementById('sidebar-summary-dimensions');
+    const roofEl = document.getElementById('sidebar-summary-roof');
+
+    if (dimsEl) {
+        const unit = getU();
+        const mult = isMetric ? 1 : 3.28084;
+        const w = (widthM * mult).toFixed(0);
+        const l = (lengthM * mult).toFixed(0);
+        const h = (heightM * mult).toFixed(0);
+        dimsEl.textContent = `${w}${unit} x ${l}${unit} x ${h}${unit}`;
+    }
+
+    if (roofEl) {
+        const roofLabels = {
+            'gabled': 'Gable Roof',
+            'left-sloped': 'Left Sloped Roof',
+            'right-sloped': 'Right Sloped Roof'
+        };
+        roofEl.textContent = roofLabels[roofType] || 'Gable Roof';
     }
 }

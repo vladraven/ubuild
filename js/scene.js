@@ -146,7 +146,7 @@ function createHillyTerrain() {
         
         // Базовый цвет травы (оттенок HSL: зелёный). Смешиваем шум с яркостью и насыщенностью.
         const hue = 0.28 + (noise * 0.03); // Слегка меняем тон
-        const saturation = 0.5 + (noise * 0.15); // Пятна разной насыщенности
+        const saturation = 0.36 + (noise * 0.12); // Пятна разной насыщенности (снижено для менее "кислотного" вида)
         const lightness = 0.35 + (noise * 0.1); // Светлые и темные пятна
 
         colorObj.setHSL(hue, saturation, lightness);
