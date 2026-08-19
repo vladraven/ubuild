@@ -169,7 +169,7 @@ function createWallTransform(side, width, length, wallThickness) {
     };
 }
 
-function createRoofGeometry({ width, length, height, pitchRatio, roofType, overhangs, roofThickness }) {
+function createRoofGeometry({ width, length, height, pitchRatio, roofType, overhangs, roofThickness, wallThickness }) {
     const halfW = width / 2;
     const isLeftSloped = (roofType === 'left-sloped');
     const isRightSloped = (roofType === 'right-sloped');
@@ -182,6 +182,19 @@ function createRoofGeometry({ width, length, height, pitchRatio, roofType, overh
     const totalLength = length + overhangs.overF + overhangs.overB;
     const zOffset = (overhangs.overF - overhangs.overB) / 2;
 
+    // Централизованный расчет карнизов (eaves), используемый в trims и gutters
+    const eaveDropL = overhangs.overL * Math.tan(pitchAngle);
+    const eaveDropR = overhangs.overR * Math.tan(pitchAngle);
+
+    const outerLeftX = -halfW - wallThickness / 2 - overhangs.overL;
+    const outerRightX = halfW + wallThickness / 2 + overhangs.overR;
+
+    let leftEaveY = height - eaveDropL;
+    let rightEaveY = height - eaveDropR;
+
+    if (isLeftSloped) rightEaveY = height + totalRise + eaveDropR;
+    if (isRSloped) leftEaveY = height + totalRise + eaveDropL;
+
     const result = {
         type: roofType,
         visible: true,
@@ -193,6 +206,10 @@ function createRoofGeometry({ width, length, height, pitchRatio, roofType, overh
         totalLength,
         zOffset,
         thickness: roofThickness,
+        eaves: {
+            left: { x: outerLeftX, y: leftEaveY, drop: eaveDropL, length: totalLength, z: zOffset },
+            right: { x: outerRightX, y: rightEaveY, drop: eaveDropR, length: totalLength, z: zOffset }
+        },
         gabled: null,
         singleSlope: null,
         overhang: {
@@ -357,21 +374,16 @@ function createTrimsSpatialData({ width, length, height, roof, wallThickness }) 
 
     const totalRise = roof.totalRise;
     const roofAngle = roof.pitchAngle;
-    const overhangs = roof.overhang;
     const roofLength = roof.totalLength;
     const roofZOffset = roof.zOffset;
 
-    const eaveDropL = overhangs.overL * Math.tan(roofAngle);
-    const eaveDropR = overhangs.overR * Math.tan(roofAngle);
-
-    const outerLeftX = -halfW - wallThickness / 2 - overhangs.overL;
-    const outerRightX = halfW + wallThickness / 2 + overhangs.overR;
-
-    let leftEaveY = height - eaveDropL;
-    let rightEaveY = height - eaveDropR;
-
-    if (isLSloped) rightEaveY = height + totalRise + eaveDropR;
-    if (isRSloped) leftEaveY = height + totalRise + eaveDropL;
+    // Используем готовые данные карнизов из roof.eaves без повторных вычислений
+    const leftEaveY = roof.eaves.left.y;
+    const rightEaveY = roof.eaves.right.y;
+    const eaveDropL = roof.eaves.left.drop;
+    const eaveDropR = roof.eaves.right.drop;
+    const outerLeftX = roof.eaves.left.x;
+    const outerRightX = roof.eaves.right.x;
 
     const cornerBaseOffset = wallThickness / 2;
     const cornerX = halfW + cornerBaseOffset;
@@ -391,15 +403,15 @@ function createTrimsSpatialData({ width, length, height, roof, wallThickness }) 
     for (const sideZ of [-1, 1]) {
         const zPos = sideZ > 0 ? frontZ : backZ;
         if (isG) {
-            const slopeLenL = Math.hypot(halfW + overhangs.overL, totalRise + eaveDropL);
-            const slopeLenR = Math.hypot(halfW + overhangs.overR, totalRise + eaveDropR);
+            const slopeLenL = Math.hypot(halfW + roof.overhang.overL, totalRise + eaveDropL);
+            const slopeLenR = Math.hypot(halfW + roof.overhang.overR, totalRise + eaveDropR);
 
             rakes.push({
                 type: 'gable-left',
                 sideZ,
                 zPos,
                 slopeLength: slopeLenL,
-                position: { x: -halfW / 2 - overhangs.overL / 2, y: height + totalRise / 2 - eaveDropL / 2, z: zPos },
+                position: { x: -halfW / 2 - roof.overhang.overL / 2, y: height + totalRise / 2 - eaveDropL / 2, z: zPos },
                 rotationZ: roofAngle
             });
             rakes.push({
@@ -407,11 +419,11 @@ function createTrimsSpatialData({ width, length, height, roof, wallThickness }) 
                 sideZ,
                 zPos,
                 slopeLength: slopeLenR,
-                position: { x: halfW / 2 + overhangs.overR / 2, y: height + totalRise / 2 - eaveDropR / 2, z: zPos },
+                position: { x: halfW / 2 + roof.overhang.overR / 2, y: height + totalRise / 2 - eaveDropR / 2, z: zPos },
                 rotationZ: -roofAngle
             });
         } else {
-            const activeOver = isLSloped ? overhangs.overL : overhangs.overR;
+            const activeOver = isLSloped ? roof.overhang.overL : roof.overhang.overR;
             const activeDrop = isLSloped ? eaveDropL : eaveDropR;
             const slopeLen = Math.hypot(width + activeOver * 2, totalRise + activeDrop * 2);
             rakes.push({
@@ -445,23 +457,12 @@ function createTrimsSpatialData({ width, length, height, roof, wallThickness }) 
 
 function createGuttersSpatialData({ width, height, roof, openingsData, openingDefs }) {
     const halfW = width / 2;
-    const isLSloped = (roof.type === 'left-sloped');
-    const isRSloped = (roof.type === 'right-sloped');
-
-    const totalRise = roof.totalRise;
-    const roofAngle = roof.pitchAngle;
-    const overhangs = roof.overhang;
     const roofLength = roof.totalLength;
     const roofZOffset = roof.zOffset;
 
-    const eaveDropL = overhangs.overL * Math.tan(roofAngle);
-    const eaveDropR = overhangs.overR * Math.tan(roofAngle);
-
-    let leftEaveY = height - eaveDropL;
-    let rightEaveY = height - eaveDropR;
-
-    if (isLSloped) rightEaveY = height + totalRise + eaveDropR;
-    if (isRSloped) leftEaveY = height + totalRise + eaveDropL;
+    // Используем готовые координаты карнизов из roof.eaves
+    const leftEaveY = roof.eaves.left.y;
+    const rightEaveY = roof.eaves.right.y;
 
     const gutterOffsetY = DEFAULTS.gutterOffsetY;
     const pipeWallOffset = DEFAULTS.pipeWallOffset;
@@ -491,7 +492,7 @@ function createGuttersSpatialData({ width, height, roof, openingsData, openingDe
 
             const sideX = side === 'L' ? -1 : 1;
             const eaveY = side === 'L' ? leftEaveY : rightEaveY;
-            const overhang = side === 'L' ? overhangs.overL : overhangs.overR;
+            const overhang = side === 'L' ? roof.overhang.overL : roof.overhang.overR;
 
             const xGutterOutlet = sideX * (halfW + overhang + 0.07);
             const yGutterOutlet = eaveY + gutterOffsetY;
@@ -517,8 +518,8 @@ function createGuttersSpatialData({ width, height, roof, openingsData, openingDe
         length: roofLength,
         zOffset: roofZOffset,
         eaves: {
-            left: { x: -halfW - overhangs.overL, y: leftEaveY, z: roofZOffset },
-            right: { x: halfW + overhangs.overR, y: rightEaveY, z: roofZOffset }
+            left: { x: -halfW - roof.overhang.overL, y: leftEaveY, z: roofZOffset },
+            right: { x: halfW + roof.overhang.overR, y: rightEaveY, z: roofZOffset }
         },
         config: {
             gutterOffsetY,
@@ -1221,7 +1222,8 @@ export function createBuildingGeometry(options = {}) {
         pitchRatio,
         roofType,
         overhangs,
-        roofThickness: hasOverhangs ? DEFAULTS.overhangRoofThickness : roofThickness
+        roofThickness: hasOverhangs ? DEFAULTS.overhangRoofThickness : roofThickness,
+        wallThickness
     });
 
     roof.visible = visibility.checkRoof;
