@@ -1,11 +1,6 @@
 // js/end-wall-columns.js
 import * as THREE from 'three';
-
-const steelMat = new THREE.MeshStandardMaterial({
-    color: 0x334155,
-    metalness: 0.5,
-    roughness: 0.5
-});
+import { steelMat } from './colorise.js';
 
 export function createEndWallColumnsGroup(geometry, enabled) {
     const group = new THREE.Group();

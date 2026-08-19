@@ -18,7 +18,10 @@ const DEFAULTS = Object.freeze({
     purlinStepDist: 1.2,
     endWallColThickness: 0.15,
     endWallColStep: 3.5,
-    foundationLedge: 0.30
+    foundationLedge: 0.30,
+    gutterOffsetY: -0.135,
+    pipeWallOffset: 0.05,
+    pipeGroundOffset: 0.15
 });
 
 function finite(value, fallback = 0) {
@@ -345,7 +348,7 @@ function createWainscotGeometry({ width, length, leftWallHeight, rightWallHeight
     };
 }
 
-function createTrimsSpatialData({ width, length, height, roof, wallThickness, wainscotThickness, wsEnabled }) {
+function createTrimsSpatialData({ width, length, height, roof, wallThickness }) {
     const halfW = width / 2;
     const halfL = length / 2;
     const isLSloped = (roof.type === 'left-sloped');
@@ -460,6 +463,10 @@ function createGuttersSpatialData({ width, height, roof, openingsData, openingDe
     if (isLSloped) rightEaveY = height + totalRise + eaveDropR;
     if (isRSloped) leftEaveY = height + totalRise + eaveDropL;
 
+    const gutterOffsetY = DEFAULTS.gutterOffsetY;
+    const pipeWallOffset = DEFAULTS.pipeWallOffset;
+    const pipeGroundOffset = DEFAULTS.pipeGroundOffset;
+
     const metersPerSpout = 25 * 0.3048;
     const numDownspouts = Math.max(2, Math.ceil(roofLength / metersPerSpout) + 1);
     const spacing = (roofLength - 0.6) / Math.max(1, numDownspouts - 1);
@@ -482,14 +489,26 @@ function createGuttersSpatialData({ width, height, roof, openingsData, openingDe
                 return (wallPos >= minX && wallPos <= maxX);
             });
 
+            const sideX = side === 'L' ? -1 : 1;
+            const eaveY = side === 'L' ? leftEaveY : rightEaveY;
+            const overhang = side === 'L' ? overhangs.overL : overhangs.overR;
+
+            const xGutterOutlet = sideX * (halfW + overhang + 0.07);
+            const yGutterOutlet = eaveY + gutterOffsetY;
+            const xWall = sideX * (halfW + pipeWallOffset);
+
             downspouts.push({
                 side,
-                eaveY: side === 'L' ? leftEaveY : rightEaveY,
-                sideX: side === 'L' ? -1 : 1,
-                overhang: side === 'L' ? overhangs.overL : overhangs.overR,
+                eaveY,
+                sideX,
+                overhang,
                 zPos,
                 wallPos,
-                visible: !isColliding
+                visible: !isColliding,
+                xGutterOutlet,
+                yGutterOutlet,
+                xWall,
+                groundOffset: pipeGroundOffset
             });
         });
     }
@@ -500,6 +519,11 @@ function createGuttersSpatialData({ width, height, roof, openingsData, openingDe
         eaves: {
             left: { x: -halfW - overhangs.overL, y: leftEaveY, z: roofZOffset },
             right: { x: halfW + overhangs.overR, y: rightEaveY, z: roofZOffset }
+        },
+        config: {
+            gutterOffsetY,
+            pipeWallOffset,
+            pipeGroundOffset
         },
         downspouts
     };
@@ -1230,9 +1254,7 @@ export function createBuildingGeometry(options = {}) {
         length,
         height,
         roof,
-        wallThickness,
-        wainscotThickness,
-        wsEnabled
+        wallThickness
     });
 
     const gutters = createGuttersSpatialData({

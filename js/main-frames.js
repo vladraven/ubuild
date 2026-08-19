@@ -1,11 +1,6 @@
 // js/main-frames.js
 import * as THREE from 'three';
-
-const frameMat = new THREE.MeshStandardMaterial({
-    color: 0x1e293b,
-    roughness: 0.32,
-    metalness: 0.68
-});
+import { frameMat } from './colorise.js';
 
 function createSolidColumnMesh(height, dBottom, dTop, flangeW = 0.20, flangeT = 0.012, webT = 0.008) {
     const colShape = new THREE.Shape();

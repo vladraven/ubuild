@@ -19,9 +19,47 @@ import { createEndWallColumnsGroup } from './end-wall-columns.js';
 import { createDrivewayGroup } from './driveway.js';
 import { createLogoGroup } from './logo.js';
 import { createAwningsGroup } from './awnings.js';
-import { updateMaterialColors } from './colorise.js';
+import { 
+    updateMaterialColors, roofMat, trimMat, eaveTrimMat, rakeTrimMat, 
+    steelMat, glassMat, frameMat, ceilingMat, mezzMat, intWallMat, concreteMat 
+} from './colorise.js';
 import { updateBuildingTextures } from './texturiser.js';
 import { validateAndClampOpenings } from './ui.js';
+import { getWallPanelMaterial, getWainscotPanelMaterial } from './panelSystem.js';
+
+const sharedMaterials = new Set([
+    roofMat, trimMat, eaveTrimMat, rakeTrimMat,
+    steelMat, glassMat, frameMat, ceilingMat,
+    mezzMat, intWallMat, concreteMat,
+    getWallPanelMaterial(), getWainscotPanelMaterial()
+]);
+
+function disposeObjectTree(node) {
+    if (!node) return;
+
+    node.traverse(child => {
+        if (child.geometry) {
+            child.geometry.dispose();
+        }
+
+        if (child.material) {
+            const mats = Array.isArray(child.material) ? child.material : [child.material];
+            mats.forEach(mat => {
+                if (!sharedMaterials.has(mat)) {
+                    if (mat.map) mat.map.dispose();
+                    if (mat.normalMap) mat.normalMap.dispose();
+                    if (mat.roughnessMap) mat.roughnessMap.dispose();
+                    mat.dispose();
+                }
+            });
+        }
+    });
+
+    while (node.children.length > 0) {
+        const child = node.children[0];
+        node.remove(child);
+    }
+}
 
 function readMetricValue(id, fallback = 0) {
     const element = document.getElementById(id);
@@ -73,7 +111,8 @@ function readBuildingParameters() {
 export function updateBuilding() {
     validateAndClampOpenings();
     updateMaterialColors();
-    mainGroup.clear();
+
+    disposeObjectTree(mainGroup);
 
     const vis = readVisibility();
     const params = readBuildingParameters();

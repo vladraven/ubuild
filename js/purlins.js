@@ -1,11 +1,6 @@
 // js/purlins.js
 import * as THREE from 'three';
-
-const steelMat = new THREE.MeshStandardMaterial({
-    color: 0x64748b,
-    metalness: 0.45,
-    roughness: 0.48
-});
+import { steelMat } from './colorise.js';
 
 export function createPurlinsGroup(geometry, enabled) {
     const group = new THREE.Group();

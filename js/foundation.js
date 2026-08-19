@@ -1,17 +1,13 @@
 // js/foundation.js
 import * as THREE from 'three';
-
-const concreteMat = new THREE.MeshStandardMaterial({ 
-    color: 0xbdc3c7, 
-    roughness: 0.8
-});
+import { concreteMat } from './colorise.js';
 
 function createTextLabel(txt) {
     const c = document.createElement('canvas');
     c.width = 512;
     c.height = 128;
     const ctx = c.getContext('2d');
-    
+
     ctx.fillStyle = 'rgba(30,40,50,0.85)';
     ctx.fillRect(0, 0, 512, 128);
     ctx.strokeStyle = '#ffffff';
@@ -22,11 +18,12 @@ function createTextLabel(txt) {
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
     ctx.fillText(txt, 256, 64);
-    
+
     const m = new THREE.MeshBasicMaterial({
         map: new THREE.CanvasTexture(c),
         transparent: true
     });
+
     const mesh = new THREE.Mesh(new THREE.PlaneGeometry(10, 2.5), m);
     mesh.rotation.x = -Math.PI / 2;
     return mesh;
@@ -38,7 +35,6 @@ export function createFoundationGroup(geometry, showLabels = true) {
 
     const fData = geometry.foundation;
 
-    // 1. Основной массив фундамента
     const geo = new THREE.BoxGeometry(fData.width, fData.height, fData.length);
     const foundationMesh = new THREE.Mesh(geo, concreteMat);
     foundationMesh.position.set(0, -fData.height / 2 - 0.001, 0);
@@ -46,15 +42,18 @@ export function createFoundationGroup(geometry, showLabels = true) {
     foundationMesh.castShadow = true;
     group.add(foundationMesh);
 
-    // 2. Внутренняя плита пола (Slab)
-    const slabGeo = new THREE.BoxGeometry(fData.slab.width, fData.slab.height, fData.slab.length);
+    const slabGeo = new THREE.BoxGeometry(
+        fData.slab.width,
+        fData.slab.height,
+        fData.slab.length
+    );
+
     const slabMesh = new THREE.Mesh(slabGeo, concreteMat);
     slabMesh.position.set(0, fData.slab.y, 0);
     slabMesh.receiveShadow = true;
     slabMesh.castShadow = true;
     group.add(slabMesh);
 
-    // 3. 3D-метки сторон
     if (showLabels) {
         const labels = fData.labels;
 

@@ -6,12 +6,9 @@ export const GUTTER_CONFIG = {
     gutter: {
         lengthOffset: 0.0,
         widthOffset: 0.0,
-        offsetX: 0.0,
-        offsetY: -0.135
+        offsetX: 0.0
     },
     pipe: {
-        wallOffset: 0.05,
-        groundOffset: 0.15,
         width: 0.08,
         depth: 0.06
     }
@@ -111,16 +108,14 @@ function addPipeSegment(group, xA, yA, xB, yB, zPos, pipeMat) {
     group.add(mesh);
 }
 
-function createDownspout(eaveY, sideX, overhang, width) {
+function createDownspout(dsData) {
     const group = new THREE.Group();
     const pipeMat = trimMat;
-    const halfW = width / 2;
 
-    const xGutterOutlet = sideX * (halfW + overhang + 0.07);
-    const yGutterOutlet = eaveY + GUTTER_CONFIG.gutter.offsetY;
-
-    const xWall = sideX * (halfW + GUTTER_CONFIG.pipe.wallOffset);
-    const yBottom = Math.max(0.02, GUTTER_CONFIG.pipe.groundOffset);
+    const xGutterOutlet = dsData.xGutterOutlet;
+    const yGutterOutlet = dsData.yGutterOutlet;
+    const xWall = dsData.xWall;
+    const yBottom = Math.max(0.02, dsData.groundOffset);
 
     const topDrop = Math.max(0.30, Math.abs(xGutterOutlet - xWall) * 1.4);
     const yElbowEnd = yGutterOutlet - topDrop;
@@ -136,7 +131,7 @@ function createDownspout(eaveY, sideX, overhang, width) {
 
     const shoeLen = 0.20;
     const shoeAngle = Math.PI / 4;
-    const xShoeEnd = xWall + sideX * (shoeLen * Math.sin(shoeAngle));
+    const xShoeEnd = xWall + dsData.sideX * (shoeLen * Math.sin(shoeAngle));
     const yShoeEnd = yShoeStart - (shoeLen * Math.cos(shoeAngle));
     addPipeSegment(group, xWall, yShoeStart, xShoeEnd, yShoeEnd, 0, pipeMat);
 
@@ -166,18 +161,19 @@ export function createGuttersGroup(geometry, enabled = true) {
     }
 
     const gData = geometry.gutters;
+    const gutterOffsetY = gData.config?.gutterOffsetY || -0.135;
 
     const gutterL = createGutter(gData.length);
     gutterL.scale.x = -1;
-    gutterL.position.set(gData.eaves.left.x + GUTTER_CONFIG.gutter.offsetX, gData.eaves.left.y + GUTTER_CONFIG.gutter.offsetY, gData.zOffset);
+    gutterL.position.set(gData.eaves.left.x + GUTTER_CONFIG.gutter.offsetX, gData.eaves.left.y + gutterOffsetY, gData.zOffset);
     group.add(gutterL);
 
     const gutterR = createGutter(gData.length);
-    gutterR.position.set(gData.eaves.right.x - GUTTER_CONFIG.gutter.offsetX, gData.eaves.right.y + GUTTER_CONFIG.gutter.offsetY, gData.zOffset);
+    gutterR.position.set(gData.eaves.right.x - GUTTER_CONFIG.gutter.offsetX, gData.eaves.right.y + gutterOffsetY, gData.zOffset);
     group.add(gutterR);
 
     gData.downspouts.forEach(dsData => {
-        const ds = createDownspout(dsData.eaveY, dsData.sideX, dsData.overhang, geometry.building.width);
+        const ds = createDownspout(dsData);
         ds.position.set(0, 0, dsData.zPos);
         ds.visible = dsData.visible;
         group.add(ds);
