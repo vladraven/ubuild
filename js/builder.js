@@ -12,7 +12,7 @@ import { createCraneGroup } from './crane.js';
 import { createMainFramesGroup } from './main-frames.js';
 import { createTrimsGroup } from './trims.js';
 import { createRidgeGroup } from './ridge.js';
-import { createGuttersGroup, updateDownspoutVisibility } from './gutters.js';
+import { createGuttersGroup } from './gutters.js';
 import { createGirtsGroup } from './girts.js';
 import { createPurlinsGroup } from './purlins.js';
 import { createEndWallColumnsGroup } from './end-wall-columns.js';
@@ -108,9 +108,7 @@ export function updateBuilding() {
         mainGroup.add(createRidgeGroup(geometry));
     }
     if (checkGutters) {
-        const guttersGroup = createGuttersGroup(geometry, true);
-        mainGroup.add(guttersGroup);
-        updateDownspoutVisibility(guttersGroup);
+        mainGroup.add(createGuttersGroup(geometry, true));
     }
 
     mainGroup.add(createGirtsGroup(geometry, document.getElementById('checkGirts')?.checked ?? true));
