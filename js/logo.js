@@ -1,31 +1,37 @@
 // js/logo.js
 import * as THREE from 'three';
-import { trimMat } from './colorise.js';
 
-const textureLoader = new THREE.TextureLoader();
+import {
+    trimMat,
+    logoPlateMat
+} from './colorise.js';
+
+const textureLoader =
+    new THREE.TextureLoader();
 
 let logoTexture = null;
 
 const logoUrl =
     'https://ubuildsb.com/wp-content/themes/U-Build/js/U-build-logo.png';
 
-const whitePlateMat =
-    new THREE.MeshStandardMaterial({
-        color: 0xeeeeee,
-        roughness: 0.4,
-        metalness: 0
-    });
+export function createLogoGroup(
+    geometry
+) {
+    const group =
+        new THREE.Group();
 
-export function createLogoGroup(geometry) {
-    const group = new THREE.Group();
-
-    if (!geometry || !geometry.logo) {
+    if (
+        !geometry ||
+        !geometry.logo
+    ) {
         return group;
     }
 
     if (!logoTexture) {
         logoTexture =
-            textureLoader.load(logoUrl);
+            textureLoader.load(
+                logoUrl
+            );
     }
 
     const logoWidth = 1.0;
@@ -39,12 +45,14 @@ export function createLogoGroup(geometry) {
                 logoHeight + 0.1,
                 plateThick
             ),
-            whitePlateMat
+            logoPlateMat
         );
 
     plateMesh.castShadow = true;
 
-    group.add(plateMesh);
+    group.add(
+        plateMesh
+    );
 
     const frameMesh =
         new THREE.Mesh(
@@ -59,7 +67,9 @@ export function createLogoGroup(geometry) {
     frameMesh.position.z =
         -plateThick / 2;
 
-    group.add(frameMesh);
+    group.add(
+        frameMesh
+    );
 
     const logoMaterial =
         new THREE.MeshBasicMaterial({
@@ -80,7 +90,9 @@ export function createLogoGroup(geometry) {
     logoMesh.position.z =
         plateThick / 2 + 0.005;
 
-    group.add(logoMesh);
+    group.add(
+        logoMesh
+    );
 
     group.position.set(
         geometry.logo.position.x,
