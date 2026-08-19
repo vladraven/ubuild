@@ -1,14 +1,11 @@
-// ================================================
-// FILE: js/buildingGeometry.js
-// ================================================
+// js/buildingGeometry.js
 const DEFAULTS = Object.freeze({
     wallThickness: 0.05,
     roofThickness: 0.12,
     overhangRoofThickness: 0.15,
     wainscotThickness: 0.02,
-    wainscotOffset: 0.005,
-    trimSize: 0.12,
-    structuralInset: 0.10
+    wainscotOffset: 0.002,
+    trimSize: 0.12
 });
 
 function finite(value, fallback = 0) {
@@ -36,7 +33,6 @@ function normalizeVisibility(vis = {}) {
 function createOpeningHole(op, openingDefs = {}) {
     if (!op) return null;
     const def = openingDefs[op.type] || {};
-
     const width = finite(op.w, finite(def.w, 1.0));
     const height = finite(op.h, finite(def.h, 1.0));
     const y = op.type === 'Window' ? finite(op.yOff, finite(def.yOff, 1.0)) : 0;
@@ -52,7 +48,7 @@ function createOpeningHole(op, openingDefs = {}) {
         width,
         height,
         yOff: y,
-        x: x
+        x
     };
 }
 
@@ -93,7 +89,6 @@ function createWallDefinition({ side, width, length, wallHeight, wallThickness, 
     } else {
         if (roofType === 'gabled') {
             maxY = height + totalRise;
-            // 5-точечный контур фронтона: левый низ -> правый низ -> правый карниз -> конёк -> левый карниз
             points = [
                 { x: -halfW, y: 0 },
                 { x: halfW, y: 0 },
@@ -103,7 +98,6 @@ function createWallDefinition({ side, width, length, wallHeight, wallThickness, 
             ];
         } else {
             maxY = Math.max(wallHeight.left, wallHeight.right);
-            // Односкатная крыша: наклонная верхняя грань
             points = [
                 { x: -halfW, y: 0 },
                 { x: halfW, y: 0 },
@@ -118,13 +112,14 @@ function createWallDefinition({ side, width, length, wallHeight, wallThickness, 
         width: localWidth,
         height: maxY,
         thickness: wallThickness,
+        uvOriginX: isLongWall ? -length / 2 : -width / 2,
         points,
         holes: normalizeOpenings(openings, openingDefs),
         local: {
             minX: -localHalfWidth,
             maxX: localHalfWidth,
             minY: 0,
-            maxY: maxY
+            maxY
         },
         transform: null
     };
@@ -252,6 +247,235 @@ function createRoofGeometry({ width, length, height, pitchRatio, roofType, overh
     return result;
 }
 
+function createWainscotShapeData(halfLength, height, openings) {
+    const rawHoles = (openings || []).map(op => {
+        const yOff = op.type === 'Window' ? (op.yOff !== undefined ? op.yOff : 1.0) : 0;
+        if (yOff >= height) return null;
+        const holeMinY = Math.max(0, yOff);
+        const holeMaxY = Math.min(height, yOff + (op.height || op.h || 1.0));
+        if (holeMaxY <= holeMinY) return null;
+        const minX = op.x - (op.width || op.w || 1.0) / 2;
+        const maxX = op.x + (op.width || op.w || 1.0) / 2;
+        return { minX, maxX, minY: holeMinY, maxY: holeMaxY };
+    }).filter(Boolean);
+
+    return {
+        points: [
+            { x: -halfLength, y: 0 },
+            { x: halfLength, y: 0 },
+            { x: halfLength, y: height },
+            { x: -halfLength, y: height },
+            { x: -halfLength, y: 0 }
+        ],
+        holes: rawHoles
+    };
+}
+
+function createWainscotGeometry({ width, length, leftWallHeight, rightWallHeight, wsHeight, wsEnabled, walls, wallThickness, wainscotThickness, wainscotOffset }) {
+    if (!wsEnabled || wsHeight <= 0) {
+        return { enabled: false, sides: {} };
+    }
+
+    const halfW = width / 2;
+    const halfL = length / 2;
+
+    const leftH = Math.min(wsHeight, leftWallHeight);
+    const rightH = Math.min(wsHeight, rightWallHeight);
+    const frontH = Math.min(wsHeight, leftWallHeight);
+    const backH = Math.min(wsHeight, rightWallHeight);
+
+    const cornerInset = wallThickness / 2;
+    const sideHalfL = halfL - cornerInset;
+    const sideHalfW = halfW - cornerInset;
+
+    const sides = {};
+
+    if (walls.L) {
+        sides.L = {
+            shapeData: createWainscotShapeData(sideHalfL, leftH, walls.L.holes),
+            uvOriginX: -length / 2,
+            position: { x: -halfW - wainscotThickness - wainscotOffset, y: 0, z: 0 },
+            rotationY: Math.PI / 2
+        };
+    }
+    if (walls.R) {
+        sides.R = {
+            shapeData: createWainscotShapeData(sideHalfL, rightH, walls.R.holes),
+            uvOriginX: -length / 2,
+            position: { x: halfW + wainscotThickness + wainscotOffset, y: 0, z: 0 },
+            rotationY: -Math.PI / 2
+        };
+    }
+    if (walls.F) {
+        sides.F = {
+            shapeData: createWainscotShapeData(sideHalfW, frontH, walls.F.holes),
+            uvOriginX: -width / 2,
+            position: { x: 0, y: 0, z: halfL + wainscotThickness + wainscotOffset },
+            rotationY: 0
+        };
+    }
+    if (walls.B) {
+        sides.B = {
+            shapeData: createWainscotShapeData(sideHalfW, backH, walls.B.holes),
+            uvOriginX: -width / 2,
+            position: { x: 0, y: 0, z: -halfL - wainscotThickness - wainscotOffset },
+            rotationY: Math.PI
+        };
+    }
+
+    return {
+        enabled: true,
+        height: wsHeight,
+        thickness: wainscotThickness,
+        offset: wainscotOffset,
+        sides
+    };
+}
+
+function createTrimsSpatialData({ width, length, height, totalRise, roofAngle, roofType, overhangs, roofLength, roofZOffset, wallThickness, wainscotThickness, wsEnabled }) {
+    const halfW = width / 2;
+    const halfL = length / 2;
+    const isLSloped = (roofType === 'left-sloped');
+    const isRSloped = (roofType === 'right-sloped');
+    const isG = (roofType === 'gabled');
+
+    const eaveDropL = overhangs.overL * Math.tan(roofAngle);
+    const eaveDropR = overhangs.overR * Math.tan(roofAngle);
+
+    const outerLeftX = -halfW - wallThickness / 2 - overhangs.overL;
+    const outerRightX = halfW + wallThickness / 2 + overhangs.overR;
+
+    let leftEaveY = height - eaveDropL;
+    let rightEaveY = height - eaveDropR;
+
+    if (isLSloped) rightEaveY = height + totalRise + eaveDropR;
+    if (isRSloped) leftEaveY = height + totalRise + eaveDropL;
+
+    // Угловые планки строго по внешнему углу стены без смещения за боковые плоскости
+    const cornerBaseOffset = wallThickness / 2;
+    const cornerX = halfW + cornerBaseOffset;
+    const cornerZ = halfL + cornerBaseOffset;
+
+    const corners = [
+        { sx: -1, sz: 1, x: -cornerX, z: cornerZ, colH: (isRSloped ? height + totalRise : height) },
+        { sx: 1, sz: 1, x: cornerX, z: cornerZ, colH: (isLSloped ? height + totalRise : height) },
+        { sx: 1, sz: -1, x: cornerX, z: -cornerZ, colH: (isLSloped ? height + totalRise : height) },
+        { sx: -1, sz: -1, x: -cornerX, z: -cornerZ, colH: (isRSloped ? height + totalRise : height) }
+    ];
+
+    const rakes = [];
+    const frontZ = halfL + overhangs.overF + wallThickness / 2;
+    const backZ = -halfL - overhangs.overB - wallThickness / 2;
+
+    for (const sideZ of [-1, 1]) {
+        const zPos = sideZ > 0 ? frontZ : backZ;
+        if (isG) {
+            const slopeLenL = Math.hypot(halfW + overhangs.overL, totalRise + eaveDropL);
+            const slopeLenR = Math.hypot(halfW + overhangs.overR, totalRise + eaveDropR);
+
+            rakes.push({
+                type: 'gable-left',
+                sideZ,
+                zPos,
+                slopeLength: slopeLenL,
+                position: { x: -halfW / 2 - overhangs.overL / 2, y: height + totalRise / 2 - eaveDropL / 2, z: zPos },
+                rotationZ: roofAngle
+            });
+            rakes.push({
+                type: 'gable-right',
+                sideZ,
+                zPos,
+                slopeLength: slopeLenR,
+                position: { x: halfW / 2 + overhangs.overR / 2, y: height + totalRise / 2 - eaveDropR / 2, z: zPos },
+                rotationZ: -roofAngle
+            });
+        } else {
+            const activeOver = isLSloped ? overhangs.overL : overhangs.overR;
+            const activeDrop = isLSloped ? eaveDropL : eaveDropR;
+            const slopeLen = Math.hypot(width + activeOver * 2, totalRise + activeDrop * 2);
+            rakes.push({
+                type: 'single-slope',
+                sideZ,
+                zPos,
+                slopeLength: slopeLen,
+                position: { x: 0, y: height + totalRise / 2, z: zPos },
+                rotationZ: isLSloped ? roofAngle : -roofAngle
+            });
+        }
+    }
+
+    return {
+        corners,
+        eaves: {
+            left: { x: outerLeftX, y: leftEaveY, z: roofZOffset, length: roofLength },
+            right: { x: outerRightX, y: rightEaveY, z: roofZOffset, length: roofLength }
+        },
+        rakes,
+        ridge: isG ? {
+            x: 0,
+            y: height + totalRise,
+            z: roofZOffset,
+            length: roofLength,
+            roofAngle,
+            totalRise
+        } : null
+    };
+}
+
+function createGuttersSpatialData({ width, length, height, roofAngle, roofType, overhangs, roofLength, roofZOffset, openingsData, openingDefs }) {
+    const halfW = width / 2;
+    const isLSloped = (roofType === 'left-sloped');
+    const isRSloped = (roofType === 'right-sloped');
+
+    const totalRise = (isLSloped || isRSloped) ? width * Math.tan(roofAngle) : halfW * Math.tan(roofAngle);
+    const eaveDropL = overhangs.overL * Math.tan(roofAngle);
+    const eaveDropR = overhangs.overR * Math.tan(roofAngle);
+
+    let leftEaveY = height - eaveDropL;
+    let rightEaveY = height - eaveDropR;
+
+    if (isLSloped) rightEaveY = height + totalRise + eaveDropR;
+    if (isRSloped) leftEaveY = height + totalRise + eaveDropL;
+
+    const metersPerSpout = 25 * 0.3048;
+    const numDownspouts = Math.max(2, Math.ceil(roofLength / metersPerSpout) + 1);
+    const spacing = (roofLength - 0.6) / Math.max(1, numDownspouts - 1);
+    const gutterStartZ = -roofLength / 2;
+
+    const downspouts = [];
+    for (let i = 0; i < numDownspouts; i++) {
+        const zPos = roofZOffset + gutterStartZ + 0.3 + i * spacing;
+        const wallPos = zPos - roofZOffset;
+
+        downspouts.push({
+            side: 'L',
+            eaveY: leftEaveY,
+            sideX: -1,
+            overhang: overhangs.overL,
+            zPos,
+            wallPos
+        });
+        downspouts.push({
+            side: 'R',
+            eaveY: rightEaveY,
+            sideX: 1,
+            overhang: overhangs.overR,
+            zPos,
+            wallPos
+        });
+    }
+
+    return {
+        length: roofLength,
+        zOffset: roofZOffset,
+        eaves: {
+            left: { x: -halfW - overhangs.overL, y: leftEaveY, z: roofZOffset },
+            right: { x: halfW + overhangs.overR, y: rightEaveY, z: roofZOffset }
+        },
+        downspouts
+    };
+}
+
 export function createBuildingGeometry(options = {}) {
     const width = finite(options.width, 18.288);
     const length = finite(options.length, 30.48);
@@ -260,6 +484,11 @@ export function createBuildingGeometry(options = {}) {
     const roofType = normalizeRoofType(options.roofType);
     const wallThickness = finite(options.wallThickness, DEFAULTS.wallThickness);
     const roofThickness = finite(options.roofThickness, DEFAULTS.roofThickness);
+    const wainscotThickness = finite(options.wainscotThickness, DEFAULTS.wainscotThickness);
+    const wainscotOffset = finite(options.wainscotOffset, DEFAULTS.wainscotOffset);
+    const wsHeight = finite(options.wsHeight, 0.9144);
+    const wsEnabled = Boolean(options.wsEnabled);
+
     const visibility = normalizeVisibility(options.visibility);
     const openingsData = options.openingsData || {};
     const openingDefs = options.openingDefs || {};
@@ -272,6 +501,7 @@ export function createBuildingGeometry(options = {}) {
     const isSingleSlope = isLeftSloped || isRightSloped;
 
     const totalRise = isSingleSlope ? width * pitchRatio : halfW * pitchRatio;
+    const pitchAngle = isSingleSlope ? Math.atan2(totalRise, width) : Math.atan2(totalRise, halfW);
 
     let leftWallHeight = height;
     let rightWallHeight = height;
@@ -372,6 +602,47 @@ export function createBuildingGeometry(options = {}) {
     const innerW = width - wallThickness * 2;
     const innerL = length - wallThickness * 2;
 
+    const wainscot = createWainscotGeometry({
+        width,
+        length,
+        leftWallHeight,
+        rightWallHeight,
+        wsHeight,
+        wsEnabled,
+        walls,
+        wallThickness,
+        wainscotThickness,
+        wainscotOffset
+    });
+
+    const trims = createTrimsSpatialData({
+        width,
+        length,
+        height,
+        totalRise,
+        roofAngle: pitchAngle,
+        roofType,
+        overhangs,
+        roofLength: roof.totalLength,
+        roofZOffset: roof.zOffset,
+        wallThickness,
+        wainscotThickness,
+        wsEnabled
+    });
+
+    const gutters = createGuttersSpatialData({
+        width,
+        length,
+        height,
+        roofAngle: pitchAngle,
+        roofType,
+        overhangs,
+        roofLength: roof.totalLength,
+        roofZOffset: roof.zOffset,
+        openingsData,
+        openingDefs
+    });
+
     return {
         version: 1,
         building: {
@@ -381,6 +652,7 @@ export function createBuildingGeometry(options = {}) {
             halfWidth: halfW,
             halfLength: halfL,
             pitchRatio,
+            pitchAngle,
             roofType,
             isSingleSlope,
             totalRise,
@@ -396,6 +668,9 @@ export function createBuildingGeometry(options = {}) {
         },
         walls,
         roof,
+        wainscot,
+        trims,
+        gutters,
         overhangs: {
             ...overhangs,
             enabled: hasOverhangs,

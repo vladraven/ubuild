@@ -1,6 +1,4 @@
-// ================================================
-// FILE: js/end-wall-columns.js
-// ================================================
+// js/end-wall-columns.js
 import * as THREE from 'three';
 
 const steelMat = new THREE.MeshStandardMaterial({
@@ -9,13 +7,12 @@ const steelMat = new THREE.MeshStandardMaterial({
     roughness: 0.5
 });
 
-export function createEndWallColumnsGroup(width, length, height, pitchRatio, roofType, enabled) {
+export function createEndWallColumnsGroup(width, length, height, pitchRatio, roofType, enabled, geometry = null) {
     const group = new THREE.Group();
-    if (!enabled) return group;
+    if (!enabled || !geometry) return group;
 
-    const wallThick = 0.1;
-    const innerW = width - wallThick * 2;
-    const innerL = length - wallThick * 2;
+    const innerW = geometry.interior.width;
+    const innerL = geometry.interior.length;
     const colThick = 0.15;
 
     const isG = roofType === 'gabled';

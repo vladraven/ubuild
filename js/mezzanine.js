@@ -1,15 +1,12 @@
-// ================================================
-// FILE: js/mezzanine.js
-// ================================================
+// js/mezzanine.js
 import * as THREE from 'three';
 
-export function createMezzanineGroup(width, length, height, enabled, coverageFraction, zPercent, hPercent, colorHex) {
+export function createMezzanineGroup(width, length, height, enabled, coverageFraction, zPercent, hPercent, colorHex, geometry = null) {
     const group = new THREE.Group();
-    if (!enabled) return group;
+    if (!enabled || !geometry) return group;
 
-    const wallThick = 0.1;
-    const innerW = width - wallThick * 2;
-    const innerL = length - wallThick * 2;
+    const innerW = geometry.interior.width;
+    const innerL = geometry.interior.length;
 
     const covFactor = (parseInt(coverageFraction, 10) || 1) / 3;
     const mezzL = innerL * covFactor;
@@ -29,7 +26,6 @@ export function createMezzanineGroup(width, length, height, enabled, coverageFra
         roughness: 0.3
     });
 
-    // 1. Floor slab
     const floorThick = 0.15;
     const floorGeo = new THREE.BoxGeometry(innerW, floorThick, mezzL);
     const floorMesh = new THREE.Mesh(floorGeo, mezzMaterial);
@@ -38,7 +34,6 @@ export function createMezzanineGroup(width, length, height, enabled, coverageFra
     floorMesh.receiveShadow = true;
     group.add(floorMesh);
 
-    // 2. Structural posts
     const colRadius = 0.1;
     const colGeo = new THREE.CylinderGeometry(colRadius, colRadius, mezzH - floorThick, 16);
 

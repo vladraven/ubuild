@@ -1,6 +1,4 @@
-// ================================================
-// FILE: js/foundation.js
-// ================================================
+// js/foundation.js
 import * as THREE from 'three';
 
 const concreteMat = new THREE.MeshStandardMaterial({ 
@@ -34,7 +32,7 @@ function createTextLabel(txt) {
     return mesh;
 }
 
-export function createFoundationGroup(width, length, showLabels = true) {
+export function createFoundationGroup(width, length, showLabels = true, geometry = null) {
     const group = new THREE.Group();
     const bc = window.ConfiguratorBackendConstraints || {};
 
@@ -46,7 +44,6 @@ export function createFoundationGroup(width, length, showLabels = true) {
     const totalW = width + foundationLedge * 2;
     const totalL = length + foundationLedge * 2;
 
-    // 1. Foundation Base Box
     const geo = new THREE.BoxGeometry(totalW, foundationHeight, totalL);
     const foundationMesh = new THREE.Mesh(geo, concreteMat);
     foundationMesh.position.set(0, -foundationHeight / 2 - 0.001, 0);
@@ -54,7 +51,6 @@ export function createFoundationGroup(width, length, showLabels = true) {
     foundationMesh.castShadow = true;
     group.add(foundationMesh);
 
-    // 2. Interior Floor Slab
     const slabGeo = new THREE.BoxGeometry(width, 0.10, length);
     const slabMesh = new THREE.Mesh(slabGeo, concreteMat);
     slabMesh.position.set(0, -0.05, 0);
@@ -62,7 +58,6 @@ export function createFoundationGroup(width, length, showLabels = true) {
     slabMesh.castShadow = true;
     group.add(slabMesh);
 
-    // 3. Side Orientation Labels
     if (showLabels) {
         const off = width / 2 + 8;
         const labelY = 0.05;

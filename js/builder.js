@@ -1,6 +1,4 @@
-// ================================================
-// FILE: js/builder.js
-// ================================================
+// js/builder.js
 import { mainGroup } from './scene.js';
 import { isMetric, getU, openingsData, openingDefs } from './state.js';
 import { createBuildingGeometry } from './buildingGeometry.js';
@@ -13,7 +11,8 @@ import { createMezzanineGroup } from './mezzanine.js';
 import { createCraneGroup } from './crane.js';
 import { createMainFramesGroup } from './main-frames.js';
 import { createTrimsGroup } from './trims.js';
-import { updateDownspoutVisibility } from './gutters.js';
+import { createRidgeGroup } from './ridge.js';
+import { createGuttersGroup, updateDownspoutVisibility } from './gutters.js';
 import { createGirtsGroup } from './girts.js';
 import { createPurlinsGroup } from './purlins.js';
 import { createEndWallColumnsGroup } from './end-wall-columns.js';
@@ -62,7 +61,10 @@ function readBuildingParameters() {
         overB: readMetricValue('overB', 0)
     };
 
-    return { width, length, height, pitchRatio, roofType, overhangs };
+    const wsEnabled = document.getElementById('wainscotEn')?.checked || false;
+    const wsHeight = readMetricValue('inputWSHeight', 0.9144);
+
+    return { width, length, height, pitchRatio, roofType, overhangs, wsEnabled, wsHeight };
 }
 
 export function updateBuilding() {
@@ -84,6 +86,8 @@ export function updateBuilding() {
         overR: params.overhangs.overR,
         overF: params.overhangs.overF,
         overB: params.overhangs.overB,
+        wsEnabled: params.wsEnabled,
+        wsHeight: params.wsHeight,
         openingsData,
         openingDefs,
         visibility: vis
@@ -92,12 +96,12 @@ export function updateBuilding() {
     updateBuildingTextures(params.width, params.length, params.height);
 
     // 1. Foundation
-    mainGroup.add(createFoundationGroup(params.width, params.length, vis.checkLabels));
+    mainGroup.add(createFoundationGroup(params.width, params.length, vis.checkLabels, geometry));
 
     // 2. Structural Main Frames
-    mainGroup.add(createMainFramesGroup(params.width, params.length, params.height, params.pitchRatio, params.roofType));
+    mainGroup.add(createMainFramesGroup(params.width, params.length, params.height, params.pitchRatio, params.roofType, geometry));
 
-    // 3. Walls & Openings (and non-overhang roof if applicable)
+    // 3. Walls & Openings (and non-overhang roof)
     const hasOverhangs = geometry.overhangs.enabled;
     mainGroup.add(createBuildingGroup(params.width, params.length, params.height, params.pitchRatio, params.roofType, hasOverhangs, vis, geometry));
 
@@ -107,18 +111,15 @@ export function updateBuilding() {
     }
 
     // 5. Awnings / Lean-Tos
-    mainGroup.add(createAwningsGroup(params.width, params.length, params.height, params.pitchRatio, params.roofType));
+    mainGroup.add(createAwningsGroup(params.width, params.length, params.height, params.pitchRatio, params.roofType, geometry));
 
     // 6. Wainscot
-    const wsEnabled = document.getElementById('wainscotEn')?.checked || false;
-    const wsHeight = readMetricValue('inputWSHeight', 0.9144);
-    const wsColor = document.getElementById('colorWainscot')?.value || '#707170';
-    mainGroup.add(createWainscotGroup(params.width, params.length, params.height, params.pitchRatio, params.roofType, wsHeight, wsColor, wsEnabled, vis, geometry));
+    mainGroup.add(createWainscotGroup(params.width, params.length, params.height, params.pitchRatio, params.roofType, params.wsHeight, null, params.wsEnabled, vis, geometry));
 
     // 7. Interior Liner
     const intLinerEn = document.getElementById('intWallsEn')?.checked || false;
     const intLinerH = parseFloat(document.getElementById('intWallsH')?.value || 100);
-    mainGroup.add(createInteriorLinerGroup(params.width, params.length, params.height, params.pitchRatio, params.roofType, intLinerEn, intLinerH));
+    mainGroup.add(createInteriorLinerGroup(params.width, params.length, params.height, params.pitchRatio, params.roofType, intLinerEn, intLinerH, geometry));
 
     // 8. Mezzanine
     const mezzEn = document.getElementById('mezzEn')?.checked || false;
@@ -126,38 +127,75 @@ export function updateBuilding() {
     const mezzZ = parseFloat(document.getElementById('mezzZ')?.value || 0);
     const mezzH = parseFloat(document.getElementById('mezzH')?.value || 50);
     const mezzColor = document.getElementById('colorMezzanine')?.value;
-    mainGroup.add(createMezzanineGroup(params.width, params.length, params.height, mezzEn, mezzCov, mezzZ, mezzH, mezzColor));
+    mainGroup.add(createMezzanineGroup(params.width, params.length, params.height, mezzEn, mezzCov, mezzZ, mezzH, mezzColor, geometry));
 
     // 9. Crane
     const craneEn = document.getElementById('craneEn')?.checked || false;
     const craneZ = parseFloat(document.getElementById('craneZ')?.value || 50);
-    mainGroup.add(createCraneGroup(params.width, params.length, params.height, craneEn, craneZ));
+    mainGroup.add(createCraneGroup(params.width, params.length, params.height, craneEn, craneZ, geometry));
 
-    // 10. Trims & Gutters
+    // 10. Trims
     const checkTrims = document.getElementById('checkTrims')?.checked ?? true;
     const checkGutters = document.getElementById('checkGutters')?.checked ?? false;
-    const trimsGroup = createTrimsGroup(params.width, params.length, params.height, params.pitchRatio, params.roofType, checkTrims, params.overhangs.overL, params.overhangs.overR, params.overhangs.overF, params.overhangs.overB, checkGutters, geometry);
-    mainGroup.add(trimsGroup);
-    updateDownspoutVisibility(trimsGroup);
 
-    // 11. Girts & Purlins
+    const trimsGroup = createTrimsGroup(
+        params.width,
+        params.length,
+        params.height,
+        params.pitchRatio,
+        params.roofType,
+        checkTrims,
+        params.overhangs.overL,
+        params.overhangs.overR,
+        params.overhangs.overF,
+        params.overhangs.overB,
+        false,
+        geometry
+    );
+    mainGroup.add(trimsGroup);
+
+    // 11. Ridge Cap (Dedicated Orchestrator)
+    if (checkTrims && geometry.roof.type === 'gabled') {
+        mainGroup.add(createRidgeGroup(geometry));
+    }
+
+    // 12. Gutters (Dedicated Orchestrator)
+    if (checkGutters) {
+        const guttersGroup = createGuttersGroup(
+            params.width,
+            params.length,
+            params.height,
+            params.pitchRatio,
+            params.roofType,
+            true,
+            params.overhangs.overL,
+            params.overhangs.overR,
+            params.overhangs.overF,
+            params.overhangs.overB,
+            geometry
+        );
+        mainGroup.add(guttersGroup);
+        updateDownspoutVisibility(guttersGroup);
+    }
+
+    // 13. Girts & Purlins
     const checkGirts = document.getElementById('checkGirts')?.checked ?? true;
-    mainGroup.add(createGirtsGroup(params.width, params.length, params.height, checkGirts));
+    mainGroup.add(createGirtsGroup(params.width, params.length, params.height, checkGirts, geometry));
 
     const checkPurlins = document.getElementById('checkPurlins')?.checked ?? true;
-    mainGroup.add(createPurlinsGroup(params.width, params.length, params.height, params.pitchRatio, params.roofType, checkPurlins));
+    mainGroup.add(createPurlinsGroup(params.width, params.length, params.height, params.pitchRatio, params.roofType, checkPurlins, geometry));
 
-    // 12. End Wall Columns
+    // 14. End Wall Columns
     const checkEWColumns = document.getElementById('checkEWColumns')?.checked ?? true;
-    mainGroup.add(createEndWallColumnsGroup(params.width, params.length, params.height, params.pitchRatio, params.roofType, checkEWColumns));
+    mainGroup.add(createEndWallColumnsGroup(params.width, params.length, params.height, params.pitchRatio, params.roofType, checkEWColumns, geometry));
 
-    // 13. Driveway
+    // 15. Driveway
     const drivewayEn = document.getElementById('drivewayEn')?.checked ?? false;
-    mainGroup.add(createDrivewayGroup(params.width, params.length, drivewayEn));
+    mainGroup.add(createDrivewayGroup(params.width, params.length, drivewayEn, geometry));
 
-    // 14. Logo
+    // 16. Logo
     if (vis.wF) {
-        mainGroup.add(createLogoGroup(params.width, params.length, params.height, params.pitchRatio, params.roofType));
+        mainGroup.add(createLogoGroup(params.width, params.length, params.height, params.pitchRatio, params.roofType, geometry));
     }
 
     updateSidebarSummary(params.width, params.length, params.height, params.pitchRatio, params.roofType);

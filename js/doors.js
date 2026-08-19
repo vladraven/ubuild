@@ -1,6 +1,4 @@
-// ================================================
-// FILE: js/doors.js
-// ================================================
+// js/doors.js
 import * as THREE from 'three';
 import { openingsData, openingDefs, hitboxes } from './state.js';
 

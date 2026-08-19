@@ -1,21 +1,17 @@
-// ================================================
-// FILE: js/crane.js
-// ================================================
+// js/crane.js
 import * as THREE from 'three';
 
 const steelMat = new THREE.MeshStandardMaterial({ color: 0xeab308, metalness: 0.5, roughness: 0.4 });
 const railMat = new THREE.MeshStandardMaterial({ color: 0x1e293b, metalness: 0.8, roughness: 0.2 });
 
-export function createCraneGroup(width, length, height, enabled, zPercent) {
+export function createCraneGroup(width, length, height, enabled, zPercent, geometry = null) {
     const group = new THREE.Group();
-    if (!enabled) return group;
+    if (!enabled || !geometry) return group;
 
-    const wallThick = 0.1;
-    const innerW = width - wallThick * 2;
-    const innerL = length - wallThick * 2;
+    const innerW = geometry.interior.width;
+    const innerL = geometry.interior.length;
     const craneY = height * 0.75;
 
-    // 1. Runway beams
     const railBeamGeo = new THREE.BoxGeometry(0.15, 0.25, innerL);
 
     const leftRail = new THREE.Mesh(railBeamGeo, railMat);
@@ -28,7 +24,6 @@ export function createCraneGroup(width, length, height, enabled, zPercent) {
     rightRail.castShadow = true;
     group.add(rightRail);
 
-    // 2. Bridge beam
     const bridgeZ = -innerL / 2 + innerL * (Math.min(100, Math.max(0, zPercent)) / 100);
 
     const bridgeGeo = new THREE.BoxGeometry(innerW - 0.2, 0.35, 0.3);
@@ -37,7 +32,6 @@ export function createCraneGroup(width, length, height, enabled, zPercent) {
     bridgeMesh.castShadow = true;
     group.add(bridgeMesh);
 
-    // 3. Hoist trolley
     const trolleyGeo = new THREE.BoxGeometry(0.4, 0.4, 0.4);
     const trolleyMesh = new THREE.Mesh(trolleyGeo, railMat);
     trolleyMesh.position.set(0, craneY, bridgeZ);

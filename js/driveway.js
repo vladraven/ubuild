@@ -1,6 +1,4 @@
-// ================================================
-// FILE: js/driveway.js
-// ================================================
+// js/driveway.js
 import * as THREE from 'three';
 
 const concreteMat = new THREE.MeshStandardMaterial({
@@ -8,11 +6,11 @@ const concreteMat = new THREE.MeshStandardMaterial({
     roughness: 0.9
 });
 
-export function createDrivewayGroup(width, length, enabled) {
+export function createDrivewayGroup(width, length, enabled, geometry = null) {
     const group = new THREE.Group();
     if (!enabled) return group;
 
-    const halfL = length / 2;
+    const halfL = geometry ? geometry.building.halfLength : length / 2;
     const driveW = width * 0.25;
     const driveL = 8.0;
     const driveH = 0.08;

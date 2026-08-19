@@ -1,6 +1,4 @@
-// ================================================
-// FILE: js/windows.js
-// ================================================
+// js/windows.js
 import * as THREE from 'three';
 import { openingsData, openingDefs, hitboxes } from './state.js';
 

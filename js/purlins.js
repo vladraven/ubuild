@@ -1,6 +1,4 @@
-// ================================================
-// FILE: js/purlins.js
-// ================================================
+// js/purlins.js
 import * as THREE from 'three';
 
 const steelMat = new THREE.MeshStandardMaterial({
@@ -9,18 +7,17 @@ const steelMat = new THREE.MeshStandardMaterial({
     roughness: 0.48
 });
 
-export function createPurlinsGroup(width, length, height, pitchRatio, roofType, enabled) {
+export function createPurlinsGroup(width, length, height, pitchRatio, roofType, enabled, geometry = null) {
     const group = new THREE.Group();
-    if (!enabled) return group;
+    if (!enabled || !geometry) return group;
 
-    const wallThick = 0.1;
-    const innerW = width - wallThick * 2;
-    const innerL = length - wallThick * 2;
+    const innerW = geometry.interior.width;
+    const innerL = geometry.interior.length;
     const halfW = innerW / 2;
 
     const isG = roofType === 'gabled';
     const isRSloped = roofType === 'right-sloped';
-    const ang = Math.atan(pitchRatio);
+    const ang = geometry.building.pitchAngle || Math.atan(pitchRatio);
 
     const pSize = 0.1;
     const stepDist = 1.2;

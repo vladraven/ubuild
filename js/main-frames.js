@@ -1,6 +1,4 @@
-// ================================================
-// FILE: js/main-frames.js
-// ================================================
+// js/main-frames.js
 import * as THREE from 'three';
 
 const frameMat = new THREE.MeshStandardMaterial({
@@ -88,14 +86,16 @@ function createRafterBeam(rafterLength, dStart, dEnd, flangeW = 0.20, flangeT = 
     return group;
 }
 
-export function createMainFramesGroup(width, length, height, pitchRatio, roofType, buildingGeometry = null) {
+export function createMainFramesGroup(width, length, height, pitchRatio, roofType, geometry = null) {
     const group = new THREE.Group();
-    const isGabled = roofType === 'gabled';
+    if (!geometry) return group;
 
+    const isGabled = roofType === 'gabled';
     const numFrames = Math.max(2, Math.round(length / 6) + 1);
-    const halfW = width / 2;
-    const halfL = length / 2;
-    const ang = Math.atan(pitchRatio);
+
+    const halfW = geometry.building.halfWidth;
+    const halfL = geometry.building.halfLength;
+    const ang = geometry.building.pitchAngle || Math.atan(pitchRatio);
 
     const colDStart = 0.20;
     const colDEnd = 0.40;
@@ -136,7 +136,7 @@ export function createMainFramesGroup(width, length, height, pitchRatio, roofTyp
             frame.add(raftR);
         } else {
             const isLeftSloped = (roofType === 'left-sloped');
-            const totalRise = (innerHalfW * 2) * pitchRatio;
+            const totalRise = geometry.building.totalRise;
             const hL = isLeftSloped ? height : height + totalRise;
             const hR = isLeftSloped ? height + totalRise : height;
 

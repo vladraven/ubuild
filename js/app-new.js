@@ -1,6 +1,4 @@
-// ================================================
-// FILE: js/app-new.js
-// ================================================
+// js/app-new.js
 import { initState } from './state.js';
 import { initScene, animate, renderer, scene, camera, controls } from './scene.js';
 import { initUI } from './ui.js';
@@ -19,14 +17,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const sceneObj = initScene(container);
 
-    // 1. Инициализация UI и лимитов ввода
     initUI(updateBuilding, renderer, scene, camera, controls || sceneObj.controls);
-
-    // 2. Восстановление конфигурации из URL-параметров при наличии
     applyUrlConfig(updateBuilding);
-
-    // 3. Первичная процедурная сборка сцены с валидированными параметрами
     updateBuilding();
-
     animate();
 });

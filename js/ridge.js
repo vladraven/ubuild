@@ -1,5 +1,6 @@
+// js/ridge.js
 import * as THREE from 'three';
-import { ridgeTrimMat } from './colorise.js';
+import { trimMat } from './colorise.js';
 
 export const RIDGE_CONFIG = {
     width: 0.4,
@@ -8,23 +9,21 @@ export const RIDGE_CONFIG = {
     lengthOffset: -0.124
 };
 
-export function createRidge(
-    roofLength,
-    height,
-    totalRise,
-    roofAngle,
-    trimThickness,
-    zOffset = 0
-) {
+export function createRidgeGroup(geometry) {
+    const group = new THREE.Group();
+    if (!geometry || !geometry.trims || !geometry.trims.ridge) {
+        return group;
+    }
+
+    const ridgeData = geometry.trims.ridge;
     const capWidth = RIDGE_CONFIG.width;
     const capThickness = RIDGE_CONFIG.thickness;
     const halfWidth = capWidth / 2;
 
-    const roofPlaneRise = halfWidth * Math.tan(roofAngle);
+    const roofPlaneRise = halfWidth * Math.tan(ridgeData.roofAngle);
     const capPeakHeight = roofPlaneRise + RIDGE_CONFIG.rise;
 
     const shape = new THREE.Shape();
-
     shape.moveTo(-halfWidth, 0);
     shape.lineTo(0, capPeakHeight);
     shape.lineTo(halfWidth, 0);
@@ -33,30 +32,19 @@ export function createRidge(
     shape.lineTo(-halfWidth, -capThickness);
     shape.closePath();
 
-    const ridgeLength = Math.max(
-        0.01,
-        roofLength + trimThickness * 2 + RIDGE_CONFIG.lengthOffset
-    );
-
-    const geometry = new THREE.ExtrudeGeometry(shape, {
+    const ridgeLength = Math.max(0.01, ridgeData.length + RIDGE_CONFIG.lengthOffset);
+    const extrudeGeo = new THREE.ExtrudeGeometry(shape, {
         depth: ridgeLength,
         bevelEnabled: false
     });
+    extrudeGeo.translate(0, 0, -ridgeLength / 2);
 
-    geometry.translate(0, 0, -ridgeLength / 2);
+    const ridgeMesh = new THREE.Mesh(extrudeGeo, trimMat);
+    ridgeMesh.position.set(ridgeData.x, ridgeData.y, ridgeData.z);
+    ridgeMesh.castShadow = true;
+    ridgeMesh.receiveShadow = true;
+    ridgeMesh.renderOrder = 6;
 
-    const ridge = new THREE.Mesh(geometry, ridgeTrimMat);
-
-    // Micro-elevation of +0.003m avoids z-fighting with peak roof panels & rake trims
-    ridge.position.set(
-        0,
-        height + totalRise + 0.003,
-        zOffset
-    );
-
-    ridge.castShadow = true;
-    ridge.receiveShadow = true;
-    ridge.renderOrder = 6;
-
-    return ridge;
+    group.add(ridgeMesh);
+    return group;
 }

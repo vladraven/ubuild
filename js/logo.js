@@ -1,6 +1,4 @@
-// ================================================
-// FILE: js/logo.js
-// ================================================
+// js/logo.js
 import * as THREE from 'three';
 
 const textureLoader = new THREE.TextureLoader();
@@ -10,7 +8,7 @@ const logoUrl = 'https://ubuildsb.com/wp-content/themes/U-Build/js/U-build-logo.
 const trimMat = new THREE.MeshStandardMaterial({ color: 0x334155, metalness: 0.3, roughness: 0.6 });
 const whitePlateMat = new THREE.MeshStandardMaterial({ color: 0xeeeeee, roughness: 0.4, metalness: 0 });
 
-export function createLogoGroup(width, length, height, pitchRatio, roofType) {
+export function createLogoGroup(width, length, height, pitchRatio, roofType, geometry = null) {
     const logoGroup = new THREE.Group();
 
     if (!logoTexture) {
@@ -22,7 +20,6 @@ export function createLogoGroup(width, length, height, pitchRatio, roofType) {
     const plateThick = 0.08;
     const margin = 0.15;
 
-    // 1. Frame & plate
     const plateGeo = new THREE.BoxGeometry(logoWidth + 0.1, logoHeight + 0.1, plateThick);
     const plateMesh = new THREE.Mesh(plateGeo, whitePlateMat);
     plateMesh.castShadow = true;
@@ -34,16 +31,14 @@ export function createLogoGroup(width, length, height, pitchRatio, roofType) {
     frameMesh.position.z = -plateThick / 2;
     logoGroup.add(frameMesh);
 
-    // 2. Logo Decal
     const logoMat = new THREE.MeshBasicMaterial({ map: logoTexture, transparent: true, side: THREE.DoubleSide });
     const logoMesh = new THREE.Mesh(new THREE.PlaneGeometry(logoWidth, logoHeight), logoMat);
     logoMesh.position.z = plateThick / 2 + 0.005;
     logoGroup.add(logoMesh);
 
-    // 3. Position Calculation
     const halfW = width / 2;
     const halfL = length / 2;
-    const wallThick = 0.05;
+    const wallThick = geometry ? geometry.building.wallThickness : 0.05;
     const halfPlateW = (logoWidth + 0.12) / 2;
     const halfPlateH = (logoHeight + 0.12) / 2;
 

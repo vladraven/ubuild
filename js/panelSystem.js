@@ -1,6 +1,4 @@
-// ================================================
-// FILE: js/panelSystem.js
-// ================================================
+// js/panelSystem.js
 import * as THREE from 'three';
 
 const METERS_TO_FEET = 3.28084;

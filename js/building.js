@@ -1,13 +1,9 @@
-// ================================================
-// FILE: js/building.js
-// ================================================
+// js/building.js
 import * as THREE from 'three';
-import { openingsData, openingDefs } from './state.js';
 import { createWindowsGroupForWall } from './windows.js';
 import { createDoorsGroupForWall } from './doors.js';
 import { roofMat } from './colorise.js';
 import { getWallPanelMaterial, applyPanelUVs } from './panelSystem.js';
-import { createBuildingGeometry } from './buildingGeometry.js';
 
 function createWallShape(wall) {
     const shape = new THREE.Shape();
@@ -33,14 +29,14 @@ function createWallShape(wall) {
     return shape;
 }
 
-function createWallMesh(wall, panelMaterial, uvOriginX, uvOriginY) {
+function createWallMesh(wall, panelMaterial) {
     const shape = createWallShape(wall);
     const geometry = new THREE.ExtrudeGeometry(shape, {
         depth: wall.thickness,
         bevelEnabled: false
     });
 
-    applyPanelUVs(geometry, uvOriginX, uvOriginY);
+    applyPanelUVs(geometry, wall.uvOriginX, 0);
     geometry.computeVertexNormals();
 
     const mesh = new THREE.Mesh(geometry, panelMaterial);
@@ -116,44 +112,25 @@ export function createBuildingGroup(
     roofType,
     hasOverhangs = false,
     vis = {},
-    buildingGeometry = null
+    geometry = null
 ) {
     const group = new THREE.Group();
+    if (!geometry) return group;
+
     const panelMaterial = getWallPanelMaterial();
-
-    const visibility = {
-        wF: vis.wF ?? true,
-        wB: vis.wB ?? true,
-        wL: vis.wL ?? true,
-        wR: vis.wR ?? true,
-        checkRoof: vis.checkRoof ?? true
-    };
-
-    const geometry = buildingGeometry || createBuildingGeometry({
-        width,
-        length,
-        height,
-        pitchRatio,
-        roofType,
-        openingsData,
-        openingDefs,
-        visibility
-    });
-
     const wallSides = ['L', 'R', 'F', 'B'];
 
     wallSides.forEach(side => {
         const wall = geometry.walls[side];
         if (!wall) return;
 
-        const uvOriginX = (side === 'L' || side === 'R') ? -length / 2 : -width / 2;
-        const wallMesh = createWallMesh(wall, panelMaterial, uvOriginX, 0);
+        const wallMesh = createWallMesh(wall, panelMaterial);
         group.add(wallMesh);
 
-        addWallAssemblies(group, side, wall, width, length);
+        addWallAssemblies(group, side, wall, geometry.building.width, geometry.building.length);
     });
 
-    if (!hasOverhangs && visibility.checkRoof) {
+    if (!hasOverhangs && vis.checkRoof) {
         const roof = createRoofMesh(geometry.roof);
         if (roof) group.add(roof);
     }

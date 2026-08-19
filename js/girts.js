@@ -1,6 +1,4 @@
-// ================================================
-// FILE: js/girts.js
-// ================================================
+// js/girts.js
 import * as THREE from 'three';
 
 const steelMat = new THREE.MeshStandardMaterial({
@@ -9,13 +7,12 @@ const steelMat = new THREE.MeshStandardMaterial({
     roughness: 0.48
 });
 
-export function createGirtsGroup(width, length, height, enabled) {
+export function createGirtsGroup(width, length, height, enabled, geometry = null) {
     const group = new THREE.Group();
-    if (!enabled) return group;
+    if (!enabled || !geometry) return group;
 
-    const wallThick = 0.1;
-    const innerW = width - wallThick * 2;
-    const innerL = length - wallThick * 2;
+    const innerW = geometry.interior.width;
+    const innerL = geometry.interior.length;
     const girtThick = 0.08;
     const stepY = 1.2;
     const numGirts = Math.floor(height / stepY);
@@ -23,7 +20,6 @@ export function createGirtsGroup(width, length, height, enabled) {
     for (let i = 1; i <= numGirts; i++) {
         const y = i * stepY;
 
-        // Left & Right Girts
         const gL = new THREE.Mesh(new THREE.BoxGeometry(girtThick, girtThick, innerL), steelMat);
         gL.position.set(-innerW / 2 + girtThick / 2, y, 0);
         gL.castShadow = true;
@@ -34,7 +30,6 @@ export function createGirtsGroup(width, length, height, enabled) {
         gR.castShadow = true;
         group.add(gR);
 
-        // Front & Back Girts
         const gF = new THREE.Mesh(new THREE.BoxGeometry(innerW - girtThick * 2, girtThick, girtThick), steelMat);
         gF.position.set(0, y, innerL / 2 - girtThick / 2);
         gF.castShadow = true;

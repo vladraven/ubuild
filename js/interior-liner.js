@@ -1,6 +1,4 @@
-// ================================================
-// FILE: js/interior-liner.js
-// ================================================
+// js/interior-liner.js
 import * as THREE from 'three';
 import { openingsData, openingDefs } from './state.js';
 import { intWallMat } from './colorise.js';
@@ -45,9 +43,9 @@ function createLinerShapeWithHoles(shapePoints, side, maxH) {
     return shape;
 }
 
-export function createInteriorLinerGroup(width, length, height, pitchRatio, roofType, enabled, hPercent) {
+export function createInteriorLinerGroup(width, length, height, pitchRatio, roofType, enabled, hPercent, geometry = null) {
     const group = new THREE.Group();
-    if (!enabled || hPercent <= 0) {
+    if (!enabled || hPercent <= 0 || !geometry) {
         return group;
     }
 
@@ -62,13 +60,10 @@ export function createInteriorLinerGroup(width, length, height, pitchRatio, roof
     const isLeftSloped = roofType === 'left-sloped';
     const isRightSloped = roofType === 'right-sloped';
     const isSingleSlope = isLeftSloped || isRightSloped;
-    const totalRise = isSingleSlope ? width * pitchRatio : (width / 2) * pitchRatio;
+    const totalRise = geometry.building.totalRise;
 
-    let leftWallH = height;
-    let rightWallH = height;
-
-    if (isLeftSloped) rightWallH = height + totalRise;
-    else if (isRightSloped) leftWallH = height + totalRise;
+    let leftWallH = geometry.building.leftWallHeight;
+    let rightWallH = geometry.building.rightWallHeight;
 
     const factor = Math.min(100, Math.max(0, hPercent)) / 100;
     const actualLeftH = leftWallH * factor;

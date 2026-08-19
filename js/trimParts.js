@@ -1,19 +1,19 @@
+// js/trimParts.js
 import * as THREE from 'three';
-import { eaveTrimMat, rakeTrimMat } from './colorise.js';
+import { trimMat, eaveTrimMat, rakeTrimMat } from './colorise.js';
 
 export const TRIM_CONFIG = {
-    eaveLengthOffset: -0.124,
+    eaveLengthOffset: 0.0,
     eaveHeightExtra: 0.03,
-    eaveYOffset: 0.001,
+    eaveYOffset: 0.0,
     rakeLengthOffset: 0.0,
     rakeHeightExtra: 0.03,
-    rakeZOffset: 0.002,
+    rakeZOffset: 0.0,
     tS: 0.12
 };
 
 export function createEaveTrim(len, sideX, tS, extraH) {
     const shape = new THREE.Shape();
-
     const h = tS + extraH;
     const w = tS;
     const t = Math.max(0.006, tS * 0.15);
@@ -24,34 +24,15 @@ export function createEaveTrim(len, sideX, tS, extraH) {
     shape.lineTo(sideX * lip, h / 2);
     shape.lineTo(sideX * lip, h / 2 - t);
     shape.lineTo(sideX * (lip - t), h / 2 - t);
-    shape.lineTo(
-        sideX * (lip - t),
-        -h / 2 + t + drip
-    );
-    shape.lineTo(
-        sideX * w,
-        -h / 2 + drip
-    );
-    shape.lineTo(
-        sideX * w,
-        -h / 2
-    );
-    shape.lineTo(
-        sideX * (w - t),
-        -h / 2
-    );
-    shape.lineTo(
-        sideX * (w - t),
-        -h / 2 + t
-    );
-    shape.lineTo(
-        0,
-        -h / 2 + t
-    );
+    shape.lineTo(sideX * (lip - t), -h / 2 + t + drip);
+    shape.lineTo(sideX * w, -h / 2 + drip);
+    shape.lineTo(sideX * w, -h / 2);
+    shape.lineTo(sideX * (w - t), -h / 2);
+    shape.lineTo(sideX * (w - t), -h / 2 + t);
+    shape.lineTo(0, -h / 2 + t);
     shape.closePath();
 
     const safeLength = Math.max(0.01, len);
-
     const geo = new THREE.ExtrudeGeometry(shape, {
         depth: safeLength,
         bevelEnabled: false
@@ -71,7 +52,6 @@ export function createCornerTrimGeo(colH, tS, sx, sz) {
     const legT = tS * 0.28;
 
     const shape = new THREE.Shape();
-
     shape.moveTo(sx * -halfT, sz * -halfT);
     shape.lineTo(sx * halfT, sz * -halfT);
     shape.lineTo(sx * halfT, sz * (-halfT + legT));
@@ -86,7 +66,6 @@ export function createCornerTrimGeo(colH, tS, sx, sz) {
     });
 
     geo.rotateX(-Math.PI / 2);
-
     return geo;
 }
 
@@ -95,7 +74,6 @@ export function createRakeTrim(len, signZ, tS, extraH) {
     const h = tS + extraH;
 
     const shape = new THREE.Shape();
-
     shape.moveTo(0, h / 2);
     shape.lineTo(0, -h / 2);
     shape.lineTo(signZ * depthS, -h / 2);
@@ -103,7 +81,6 @@ export function createRakeTrim(len, signZ, tS, extraH) {
     shape.closePath();
 
     const safeLength = Math.max(0.01, len);
-
     const geo = new THREE.ExtrudeGeometry(shape, {
         depth: safeLength,
         bevelEnabled: false
@@ -111,7 +88,7 @@ export function createRakeTrim(len, signZ, tS, extraH) {
 
     geo.translate(0, 0, -safeLength / 2);
 
-    const mesh = new THREE.Mesh(geo, rakeTrimMat);
+    const mesh = new THREE.Mesh(geo, rakeTrimMat || trimMat);
     mesh.castShadow = true;
     mesh.renderOrder = 5;
 
