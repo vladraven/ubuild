@@ -9,7 +9,7 @@ export const TRIM_CONFIG = {
     rakeLengthOffset: 0.0,
     rakeHeightExtra: 0.03,
     rakeZOffset: 0.0,
-    tS: 0.10 // 10 см - реалистичная ширина полки нащельника
+    tS: 0.10
 };
 
 export function createEaveTrim(len, sideX, tS, extraH) {
@@ -47,17 +47,18 @@ export function createEaveTrim(len, sideX, tS, extraH) {
 }
 
 export function createCornerTrimGeo(colH, tS, sx, sz) {
-    const t = 0.01; // Толщина металла нащельника (1 см)
+    const t = 0.008;
     const shape = new THREE.Shape();
 
-    // L-образный профиль, внутренний угол которого плотно садится ровно на (0, 0)
-    // а полки шириной tS идут строго вдоль внешних граней стен
+    const dirX = -sx;
+    const dirZ = -sz;
+
     shape.moveTo(0, 0);
-    shape.lineTo(sx * tS, 0);
-    shape.lineTo(sx * tS, sz * t);
-    shape.lineTo(sx * t, sz * t);
-    shape.lineTo(sx * t, sz * tS);
-    shape.lineTo(0, sz * tS);
+    shape.lineTo(dirX * tS, 0);
+    shape.lineTo(dirX * tS, dirZ * t);
+    shape.lineTo(dirX * t, dirZ * t);
+    shape.lineTo(dirX * t, dirZ * tS);
+    shape.lineTo(0, dirZ * tS);
     shape.closePath();
 
     const geo = new THREE.ExtrudeGeometry(shape, {
@@ -66,6 +67,14 @@ export function createCornerTrimGeo(colH, tS, sx, sz) {
     });
 
     geo.rotateX(-Math.PI / 2);
+    
+    const pos = geo.attributes.position;
+    for (let i = 0; i < pos.count; i++) {
+        pos.setZ(i, -pos.getZ(i));
+    }
+    pos.needsUpdate = true;
+    geo.computeVertexNormals();
+
     return geo;
 }
 
@@ -76,10 +85,10 @@ export function createRakeTrim(len, signZ, tS, extraH) {
     const shape = new THREE.Shape();
     shape.moveTo(0, h / 2);
     shape.lineTo(0, -h / 2);
-    shape.lineTo(signZ * tS, -h / 2);
-    shape.lineTo(signZ * tS, -h / 2 + t);
-    shape.lineTo(signZ * t, -h / 2 + t);
-    shape.lineTo(signZ * t, h / 2);
+    shape.lineTo(-signZ * tS, -h / 2);
+    shape.lineTo(-signZ * tS, -h / 2 + t);
+    shape.lineTo(-signZ * t, -h / 2 + t);
+    shape.lineTo(-signZ * t, h / 2);
     shape.closePath();
 
     const safeLength = Math.max(0.01, len);

@@ -5,7 +5,7 @@ const DEFAULTS = Object.freeze({
     overhangRoofThickness: 0.15,
     wainscotThickness: 0.02,
     wainscotOffset: 0.002,
-    trimSize: 0.12,
+    trimSize: 0.10,
     frameInsetX: 0.18,
     frameInsetZ: 0.15,
     colDStart: 0.20,
@@ -297,7 +297,7 @@ function createWainscotGeometry({ width, length, leftWallHeight, rightWallHeight
     const frontH = Math.min(wsHeight, leftWallHeight);
     const backH = Math.min(wsHeight, rightWallHeight);
 
-    const cornerInset = wallThickness / 2;
+    const cornerInset = 0.005;
     const sideHalfL = halfL - cornerInset;
     const sideHalfW = halfW - cornerInset;
 
@@ -307,7 +307,7 @@ function createWainscotGeometry({ width, length, leftWallHeight, rightWallHeight
         sides.L = {
             shapeData: createWainscotShapeData(sideHalfL, leftH, walls.L.holes),
             uvOriginX: -length / 2,
-            position: { x: -halfW - wainscotThickness - wainscotOffset, y: 0, z: 0 },
+            position: { x: -halfW - wallThickness / 2 - wainscotOffset, y: 0, z: 0 },
             rotationY: Math.PI / 2
         };
     }
@@ -315,7 +315,7 @@ function createWainscotGeometry({ width, length, leftWallHeight, rightWallHeight
         sides.R = {
             shapeData: createWainscotShapeData(sideHalfL, rightH, walls.R.holes),
             uvOriginX: -length / 2,
-            position: { x: halfW + wainscotThickness + wainscotOffset, y: 0, z: 0 },
+            position: { x: halfW + wallThickness / 2 + wainscotOffset, y: 0, z: 0 },
             rotationY: -Math.PI / 2
         };
     }
@@ -323,7 +323,7 @@ function createWainscotGeometry({ width, length, leftWallHeight, rightWallHeight
         sides.F = {
             shapeData: createWainscotShapeData(sideHalfW, frontH, walls.F.holes),
             uvOriginX: -width / 2,
-            position: { x: 0, y: 0, z: halfL + wainscotThickness + wainscotOffset },
+            position: { x: 0, y: 0, z: halfL + wallThickness / 2 + wainscotOffset },
             rotationY: 0
         };
     }
@@ -331,7 +331,7 @@ function createWainscotGeometry({ width, length, leftWallHeight, rightWallHeight
         sides.B = {
             shapeData: createWainscotShapeData(sideHalfW, backH, walls.B.holes),
             uvOriginX: -width / 2,
-            position: { x: 0, y: 0, z: -halfL - wainscotThickness - wainscotOffset },
+            position: { x: 0, y: 0, z: -halfL - wallThickness / 2 - wainscotOffset },
             rotationY: Math.PI
         };
     }
@@ -382,8 +382,8 @@ function createTrimsSpatialData({ width, length, height, roof, wallThickness, wa
     ];
 
     const rakes = [];
-    const frontZ = halfL + overhangs.overF + wallThickness / 2;
-    const backZ = -halfL - overhangs.overB - wallThickness / 2;
+    const frontZ = halfL + wallThickness / 2;
+    const backZ = -halfL - wallThickness / 2;
 
     for (const sideZ of [-1, 1]) {
         const zPos = sideZ > 0 ? frontZ : backZ;
@@ -633,7 +633,6 @@ function createPurlinsSpatialData({ interior, height, roof }) {
         for (let i = 1; i <= numPurlins; i++) {
             const dist = i * stepDist;
 
-            // Right Slope Side (+1 direction)
             const xR = (halfW - dist * Math.cos(ang)) + offset * Math.sin(ang);
             const yR = (height + dist * Math.sin(ang)) - offset * Math.cos(ang);
             items.push({
@@ -645,7 +644,6 @@ function createPurlinsSpatialData({ interior, height, roof }) {
                 size: pSize
             });
 
-            // Left Slope Side (-1 direction)
             const xL = -(halfW - dist * Math.cos(ang)) - offset * Math.sin(ang);
             const yL = (height + dist * Math.sin(ang)) - offset * Math.cos(ang);
             items.push({
@@ -920,7 +918,6 @@ function createAuxiliarySpatialData({ width, length, height, pitchRatio, roofTyp
         position: { x: 0, y: -driveH / 2, z: halfL + driveL / 2 }
     } : null;
 
-    // Logo calculations
     const logoWidth = 1.0;
     const logoHeight = 0.33;
     const plateThick = 0.08;
