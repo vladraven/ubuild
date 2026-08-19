@@ -22,114 +22,310 @@ import {
     applyPanelUVs
 } from './panelSystem.js';
 
-function createWallShapeWithHoles(
-    shapePoints,
-    side
+import {
+    createBuildingGeometry
+} from './buildingGeometry.js';
+
+function createWallShape(
+    wall
 ) {
-    const wallShape =
+    const shape =
         new THREE.Shape();
 
-    shapePoints.forEach(
-        (pt, idx) => {
-            if (idx === 0) {
-                wallShape.moveTo(
-                    pt.x,
-                    pt.y
+    wall.points.forEach(
+        (point, index) => {
+            if (index === 0) {
+                shape.moveTo(
+                    point.x,
+                    point.y
                 );
-            } else {
-                wallShape.lineTo(
-                    pt.x,
-                    pt.y
-                );
+
+                return;
             }
+
+            shape.lineTo(
+                point.x,
+                point.y
+            );
         }
     );
 
-    if (
-        openingsData[side] &&
-        openingsData[side].length > 0
-    ) {
-        openingsData[side].forEach(
-            op => {
-                const def =
-                    openingDefs[
-                        op.type
-                    ];
+    wall.holes.forEach(
+        holeData => {
+            const hole =
+                new THREE.Path();
 
-                const w =
-                    op.w ||
-                    (
-                        def
-                            ? def.w
-                            : 1.0
-                    );
+            hole.moveTo(
+                holeData.minX,
+                holeData.minY
+            );
 
-                const h =
-                    op.h ||
-                    (
-                        def
-                            ? def.h
-                            : 1.0
-                    );
+            hole.lineTo(
+                holeData.maxX,
+                holeData.minY
+            );
 
-                const yOff =
-                    op.type === 'Window'
-                        ? (
-                            op.yOff !==
-                            undefined
-                                ? op.yOff
-                                : 1.0
-                        )
-                        : 0;
+            hole.lineTo(
+                holeData.maxX,
+                holeData.maxY
+            );
 
-                const hole =
-                    new THREE.Path();
+            hole.lineTo(
+                holeData.minX,
+                holeData.maxY
+            );
 
-                const minX =
-                    op.x - w / 2;
+            hole.lineTo(
+                holeData.minX,
+                holeData.minY
+            );
 
-                const maxX =
-                    op.x + w / 2;
+            shape.holes.push(
+                hole
+            );
+        }
+    );
 
-                const minY =
-                    yOff;
+    return shape;
+}
 
-                const maxY =
-                    yOff + h;
+function createWallMesh(
+    wall,
+    panelMaterial,
+    uvOriginX,
+    uvOriginY
+) {
+    const shape =
+        createWallShape(
+            wall
+        );
 
-                hole.moveTo(
-                    minX,
-                    minY
-                );
+    const geometry =
+        new THREE.ExtrudeGeometry(
+            shape,
+            {
+                depth:
+                    wall.thickness,
 
-                hole.lineTo(
-                    maxX,
-                    minY
-                );
-
-                hole.lineTo(
-                    maxX,
-                    maxY
-                );
-
-                hole.lineTo(
-                    minX,
-                    maxY
-                );
-
-                hole.lineTo(
-                    minX,
-                    minY
-                );
-
-                wallShape.holes.push(
-                    hole
-                );
+                bevelEnabled:
+                    false
             }
         );
+
+    applyPanelUVs(
+        geometry,
+        uvOriginX,
+        uvOriginY
+    );
+
+    geometry.computeVertexNormals();
+
+    const mesh =
+        new THREE.Mesh(
+            geometry,
+            panelMaterial
+        );
+
+    mesh.position.set(
+        wall.transform.position.x,
+        wall.transform.position.y,
+        wall.transform.position.z
+    );
+
+    mesh.rotation.y =
+        wall.transform.rotationY;
+
+    mesh.castShadow =
+        true;
+
+    mesh.receiveShadow =
+        true;
+
+    return mesh;
+}
+
+function addWallAssemblies(
+    group,
+    side,
+    wall,
+    width,
+    length
+) {
+    if (!wall) {
+        return;
     }
 
-    return wallShape;
+    const isLongWall =
+        side === 'L' ||
+        side === 'R';
+
+    const wallLength =
+        isLongWall
+            ? length
+            : width;
+
+    const transform =
+        wall.transform;
+
+    const windows =
+        createWindowsGroupForWall(
+            side,
+            wallLength
+        );
+
+    windows.position.set(
+        transform.position.x,
+        transform.position.y,
+        transform.position.z
+    );
+
+    windows.rotation.y =
+        transform.rotationY;
+
+    group.add(
+        windows
+    );
+
+    const doors =
+        createDoorsGroupForWall(
+            side,
+            wallLength
+        );
+
+    doors.position.set(
+        transform.position.x,
+        transform.position.y,
+        transform.position.z
+    );
+
+    doors.rotation.y =
+        transform.rotationY;
+
+    group.add(
+        doors
+    );
+}
+
+function createRoofMesh(
+    roof
+) {
+    if (
+        !roof ||
+        !roof.visible ||
+        roof.overhang.enabled
+    ) {
+        return null;
+    }
+
+    if (
+        roof.isSingleSlope &&
+        roof.singleSlope
+    ) {
+        const geometry =
+            new THREE.BoxGeometry(
+                roof.singleSlope.slopeLength,
+                roof.thickness,
+                roof.length
+            );
+
+        const mesh =
+            new THREE.Mesh(
+                geometry,
+                roofMat
+            );
+
+        mesh.rotation.z =
+            roof.singleSlope.rotationZ;
+
+        mesh.position.set(
+            roof.singleSlope.position.x,
+            roof.singleSlope.position.y,
+            roof.singleSlope.position.z
+        );
+
+        mesh.castShadow =
+            true;
+
+        mesh.receiveShadow =
+            true;
+
+        return mesh;
+    }
+
+    if (
+        !roof.gabled
+    ) {
+        return null;
+    }
+
+    const group =
+        new THREE.Group();
+
+    const leftGeometry =
+        new THREE.BoxGeometry(
+            roof.gabled.left.slopeLength,
+            roof.thickness,
+            roof.length
+        );
+
+    const leftSlope =
+        new THREE.Mesh(
+            leftGeometry,
+            roofMat
+        );
+
+    leftSlope.position.set(
+        roof.gabled.left.position.x,
+        roof.gabled.left.position.y,
+        roof.gabled.left.position.z
+    );
+
+    leftSlope.rotation.z =
+        roof.gabled.left.rotationZ;
+
+    leftSlope.castShadow =
+        true;
+
+    leftSlope.receiveShadow =
+        true;
+
+    group.add(
+        leftSlope
+    );
+
+    const rightGeometry =
+        new THREE.BoxGeometry(
+            roof.gabled.right.slopeLength,
+            roof.thickness,
+            roof.length
+        );
+
+    const rightSlope =
+        new THREE.Mesh(
+            rightGeometry,
+            roofMat
+        );
+
+    rightSlope.position.set(
+        roof.gabled.right.position.x,
+        roof.gabled.right.position.y,
+        roof.gabled.right.position.z
+    );
+
+    rightSlope.rotation.z =
+        roof.gabled.right.rotationZ;
+
+    rightSlope.castShadow =
+        true;
+
+    rightSlope.receiveShadow =
+        true;
+
+    group.add(
+        rightSlope
+    );
+
+    return group;
 }
 
 export function createBuildingGroup(
@@ -144,599 +340,142 @@ export function createBuildingGroup(
     const group =
         new THREE.Group();
 
-    const panelMat =
+    const panelMaterial =
         getWallPanelMaterial();
 
-    const wallThick =
-        0.05;
+    const visibility = {
+        wF:
+            vis.wF ??
+            true,
 
-    const halfW =
-        width / 2;
+        wB:
+            vis.wB ??
+            true,
 
-    const halfL =
-        length / 2;
+        wL:
+            vis.wL ??
+            true,
 
-    const isLeftSloped =
-        roofType === 'left-sloped';
+        wR:
+            vis.wR ??
+            true,
 
-    const isRightSloped =
-        roofType === 'right-sloped';
+        checkRoof:
+            vis.checkRoof ??
+            true
+    };
 
-    const isSingleSlope =
-        isLeftSloped ||
-        isRightSloped;
+    const geometry =
+        createBuildingGeometry({
+            width,
+            length,
+            height,
+            pitchRatio,
+            roofType,
 
-    const totalRise =
-        isSingleSlope
-            ? width * pitchRatio
-            : halfW * pitchRatio;
+            overL:
+                parseFloat(
+                    document
+                        .getElementById('overL')
+                        ?.getAttribute(
+                            'data-current-m'
+                        ) ||
+                    0
+                ),
 
-    let leftWallHeight =
-        height;
+            overR:
+                parseFloat(
+                    document
+                        .getElementById('overR')
+                        ?.getAttribute(
+                            'data-current-m'
+                        ) ||
+                    0
+                ),
 
-    let rightWallHeight =
-        height;
+            overF:
+                parseFloat(
+                    document
+                        .getElementById('overF')
+                        ?.getAttribute(
+                            'data-current-m'
+                        ) ||
+                    0
+                ),
 
-    if (isLeftSloped) {
-        rightWallHeight =
-            height + totalRise;
-    } else if (isRightSloped) {
-        leftWallHeight =
-            height + totalRise;
-    }
+            overB:
+                parseFloat(
+                    document
+                        .getElementById('overB')
+                        ?.getAttribute(
+                            'data-current-m'
+                        ) ||
+                    0
+                ),
 
-    const maxFrontBackH =
-        height + totalRise;
+            openingsData,
 
-    if (vis.wL) {
-        const shapeL =
-            createWallShapeWithHoles(
-                [
-                    {
-                        x: -halfL,
-                        y: 0
-                    },
-                    {
-                        x: halfL,
-                        y: 0
-                    },
-                    {
-                        x: halfL,
-                        y: leftWallHeight
-                    },
-                    {
-                        x: -halfL,
-                        y: leftWallHeight
-                    }
-                ],
-                'L'
-            );
+            openingDefs,
 
-        const geoL =
-            new THREE.ExtrudeGeometry(
-                shapeL,
-                {
-                    depth: wallThick,
-                    bevelEnabled: false
-                }
-            );
+            visibility
+        });
 
-        applyPanelUVs(
-            geoL,
-            -halfL,
-            0
-        );
+    const wallSides = [
+        'L',
+        'R',
+        'F',
+        'B'
+    ];
 
-        geoL.computeVertexNormals();
+    wallSides.forEach(
+        side => {
+            const wall =
+                geometry.walls[side];
 
-        const wallLeft =
-            new THREE.Mesh(
-                geoL,
-                panelMat
-            );
-
-        wallLeft.rotation.y =
-            Math.PI / 2;
-
-        wallLeft.position.set(
-            -halfW +
-                wallThick / 2,
-            0,
-            0
-        );
-
-        wallLeft.castShadow = true;
-        wallLeft.receiveShadow = true;
-
-        group.add(
-            wallLeft
-        );
-
-        const winL =
-            createWindowsGroupForWall(
-                'L',
-                length
-            );
-
-        winL.rotation.y =
-            Math.PI / 2;
-
-        winL.position.set(
-            -halfW +
-                wallThick / 2,
-            0,
-            0
-        );
-
-        group.add(
-            winL
-        );
-
-        const doorL =
-            createDoorsGroupForWall(
-                'L',
-                length
-            );
-
-        doorL.rotation.y =
-            Math.PI / 2;
-
-        doorL.position.set(
-            -halfW +
-                wallThick / 2,
-            0,
-            0
-        );
-
-        group.add(
-            doorL
-        );
-    }
-
-    if (vis.wR) {
-        const shapeR =
-            createWallShapeWithHoles(
-                [
-                    {
-                        x: -halfL,
-                        y: 0
-                    },
-                    {
-                        x: halfL,
-                        y: 0
-                    },
-                    {
-                        x: halfL,
-                        y: rightWallHeight
-                    },
-                    {
-                        x: -halfL,
-                        y: rightWallHeight
-                    }
-                ],
-                'R'
-            );
-
-        const geoR =
-            new THREE.ExtrudeGeometry(
-                shapeR,
-                {
-                    depth: wallThick,
-                    bevelEnabled: false
-                }
-            );
-
-        applyPanelUVs(
-            geoR,
-            -halfL,
-            0
-        );
-
-        geoR.computeVertexNormals();
-
-        const wallRight =
-            new THREE.Mesh(
-                geoR,
-                panelMat
-            );
-
-        wallRight.rotation.y =
-            -Math.PI / 2;
-
-        wallRight.position.set(
-            halfW -
-                wallThick / 2,
-            0,
-            0
-        );
-
-        wallRight.castShadow = true;
-        wallRight.receiveShadow = true;
-
-        group.add(
-            wallRight
-        );
-
-        const winR =
-            createWindowsGroupForWall(
-                'R',
-                length
-            );
-
-        winR.rotation.y =
-            -Math.PI / 2;
-
-        winR.position.set(
-            halfW -
-                wallThick / 2,
-            0,
-            0
-        );
-
-        group.add(
-            winR
-        );
-
-        const doorR =
-            createDoorsGroupForWall(
-                'R',
-                length
-            );
-
-        doorR.rotation.y =
-            -Math.PI / 2;
-
-        doorR.position.set(
-            halfW -
-                wallThick / 2,
-            0,
-            0
-        );
-
-        group.add(
-            doorR
-        );
-    }
-
-    const getFrontBackPoints =
-        (isBack = false) => {
-            const hLeft =
-                isBack
-                    ? rightWallHeight
-                    : leftWallHeight;
-
-            const hRight =
-                isBack
-                    ? leftWallHeight
-                    : rightWallHeight;
-
-            if (isSingleSlope) {
-                return [
-                    {
-                        x: -halfW,
-                        y: 0
-                    },
-                    {
-                        x: halfW,
-                        y: 0
-                    },
-                    {
-                        x: halfW,
-                        y: hRight
-                    },
-                    {
-                        x: -halfW,
-                        y: hLeft
-                    }
-                ];
+            if (!wall) {
+                return;
             }
 
-            return [
-                {
-                    x: -halfW,
-                    y: 0
-                },
-                {
-                    x: halfW,
-                    y: 0
-                },
-                {
-                    x: halfW,
-                    y: height
-                },
-                {
-                    x: 0,
-                    y: height +
-                        totalRise
-                },
-                {
-                    x: -halfW,
-                    y: height
-                }
-            ];
-        };
+            const uvOriginX =
+                side === 'L' ||
+                side === 'R'
+                    ? -length / 2
+                    : -width / 2;
 
-    if (vis.wF) {
-        const shapeF =
-            createWallShapeWithHoles(
-                getFrontBackPoints(false),
-                'F'
+            const wallMesh =
+                createWallMesh(
+                    wall,
+                    panelMaterial,
+                    uvOriginX,
+                    0
+                );
+
+            group.add(
+                wallMesh
             );
 
-        const geoF =
-            new THREE.ExtrudeGeometry(
-                shapeF,
-                {
-                    depth: wallThick,
-                    bevelEnabled: false
-                }
+            addWallAssemblies(
+                group,
+                side,
+                wall,
+                width,
+                length
             );
-
-        applyPanelUVs(
-            geoF,
-            -halfW,
-            0
-        );
-
-        geoF.computeVertexNormals();
-
-        const wallFront =
-            new THREE.Mesh(
-                geoF,
-                panelMat
-            );
-
-        wallFront.position.set(
-            0,
-            0,
-            halfL -
-                wallThick / 2
-        );
-
-        wallFront.castShadow = true;
-        wallFront.receiveShadow = true;
-
-        group.add(
-            wallFront
-        );
-
-        const winF =
-            createWindowsGroupForWall(
-                'F',
-                width
-            );
-
-        winF.position.set(
-            0,
-            0,
-            halfL
-        );
-
-        group.add(
-            winF
-        );
-
-        const doorF =
-            createDoorsGroupForWall(
-                'F',
-                width
-            );
-
-        doorF.position.set(
-            0,
-            0,
-            halfL
-        );
-
-        group.add(
-            doorF
-        );
-    }
-
-    if (vis.wB) {
-        const shapeB =
-            createWallShapeWithHoles(
-                getFrontBackPoints(true),
-                'B'
-            );
-
-        const geoB =
-            new THREE.ExtrudeGeometry(
-                shapeB,
-                {
-                    depth: wallThick,
-                    bevelEnabled: false
-                }
-            );
-
-        applyPanelUVs(
-            geoB,
-            -halfW,
-            0
-        );
-
-        geoB.computeVertexNormals();
-
-        const wallBack =
-            new THREE.Mesh(
-                geoB,
-                panelMat
-            );
-
-        wallBack.rotation.y =
-            Math.PI;
-
-        wallBack.position.set(
-            0,
-            0,
-            -halfL +
-                wallThick / 2
-        );
-
-        wallBack.castShadow = true;
-        wallBack.receiveShadow = true;
-
-        group.add(
-            wallBack
-        );
-
-        const winB =
-            createWindowsGroupForWall(
-                'B',
-                width
-            );
-
-        winB.rotation.y =
-            Math.PI;
-
-        winB.position.set(
-            0,
-            0,
-            -halfL
-        );
-
-        group.add(
-            winB
-        );
-
-        const doorB =
-            createDoorsGroupForWall(
-                'B',
-                width
-            );
-
-        doorB.rotation.y =
-            Math.PI;
-
-        doorB.position.set(
-            0,
-            0,
-            -halfL
-        );
-
-        group.add(
-            doorB
-        );
-    }
+        }
+    );
 
     if (
         !hasOverhangs &&
-        vis.checkRoof
+        visibility.checkRoof
     ) {
-        const roofThickness =
-            0.12;
-
-        if (isSingleSlope) {
-            const angle =
-                Math.atan2(
-                    totalRise,
-                    width
-                );
-
-            const roofWidth =
-                Math.sqrt(
-                    width * width +
-                    totalRise * totalRise
-                );
-
-            const singleRoofGeo =
-                new THREE.BoxGeometry(
-                    roofWidth,
-                    roofThickness,
-                    length
-                );
-
-            const singleRoof =
-                new THREE.Mesh(
-                    singleRoofGeo,
-                    roofMat
-                );
-
-            const rotSign =
-                isLeftSloped
-                    ? 1
-                    : -1;
-
-            singleRoof.rotation.z =
-                rotSign * angle;
-
-            singleRoof.position.set(
-                0,
-                height +
-                    totalRise / 2,
-                0
+        const roof =
+            createRoofMesh(
+                geometry.roof
             );
 
-            singleRoof.castShadow = true;
-            singleRoof.receiveShadow = true;
-
+        if (roof) {
             group.add(
-                singleRoof
-            );
-        } else {
-            const pitchAngle =
-                Math.atan2(
-                    totalRise,
-                    halfW
-                );
-
-            const slopeLength =
-                Math.sqrt(
-                    halfW * halfW +
-                    totalRise * totalRise
-                );
-
-            const slopeGeo =
-                new THREE.BoxGeometry(
-                    slopeLength,
-                    roofThickness,
-                    length
-                );
-
-            const leftSlope =
-                new THREE.Mesh(
-                    slopeGeo,
-                    roofMat
-                );
-
-            leftSlope.position.set(
-                -halfW / 2,
-                height +
-                    totalRise / 2,
-                0
-            );
-
-            leftSlope.rotation.z =
-                pitchAngle;
-
-            leftSlope.castShadow = true;
-            leftSlope.receiveShadow = true;
-
-            group.add(
-                leftSlope
-            );
-
-            const rightSlope =
-                new THREE.Mesh(
-                    slopeGeo,
-                    roofMat
-                );
-
-            rightSlope.position.set(
-                halfW / 2,
-                height +
-                    totalRise / 2,
-                0
-            );
-
-            rightSlope.rotation.z =
-                -pitchAngle;
-
-            rightSlope.castShadow = true;
-            rightSlope.receiveShadow = true;
-
-            group.add(
-                rightSlope
+                roof
             );
         }
     }

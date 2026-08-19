@@ -1,25 +1,270 @@
 import { mainGroup } from './scene.js';
-import { isMetric, getU } from './state.js';
-import { createFoundationGroup } from './foundation.js';
-import { createBuildingGroup } from './building.js';
-import { createWainscotGroup } from './wainscot.js';
-import { createOverhangsGroup } from './overhangs.js';
-import { createInteriorLinerGroup } from './interior-liner.js';
-import { createMezzanineGroup } from './mezzanine.js';
-import { createCraneGroup } from './crane.js';
 
-import { createMainFramesGroup } from './main-frames.js';
-import { createTrimsGroup } from './trims.js';
-import { updateDownspoutVisibility } from './gutters.js';
-import { createGirtsGroup } from './girts.js';
-import { createPurlinsGroup } from './purlins.js';
-import { createEndWallColumnsGroup } from './end-wall-columns.js';
-import { createDrivewayGroup } from './driveway.js';
-import { createLogoGroup } from './logo.js';
-import { createAwningsGroup } from './awnings.js';
-import { updateMaterialColors } from './colorise.js';
-import { updateBuildingTextures } from './texturiser.js';
-import { validateAndClampOpenings } from './ui.js';
+import {
+    isMetric,
+    getU,
+    openingsData,
+    openingDefs
+} from './state.js';
+
+import {
+    createBuildingGeometry
+} from './buildingGeometry.js';
+
+import {
+    createFoundationGroup
+} from './foundation.js';
+
+import {
+    createBuildingGroup
+} from './building.js';
+
+import {
+    createWainscotGroup
+} from './wainscot.js';
+
+import {
+    createOverhangsGroup
+} from './overhangs.js';
+
+import {
+    createInteriorLinerGroup
+} from './interior-liner.js';
+
+import {
+    createMezzanineGroup
+} from './mezzanine.js';
+
+import {
+    createCraneGroup
+} from './crane.js';
+
+import {
+    createMainFramesGroup
+} from './main-frames.js';
+
+import {
+    createTrimsGroup
+} from './trims.js';
+
+import {
+    updateDownspoutVisibility
+} from './gutters.js';
+
+import {
+    createGirtsGroup
+} from './girts.js';
+
+import {
+    createPurlinsGroup
+} from './purlins.js';
+
+import {
+    createEndWallColumnsGroup
+} from './end-wall-columns.js';
+
+import {
+    createDrivewayGroup
+} from './driveway.js';
+
+import {
+    createLogoGroup
+} from './logo.js';
+
+import {
+    createAwningsGroup
+} from './awnings.js';
+
+import {
+    updateMaterialColors
+} from './colorise.js';
+
+import {
+    updateBuildingTextures
+} from './texturiser.js';
+
+import {
+    validateAndClampOpenings
+} from './ui.js';
+
+function readMetricValue(
+    id,
+    fallback = 0
+) {
+    const element =
+        document.getElementById(id);
+
+    if (!element) {
+        return fallback;
+    }
+
+    const value =
+        parseFloat(
+            element.getAttribute(
+                'data-current-m'
+            )
+        );
+
+    return Number.isFinite(value)
+        ? value
+        : fallback;
+}
+
+function readVisibility() {
+    return {
+        wF:
+            document.getElementById(
+                'wF'
+            )?.checked ?? true,
+
+        wB:
+            document.getElementById(
+                'wB'
+            )?.checked ?? true,
+
+        wL:
+            document.getElementById(
+                'wL'
+            )?.checked ?? true,
+
+        wR:
+            document.getElementById(
+                'wR'
+            )?.checked ?? true,
+
+        checkRoof:
+            document.getElementById(
+                'checkRoof'
+            )?.checked ?? true,
+
+        checkLabels:
+            document.getElementById(
+                'checkLabels'
+            )?.checked ?? true
+    };
+}
+
+function readBuildingParameters() {
+    const bc =
+        window.ConfiguratorBackendConstraints
+        || {};
+
+    const width =
+        readMetricValue(
+            'inputW',
+            bc.max_width ||
+            18.288
+        );
+
+    const length =
+        readMetricValue(
+            'inputL',
+            bc.max_length ||
+            30.48
+        );
+
+    const height =
+        readMetricValue(
+            'inputH',
+            bc.max_height ||
+            4.8768
+        );
+
+    const pitchInput =
+        document.getElementById(
+            'inputPitch'
+        );
+
+    const pitchRatio =
+        pitchInput
+            ? (
+                parseFloat(
+                    pitchInput.value
+                ) || 0.05
+            )
+            : 0.05;
+
+    const roofTypeSelect =
+        document.getElementById(
+            'roofType'
+        );
+
+    const roofType =
+        roofTypeSelect
+            ? roofTypeSelect.value
+            : 'gabled';
+
+    const overhangs = {
+        overL:
+            readMetricValue(
+                'overL'
+            ),
+
+        overR:
+            readMetricValue(
+                'overR'
+            ),
+
+        overF:
+            readMetricValue(
+                'overF'
+            ),
+
+        overB:
+            readMetricValue(
+                'overB'
+            )
+    };
+
+    return {
+        width,
+        length,
+        height,
+        pitchRatio,
+        roofType,
+        overhangs
+    };
+}
+
+function createGeometry(
+    params,
+    vis
+) {
+    return createBuildingGeometry({
+        width:
+            params.width,
+
+        length:
+            params.length,
+
+        height:
+            params.height,
+
+        pitchRatio:
+            params.pitchRatio,
+
+        roofType:
+            params.roofType,
+
+        overL:
+            params.overhangs.overL,
+
+        overR:
+            params.overhangs.overR,
+
+        overF:
+            params.overhangs.overF,
+
+        overB:
+            params.overhangs.overB,
+
+        openingsData,
+
+        openingDefs,
+
+        visibility: vis
+    });
+}
 
 export function updateBuilding() {
     validateAndClampOpenings();
@@ -28,104 +273,378 @@ export function updateBuilding() {
 
     mainGroup.clear();
 
-    const bc = window.ConfiguratorBackendConstraints || {};
+    const vis =
+        readVisibility();
 
-    const inputW = document.getElementById('inputW');
-    const inputL = document.getElementById('inputL');
-    const inputH = document.getElementById('inputH');
-    const inputPitch = document.getElementById('inputPitch');
-    const roofTypeSelect = document.getElementById('roofType');
+    const params =
+        readBuildingParameters();
 
-    const vis = {
-        wF: document.getElementById('wF')?.checked ?? true,
-        wB: document.getElementById('wB')?.checked ?? true,
-        wL: document.getElementById('wL')?.checked ?? true,
-        wR: document.getElementById('wR')?.checked ?? true,
-        checkRoof: document.getElementById('checkRoof')?.checked ?? true,
-        checkLabels: document.getElementById('checkLabels')?.checked ?? true
-    };
+    /*
+     * SINGLE SOURCE OF TRUTH
+     *
+     * Every rebuild creates exactly one
+     * spatial geometry model.
+     *
+     * Element orchestrators must consume
+     * this model instead of recalculating
+     * building coordinates independently.
+     */
+    const geometry =
+        createGeometry(
+            params,
+            vis
+        );
 
-    const width = inputW ? parseFloat(inputW.getAttribute('data-current-m')) || 18.288 : (bc.max_width || 18.288);
-    const length = inputL ? parseFloat(inputL.getAttribute('data-current-m')) || 30.48 : (bc.max_length || 30.48);
-    const height = inputH ? parseFloat(inputH.getAttribute('data-current-m')) || 4.8768 : (bc.max_height || 4.8768);
+    updateBuildingTextures(
+        params.width,
+        params.length,
+        params.height
+    );
 
-    const pitchRatio = inputPitch ? parseFloat(inputPitch.value) || 0.05 : 0.05;
-    const roofType = roofTypeSelect ? roofTypeSelect.value : 'gabled';
+    /*
+     * Foundation
+     */
+    mainGroup.add(
+        createFoundationGroup(
+            params.width,
+            params.length,
+            vis.checkLabels
+        )
+    );
 
-    updateBuildingTextures(width, length, height);
+    /*
+     * Structural frames
+     *
+     * Until the structural orchestrators
+     * are migrated, their public API is
+     * preserved.
+     */
+    mainGroup.add(
+        createMainFramesGroup(
+            params.width,
+            params.length,
+            params.height,
+            params.pitchRatio,
+            params.roofType
+        )
+    );
 
-    mainGroup.add(createFoundationGroup(width, length, vis.checkLabels));
+    /*
+     * Walls / openings / roof without
+     * overhang geometry.
+     */
+    const hasOverhangs =
+        geometry.overhangs.enabled;
 
-    mainGroup.add(createMainFramesGroup(width, length, height, pitchRatio, roofType));
+    mainGroup.add(
+        createBuildingGroup(
+            params.width,
+            params.length,
+            params.height,
+            params.pitchRatio,
+            params.roofType,
+            hasOverhangs,
+            vis,
+            geometry
+        )
+    );
 
-    const overL = parseFloat(document.getElementById('overL')?.getAttribute('data-current-m') || 0);
-    const overR = parseFloat(document.getElementById('overR')?.getAttribute('data-current-m') || 0);
-    const overF = parseFloat(document.getElementById('overF')?.getAttribute('data-current-m') || 0);
-    const overB = parseFloat(document.getElementById('overB')?.getAttribute('data-current-m') || 0);
-    const hasOverhangs = overL > 0 || overR > 0 || overF > 0 || overB > 0;
-
-    mainGroup.add(createBuildingGroup(width, length, height, pitchRatio, roofType, hasOverhangs, vis));
-
+    /*
+     * Roof overhangs.
+     */
     if (hasOverhangs) {
-        mainGroup.add(createOverhangsGroup(width, length, height, pitchRatio, roofType, overL, overR, overF, overB, vis));
+        mainGroup.add(
+            createOverhangsGroup(
+                params.width,
+                params.length,
+                params.height,
+                params.pitchRatio,
+                params.roofType,
+                params.overhangs.overL,
+                params.overhangs.overR,
+                params.overhangs.overF,
+                params.overhangs.overB,
+                vis,
+                geometry
+            )
+        );
     }
 
-    mainGroup.add(createAwningsGroup(width, length, height, pitchRatio, roofType));
+    /*
+     * Awnings / lean-tos.
+     */
+    mainGroup.add(
+        createAwningsGroup(
+            params.width,
+            params.length,
+            params.height,
+            params.pitchRatio,
+            params.roofType
+        )
+    );
 
-    const wsEnabled = document.getElementById('wainscotEn')?.checked || false;
-    const wsHeight = parseFloat(document.getElementById('inputWSHeight')?.getAttribute('data-current-m') || 1.1888);
-    const wsColor = document.getElementById('colorWainscot')?.value || '#1e293b';
-    mainGroup.add(createWainscotGroup(width, length, height, pitchRatio, roofType, wsHeight, wsColor, wsEnabled, vis));
+    /*
+     * Wainscot.
+     */
+    const wsEnabled =
+        document.getElementById(
+            'wainscotEn'
+        )?.checked || false;
 
-    const intLinerEn = document.getElementById('intWallsEn')?.checked || false;
-    const intLinerH = parseFloat(document.getElementById('intWallsH')?.value || 100);
-    mainGroup.add(createInteriorLinerGroup(width, length, height, pitchRatio, roofType, intLinerEn, intLinerH));
+    const wsHeight =
+        readMetricValue(
+            'inputWSHeight',
+            1.1888
+        );
 
-    const mezzEn = document.getElementById('mezzEn')?.checked || false;
-    mainGroup.add(createMezzanineGroup(width, length, height, mezzEn, document.getElementById('mezzCov')?.value || '1', parseFloat(document.getElementById('mezzZ')?.value || 0), parseFloat(document.getElementById('mezzH')?.value || 80), document.getElementById('colorMezzanine')?.value));
+    const wsColor =
+        document.getElementById(
+            'colorWainscot'
+        )?.value
+        || '#1e293b';
 
-    const craneEn = document.getElementById('craneEn')?.checked || false;
-    mainGroup.add(createCraneGroup(width, length, height, craneEn, parseFloat(document.getElementById('craneZ')?.value || 50)));
+    mainGroup.add(
+        createWainscotGroup(
+            params.width,
+            params.length,
+            params.height,
+            params.pitchRatio,
+            params.roofType,
+            wsHeight,
+            wsColor,
+            wsEnabled,
+            vis,
+            geometry
+        )
+    );
 
-    const checkTrims = document.getElementById('checkTrims')?.checked ?? true;
-    const checkGutters = document.getElementById('checkGutters')?.checked ?? false;
-    const trimsGroup = createTrimsGroup(width, length, height, pitchRatio, roofType, checkTrims, overL, overR, checkGutters);
-    mainGroup.add(trimsGroup);
-    // FIX 6: hide any downspout that overlaps a door on the same wall (auto-runs
-    // on every rebuild, i.e. whenever a door is added, moved, or deleted).
-    updateDownspoutVisibility(trimsGroup);
+    /*
+     * Interior liner.
+     */
+    const intLinerEn =
+        document.getElementById(
+            'intWallsEn'
+        )?.checked || false;
 
-    const checkGirts = document.getElementById('checkGirts')?.checked ?? true;
-    mainGroup.add(createGirtsGroup(width, length, height, checkGirts));
+    const intLinerH =
+        parseFloat(
+            document.getElementById(
+                'intWallsH'
+            )?.value || 100
+        );
 
-    const checkPurlins = document.getElementById('checkPurlins')?.checked ?? true;
-    mainGroup.add(createPurlinsGroup(width, length, height, pitchRatio, roofType, checkPurlins));
+    mainGroup.add(
+        createInteriorLinerGroup(
+            params.width,
+            params.length,
+            params.height,
+            params.pitchRatio,
+            params.roofType,
+            intLinerEn,
+            intLinerH
+        )
+    );
 
-    const checkEWColumns = document.getElementById('checkEWColumns')?.checked ?? true;
-    mainGroup.add(createEndWallColumnsGroup(width, length, height, pitchRatio, roofType, checkEWColumns));
+    /*
+     * Mezzanine.
+     */
+    const mezzEn =
+        document.getElementById(
+            'mezzEn'
+        )?.checked || false;
 
-    const drivewayEn = document.getElementById('drivewayEn')?.checked ?? false;
-    mainGroup.add(createDrivewayGroup(width, length, drivewayEn));
+    const mezzCov =
+        document.getElementById(
+            'mezzCov'
+        )?.value || '1';
 
+    const mezzZ =
+        parseFloat(
+            document.getElementById(
+                'mezzZ'
+            )?.value || 0
+        );
+
+    const mezzH =
+        parseFloat(
+            document.getElementById(
+                'mezzH'
+            )?.value || 80
+        );
+
+    const mezzColor =
+        document.getElementById(
+            'colorMezzanine'
+        )?.value;
+
+    mainGroup.add(
+        createMezzanineGroup(
+            params.width,
+            params.length,
+            params.height,
+            mezzEn,
+            mezzCov,
+            mezzZ,
+            mezzH,
+            mezzColor
+        )
+    );
+
+    /*
+     * Crane.
+     */
+    const craneEn =
+        document.getElementById(
+            'craneEn'
+        )?.checked || false;
+
+    const craneZ =
+        parseFloat(
+            document.getElementById(
+                'craneZ'
+            )?.value || 50
+        );
+
+    mainGroup.add(
+        createCraneGroup(
+            params.width,
+            params.length,
+            params.height,
+            craneEn,
+            craneZ
+        )
+    );
+
+    /*
+     * Trims.
+     */
+    const checkTrims =
+        document.getElementById(
+            'checkTrims'
+        )?.checked ?? true;
+
+    const checkGutters =
+        document.getElementById(
+            'checkGutters'
+        )?.checked ?? false;
+
+    const trimsGroup =
+        createTrimsGroup(
+            params.width,
+            params.length,
+            params.height,
+            params.pitchRatio,
+            params.roofType,
+            checkTrims,
+            params.overhangs.overL,
+            params.overhangs.overR,
+            checkGutters,
+            geometry
+        );
+
+    mainGroup.add(
+        trimsGroup
+    );
+
+    updateDownspoutVisibility(
+        trimsGroup
+    );
+
+    /*
+     * Girts.
+     */
+    const checkGirts =
+        document.getElementById(
+            'checkGirts'
+        )?.checked ?? true;
+
+    mainGroup.add(
+        createGirtsGroup(
+            params.width,
+            params.length,
+            params.height,
+            checkGirts
+        )
+    );
+
+    /*
+     * Purlins.
+     */
+    const checkPurlins =
+        document.getElementById(
+            'checkPurlins'
+        )?.checked ?? true;
+
+    mainGroup.add(
+        createPurlinsGroup(
+            params.width,
+            params.length,
+            params.height,
+            params.pitchRatio,
+            params.roofType,
+            checkPurlins
+        )
+    );
+
+    /*
+     * End wall columns.
+     */
+    const checkEWColumns =
+        document.getElementById(
+            'checkEWColumns'
+        )?.checked ?? true;
+
+    mainGroup.add(
+        createEndWallColumnsGroup(
+            params.width,
+            params.length,
+            params.height,
+            params.pitchRatio,
+            params.roofType,
+            checkEWColumns
+        )
+    );
+
+    /*
+     * Driveway.
+     */
+    const drivewayEn =
+        document.getElementById(
+            'drivewayEn'
+        )?.checked ?? false;
+
+    mainGroup.add(
+        createDrivewayGroup(
+            params.width,
+            params.length,
+            drivewayEn
+        )
+    );
+
+    /*
+     * Front logo.
+     */
     if (vis.wF) {
-        mainGroup.add(createLogoGroup(width, length, height, pitchRatio, roofType));
+        mainGroup.add(
+            createLogoGroup(
+                params.width,
+                params.length,
+                params.height,
+                params.pitchRatio,
+                params.roofType
+            )
+        );
     }
 
     updateSidebarSummary(
-        width,
-        length,
-        height,
-        pitchRatio,
-        roofType
+        params.width,
+        params.length,
+        params.height,
+        params.pitchRatio,
+        params.roofType
     );
 }
 
-/**
- * Keeps the small summary card under the "Request a free Quote" button
- * in sync with the current building. Text-only (no thumbnail render) so
- * it's cheap enough to call on every slider drag; the quote modal's own
- * snapshot logic (tools-actions.js) still handles the actual photo.
- */
 function updateSidebarSummary(
     widthM,
     lengthM,
@@ -179,23 +698,28 @@ function updateSidebarSummary(
 
         const w =
             (
-                widthM * mult
+                widthM *
+                mult
             ).toFixed(0);
 
         const l =
             (
-                lengthM * mult
+                lengthM *
+                mult
             ).toFixed(0);
 
         const h =
             (
-                heightM * mult
+                heightM *
+                mult
             ).toFixed(0);
 
         const pitchValue =
             (
-                pitchRatio * 12
-            ).toFixed(1)
+                pitchRatio *
+                12
+            )
+            .toFixed(1)
             .replace(
                 '.0',
                 ''
@@ -206,7 +730,7 @@ function updateSidebarSummary(
     }
 
     const roofLabels = {
-        'gabled':
+        gabled:
             'Gable Roof',
 
         'left-sloped':
