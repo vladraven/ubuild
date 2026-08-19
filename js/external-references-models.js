@@ -1,3 +1,6 @@
+// ================================================
+// FILE: js/external-references-models.js
+// ================================================
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 
@@ -8,7 +11,6 @@ const loader = new GLTFLoader();
 
 let nextSpawnOffsetX = 0;
 
-// Целевые габариты объектов в метрах
 const MODEL_TARGET_SIZES = {
     'ergoninane-fast-74.glb': { length: 4.8 },
     'forza1903-low-poly-2490.glb': { height: 2.2 },
@@ -150,7 +152,6 @@ export function loadReferenceModel(fileName, renderCallback) {
         (gltf) => {
             const model = gltf.scene;
 
-            // Принудительно обновляем матрицы трансформаций для точного измерения исходного Box3
             model.updateMatrixWorld(true);
             let bbox = new THREE.Box3().setFromObject(model);
             const rawSize = new THREE.Vector3();
@@ -176,7 +177,6 @@ export function loadReferenceModel(fileName, renderCallback) {
 
             model.scale.set(scaleFactor, scaleFactor, scaleFactor);
 
-            // Пересчитываем мировые координаты после изменения scale
             model.updateMatrixWorld(true);
             bbox.setFromObject(model);
 
@@ -189,12 +189,10 @@ export function loadReferenceModel(fileName, renderCallback) {
             const spawnZ = buildingL / 2 + size.z / 2 + 3.0;
             const spawnX = -10.0 + nextSpawnOffsetX;
 
-            // Размещаем модель на Y = 0, затем компенсируем смещение по Y до самого нижнего полигона
             model.position.set(spawnX, 0, spawnZ);
             model.updateMatrixWorld(true);
             bbox.setFromObject(model);
             
-            // Заземляем нижнюю точку модели ровно на уровень 0 (поверхность земли)
             model.position.y -= bbox.min.y;
 
             nextSpawnOffsetX += Math.max(size.x, 4.0) + 2.0;

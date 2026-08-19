@@ -1,3 +1,6 @@
+// ================================================
+// FILE: js/ui.js
+// ================================================
 import { isMetric, setMetric, openingsData, openingDefs, incrementOpeningId, ltState, collectCurrentState } from './state.js';
 import { controls } from './scene.js';
 import { initExternalModelsUI } from './external-references-models.js';
@@ -109,40 +112,49 @@ export function checkAspectRatioViolations() {
     return { hasViolation, messages };
 }
 
-export function validateAndClampOpenings() {
+export function validateAndClampOpenings(renderCallback) {
     const inputW = document.getElementById('inputW');
     const inputL = document.getElementById('inputL');
+    const inputH = document.getElementById('inputH');
 
     const currentW = inputW ? (parseFloat(inputW.getAttribute('data-current-m')) || 18.288) : 18.288;
     const currentL = inputL ? (parseFloat(inputL.getAttribute('data-current-m')) || 30.48) : 30.48;
+    const currentH = inputH ? (parseFloat(inputH.getAttribute('data-current-m')) || 4.8768) : 4.8768;
 
-    const wallLengths = {
-        F: currentW,
-        B: currentW,
-        L: currentL,
-        R: currentL
+    const wallBounds = {
+        F: { len: currentW, h: currentH },
+        B: { len: currentW, h: currentH },
+        L: { len: currentL, h: currentH },
+        R: { len: currentL, h: currentH }
     };
 
+    let listChanged = false;
+
     ['F', 'B', 'L', 'R'].forEach(side => {
-        const wallLen = wallLengths[side];
+        const { len: wallLen, h: wallH } = wallBounds[side];
         const ops = openingsData[side] || [];
 
-        ops.forEach(op => {
-            const def = openingDefs[op.type] || { w: 1.0 };
+        openingsData[side] = ops.filter(op => {
+            const def = openingDefs[op.type] || { w: 1.0, h: 1.0, yOff: 1.0 };
             const opW = op.w || def.w;
-            const halfOpW = opW / 2;
+            const opH = op.h || def.h;
+            const yOff = (op.type === 'Window') ? (op.yOff !== undefined ? op.yOff : def.yOff) : 0;
 
-            if (opW > wallLen) {
-                alert(`Warning: The opening "${op.type}" on ${side} wall (${isMetric ? opW.toFixed(1) + 'm' : (opW * 3.28084).toFixed(1) + 'ft'}) is wider than the wall length!`);
+            if (opW > wallLen || (yOff + opH) > wallH) {
+                listChanged = true;
+                return false;
             }
 
-            const maxBound = Math.max(0, wallLen / 2 - halfOpW);
-            const minBound = -maxBound;
+            const maxBound = Math.max(0, wallLen / 2 - opW / 2);
+            op.x = Math.max(-maxBound, Math.min(maxBound, op.x));
 
-            if (op.x > maxBound) op.x = maxBound;
-            if (op.x < minBound) op.x = minBound;
+            return true;
         });
     });
+
+    if (listChanged) {
+        populateOpeningsUI(renderCallback);
+    }
 }
 
 export function updateAwningDepthMaxLimits() {
@@ -178,7 +190,7 @@ function bindSliderAndInput(sliderId, inputId, renderCallback) {
         }
 
         if (sliderId === 'inputW' || sliderId === 'inputL' || sliderId === 'inputH') {
-            validateAndClampOpenings();
+            validateAndClampOpenings(renderCallback);
             updateAwningDepthMaxLimits();
         }
 
@@ -234,129 +246,12 @@ function bindSimpleSliderAndInput(sliderId, inputId, renderCallback) {
     });
 }
 
-function updateSidebarSummary() {
-    const dimensionsEl =
-        document.getElementById('sidebar-summary-dimensions');
-
-    const roofEl =
-        document.getElementById('sidebar-summary-roof');
-
-    const colorsEl =
-        document.getElementById('sidebar-summary-colors');
-
-    if (!dimensionsEl || !roofEl || !colorsEl) {
-        return;
-    }
-
-    const width =
-        document.getElementById('valW')?.value
-        || '';
-
-    const length =
-        document.getElementById('valL')?.value
-        || '';
-
-    const height =
-        document.getElementById('valH')?.value
-        || '';
-
-    const unit =
-        isMetric
-            ? 'm'
-            : 'ft';
-
-    const roofTypeSelect =
-        document.getElementById('roofType');
-
-    const roofType =
-        roofTypeSelect?.selectedOptions?.[0]?.text
-        || '';
-
-    const pitchInput =
-        document.getElementById('valPitch');
-
-    const pitch =
-        pitchInput?.value
-        || '';
-
-    const roofProfileSelect =
-        document.getElementById('roofProfile');
-
-    const roofProfile =
-        roofProfileSelect?.selectedOptions?.[0]?.text
-        || '';
-
-    const getSelectedColorName = (id) => {
-        const select =
-            document.getElementById(id);
-
-        if (!select) {
-            return '';
-        }
-
-        return (
-            select.selectedOptions?.[0]?.text
-            || ''
-        ).trim();
-    };
-
-    const roofColor =
-        getSelectedColorName(
-            'colorRoof'
-        );
-
-    const wallColor =
-        getSelectedColorName(
-            'colorWall'
-        );
-
-    const trimColor =
-        getSelectedColorName(
-            'colorTrim'
-        );
-
-    const eaveTrimColor =
-        getSelectedColorName(
-            'colorEaveTrim'
-        );
-
-    const wainscotColor =
-        getSelectedColorName(
-            'colorWainscot'
-        );
-
-    dimensionsEl.textContent =
-        `${width}${unit} x ${length}${unit} x ${height}${unit}`;
-
-    roofEl.innerHTML =
-        `${escapeHtml(roofType)}`
-        + (
-            pitch
-                ? ` · ${escapeHtml(pitch)}`
-                : ''
-        )
-        + (
-            roofProfile
-                ? ` · ${escapeHtml(roofProfile)}`
-                : ''
-        );
-
-    colorsEl.innerHTML = `
-        <div>Roof: <strong>${escapeHtml(roofColor || '—')}</strong></div>
-        <div>Walls: <strong>${escapeHtml(wallColor || '—')}</strong></div>
-        <div>Trim: <strong>${escapeHtml(trimColor || '—')}</strong></div>
-        <div>Eave Trim: <strong>${escapeHtml(eaveTrimColor || '—')}</strong></div>
-        <div>Wainscot: <strong>${escapeHtml(wainscotColor || '—')}</strong></div>
-    `;
-}
-
 export function initUI(renderCallback, renderer, scene, cameraObj, controlsObj) {
     const activeControls = controlsObj || controls;
     const constraints = window.ConfiguratorBackendConstraints || {};
 
     initColoriseUI(renderCallback);
     initTexturiserUI(renderCallback);
-
     setupQuoteModal();
 
     const unitToggle = document.getElementById('unitToggle');
@@ -402,7 +297,6 @@ export function initUI(renderCallback, renderer, scene, cameraObj, controlsObj) 
         });
     }
 
-    // ДИНАМИЧЕСКАЯ НАСТРОЙКА ЛИМИТОВ ИЗ БЭКЕНДА ИЛИ ШАБЛОНА PHP
     const inputH = document.getElementById('inputH');
     if (inputH) {
         const backendMaxH = constraints.max_height || parseFloat(inputH.getAttribute('data-m-max')) || 12.192;
@@ -655,7 +549,6 @@ export function initUI(renderCallback, renderer, scene, cameraObj, controlsObj) 
     });
 
     initExternalModelsUI(renderCallback, scene, renderer, cameraObj, activeControls);
-
     initInsideView(cameraObj, activeControls);
     initCompareFeature();
     initResetFeature(renderCallback, cameraObj, activeControls);
@@ -1017,7 +910,7 @@ export function loadGallery(onLoadState) {
 
     grid.querySelectorAll('.load-btn').forEach(btn => {
         btn.addEventListener('click', (e) => {
-            const id = parseInt(e.currentTarget.dataset.id);
+            const id = parseInt(e.currentTarget.dataset.id, 10);
             const selectedDesign = designs.find(d => d.id === id);
 
             if (selectedDesign && selectedDesign.stateData) {
@@ -1029,7 +922,6 @@ export function loadGallery(onLoadState) {
                 window.history.pushState({}, '', url);
 
                 applyUrlConfig(onLoadState);
-
                 overlay.style.display = 'none';
             } else {
                 alert("This saved design does not contain structural parameters.");
@@ -1039,7 +931,7 @@ export function loadGallery(onLoadState) {
 
     grid.querySelectorAll('.del-btn').forEach(btn => {
         btn.addEventListener('click', (e) => {
-            const id = parseInt(e.currentTarget.dataset.id);
+            const id = parseInt(e.currentTarget.dataset.id, 10);
             if (confirm("Delete this design permanently?")) {
                 const updated = designs.filter(d => d.id !== id);
                 localStorage.setItem('configurator_designs', JSON.stringify(updated));

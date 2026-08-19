@@ -1,3 +1,6 @@
+// ================================================
+// FILE: js/awnings.js
+// ================================================
 import * as THREE from 'three';
 import { ltState, openingsData, openingDefs } from './state.js';
 import { roofMat, wallMat, trimMat } from './colorise.js';
@@ -39,14 +42,12 @@ export function createAwningsGroup(width, length, height, pitchRatio, roofType) 
     const wallThick = 0.05;
     const wOX = width / 2 + wallOffset;
     const wOZ = length / 2 + wallOffset;
-
     const maxAllowedDepth = width / 2;
 
     const buildSingleAwning = (side, c) => {
         if (!c || !c.active) return;
 
         const actualDepth = Math.min(c.depth, maxAllowedDepth);
-
         const isFB = (side === 'F' || side === 'B');
         const baseLength = isFB ? width : length;
         let actualW = baseLength - c.cutL - c.cutR;
@@ -84,7 +85,6 @@ export function createAwningsGroup(width, length, height, pitchRatio, roofType) 
         }
 
         let postH = startY - (actualDepth * Math.tan(pitchAng));
-
         if (postH <= 0.2) return;
 
         const awnGroup = new THREE.Group();
@@ -96,7 +96,7 @@ export function createAwningsGroup(width, length, height, pitchRatio, roofType) 
 
         awnGroup.updateMatrixWorld();
 
-        // Кровля пристройки
+        // 1. Roof
         const roofLenOnSlope = actualDepth / Math.cos(pitchAng);
         const roofGeo = new THREE.BoxGeometry(roofLenOnSlope, 0.1, actualW);
         roofGeo.translate(roofLenOnSlope / 2, 0, 0);
@@ -107,7 +107,7 @@ export function createAwningsGroup(width, length, height, pitchRatio, roofType) 
         roofMesh.receiveShadow = true;
         awnGroup.add(roofMesh);
 
-        // Фасадная стена пристройки
+        // 2. Front Wall
         if (c.wallF) {
             const frontShape = new THREE.Shape();
             frontShape.moveTo(-actualW / 2, 0);
@@ -125,7 +125,7 @@ export function createAwningsGroup(width, length, height, pitchRatio, roofType) 
             awnGroup.add(frontMesh);
         }
 
-        // Боковые стены пристройки
+        // 3. Side Walls
         const clipPlane = new THREE.Plane(new THREE.Vector3(-Math.sin(pitchAng), -Math.cos(pitchAng), 0).normalize(), 0);
         clipPlane.applyMatrix4(awnGroup.matrixWorld);
 
@@ -158,7 +158,7 @@ export function createAwningsGroup(width, length, height, pitchRatio, roofType) 
         if (c.wallL) createSideWallMesh(true);
         if (c.wallR) createSideWallMesh(false);
 
-        // Опорные колонны
+        // 4. Columns
         const colSize = 0.15;
         const colGeo = new THREE.BoxGeometry(colSize, postH, colSize);
         const colY = -startY + postH / 2;

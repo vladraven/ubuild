@@ -1,6 +1,13 @@
+// ================================================
+// FILE: js/end-wall-columns.js
+// ================================================
 import * as THREE from 'three';
 
-const steelMat = new THREE.MeshStandardMaterial({ color: 0x334155, metalness: 0.5, roughness: 0.5 });
+const steelMat = new THREE.MeshStandardMaterial({
+    color: 0x334155,
+    metalness: 0.5,
+    roughness: 0.5
+});
 
 export function createEndWallColumnsGroup(width, length, height, pitchRatio, roofType, enabled) {
     const group = new THREE.Group();
@@ -14,13 +21,10 @@ export function createEndWallColumnsGroup(width, length, height, pitchRatio, roo
     const isG = roofType === 'gabled';
     const isLSloped = roofType === 'left-sloped';
     const isRSloped = roofType === 'right-sloped';
-    const isSingle = isLSloped || isRSloped;
 
     const colStep = 3.5;
     const halfW = innerW / 2;
-    
-    // Сдвигаем колонны внутрь от торцевых стен на толщину колонны + небольшой зазор
-    const zOffset = colThick / 2 + 0.25; 
+    const zOffset = colThick / 2 + 0.25;
 
     for (let z of [-innerL / 2 + zOffset, innerL / 2 - zOffset]) {
         for (let x = -halfW + colStep; x <= halfW - colStep; x += colStep) {

@@ -1,3 +1,6 @@
+// ================================================
+// FILE: js/scene.js
+// ================================================
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { hitboxes, openingsData, isMetric, openingDefs } from './state.js';
@@ -21,37 +24,34 @@ let dragOffsetY = 0;
 const ghostMaterial = new THREE.MeshBasicMaterial({
     color: 0x3b82f6,
     transparent: true,
-    opacity: 0.45,
+    opacity: 0.55,
     side: THREE.DoubleSide,
-    depthTest: false
+    depthTest: false,
+    depthWrite: false
 });
 
 const dragGhostMesh = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), ghostMaterial);
 dragGhostMesh.visible = false;
-dragGhostMesh.renderOrder = 999;
+dragGhostMesh.renderOrder = 9999;
 scene.add(dragGhostMesh);
 
-// Загрузка текстуры травы
 const textureLoader = new THREE.TextureLoader();
 textureLoader.setCrossOrigin('anonymous');
 const grassTex = textureLoader.load('https://cdn.jsdelivr.net/gh/mrdoob/three.js@r148/examples/textures/terrain/grasslight-big.jpg');
 grassTex.wrapS = THREE.RepeatWrapping;
 grassTex.wrapT = THREE.RepeatWrapping;
-// Уменьшаем количество повторений, чтобы текстура была крупнее (микрорельеф)
 grassTex.repeat.set(80, 80); 
 grassTex.anisotropy = 16; 
 
-// Материал травы с поддержкой вершинных цветов и рельефа (Bump)
 const grassMeshMat = new THREE.MeshStandardMaterial({ 
     map: grassTex, 
-    bumpMap: grassTex,     // Используем ту же текстуру для объема
-    bumpScale: 0.15,       // Высота травинок
-    vertexColors: true,    // Включаем макро-цвета (пятна на ландшафте)
+    bumpMap: grassTex,
+    bumpScale: 0.15,
+    vertexColors: true,
     roughness: 1.95,
     metalness: 0.0
 });
 
-// Skybox куб текстур из оригинальных коммитов
 const skyPath = 'https://cdn.jsdelivr.net/gh/mrdoob/three.js@r148/examples/textures/cube/skyboxsun25deg/';
 const cubeTextureLoader = new THREE.CubeTextureLoader();
 cubeTextureLoader.setCrossOrigin('anonymous');
@@ -89,12 +89,11 @@ export function initScene(container) {
     controls.autoRotate = true;
     controls.autoRotateSpeed = 0.2;
 
-    // Much brighter environment lighting overall
-    const hemiLight = new THREE.HemisphereLight(0xdedede, 0x5a5a6a, .75);
+    const hemiLight = new THREE.HemisphereLight(0xdedede, 0x5a5a6a, 0.75);
     hemiLight.position.set(0, 200, 0);
     scene.add(hemiLight);
 
-    const ambientLight = new THREE.AmbientLight(0xdedede, .75);
+    const ambientLight = new THREE.AmbientLight(0xdedede, 0.75);
     scene.add(ambientLight);
 
     const sun = new THREE.DirectionalLight(0xdedede, 1.5);
@@ -103,7 +102,6 @@ export function initScene(container) {
 
     sun.shadow.bias = -0.001;        
     sun.shadow.normalBias = 0.05;     
-    
     sun.shadow.radius = 2.5;            
     sun.shadow.mapSize.width = 4096;  
     sun.shadow.mapSize.height = 4096;
@@ -136,22 +134,17 @@ function createHillyTerrain() {
     const worldSize = 3000;
     const segments = 128;
 
-
-
-
     const terrainGeo = new THREE.PlaneGeometry(worldSize, worldSize, segments, segments);
     const position = terrainGeo.attributes.position;
     
-    // Массив для хранения цветов вершин (R, G, B для каждой вершины)
     const colors = new Float32Array(position.count * 3);
     const colorObj = new THREE.Color();
 
     for (let i = 0; i < position.count; i++) {
         const x = position.getX(i);
         const y = position.getY(i);
-        const distFromCenter = Math.sqrt(x * x + y * y);
+        const distFromCenter = Math.hypot(x, y);
 
-        // 1. Формирование холмов
         if (distFromCenter > 90) {
             const factor = Math.min(1.0, (distFromCenter - 90) / 350);
             const z = (Math.sin(x * 0.012) * Math.cos(y * 0.012) * 3.0 + Math.sin(x * 0.003) * 5.0) * factor;
@@ -160,15 +153,11 @@ function createHillyTerrain() {
             position.setZ(i, 0);
         }
 
-        // 2. Добавление макро-цвета для разбивки тайлинга текстуры
-        // Используем комбинацию синусоид для создания случайных природных пятен (noise)
         const noise = (Math.sin(x * 0.005) + Math.cos(y * 0.006) + Math.sin((x + y) * 0.002)) / 3;
-        
-		// Яркий, насыщенный зелёный газон (FIX 2: было слишком серо/тускло: sat ~0.01-0.02, light ~0.25-0.35)
-		const hue = 0.3 + (noise * 0.12);         // Чистый сочный тон травы
-		const saturation = 0.25 + (noise * 0.08);  // Сочность (чем выше, тем ярче)
-		const lightness = 0.3 + (noise * 0.08);   // <-- ЯРКОСТЬ: поднимите до 0.38 - 0.45
-		colorObj.setHSL(hue, saturation, lightness);
+        const hue = 0.3 + (noise * 0.12);
+        const saturation = 0.25 + (noise * 0.08);
+        const lightness = 0.3 + (noise * 0.08);
+        colorObj.setHSL(hue, saturation, lightness);
         
         colors[i * 3] = colorObj.r;
         colors[i * 3 + 1] = colorObj.g;
@@ -176,7 +165,6 @@ function createHillyTerrain() {
     }
 
     terrainGeo.computeVertexNormals();
-    // Применяем цвета к геометрии
     terrainGeo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
 
     grassMesh = new THREE.Mesh(terrainGeo, grassMeshMat);
@@ -223,10 +211,6 @@ function resolveStrictCollisions(side, currentOpId, targetX, targetY, currW, cur
     return clampedX;
 }
 
-// FIX 7: Shared raw wall-plane raycast used by both pointerdown (to capture the
-// click offset) and pointermove (to re-derive the hit each frame). Returns the
-// intersection point in wall-local coordinates (X along the wall, raw world Y),
-// or null if the current raycaster ray doesn't hit the opening's wall plane.
 function getRawWallHit(opening) {
     const side = opening.side;
     if (!opening.meshGroup || !opening.meshGroup.parent) return null;
@@ -297,14 +281,10 @@ function setupDragAndDrop(container) {
                     draggedOpening = hitObj.userData;
                     controls.enabled = false;
 
-                    const def = openingDefs[draggedOpening.opData.type];
-                    const opW = draggedOpening.opData.w || (def ? def.w : 1.0);
-                    const opH = draggedOpening.opData.h || (def ? def.h : 1.0);
+                    const def = openingDefs[draggedOpening.opData.type] || { w: 1.0, h: 1.0 };
+                    const opW = draggedOpening.opData.w || def.w;
+                    const opH = draggedOpening.opData.h || def.h;
 
-                    // FIX 7: capture the offset between the opening's current
-                    // center and the raw raycast hit at the moment of click, so
-                    // dragging preserves where the user actually grabbed the
-                    // opening instead of snapping its center to the cursor.
                     const initHit = getRawWallHit(draggedOpening);
                     if (initHit) {
                         dragOffsetX = draggedOpening.opData.x - initHit.localX;
@@ -323,6 +303,10 @@ function setupDragAndDrop(container) {
 
                     if (draggedOpening.meshGroup && draggedOpening.meshGroup.parent) {
                         draggedOpening.meshGroup.parent.add(dragGhostMesh);
+                        const currentY = (draggedOpening.opData.type === 'Window')
+                            ? (draggedOpening.opData.yOff !== undefined ? draggedOpening.opData.yOff : 1.0)
+                            : 0;
+                        dragGhostMesh.position.set(draggedOpening.opData.x, currentY + opH / 2, 0.08);
                         dragGhostMesh.visible = true;
                     }
                     break;
@@ -344,9 +328,9 @@ function setupDragAndDrop(container) {
 
         const side = draggedOpening.side;
         const wallLength = draggedOpening.wallLength;
-        const def = openingDefs[draggedOpening.opData.type];
-        const opW = draggedOpening.opData.w || (def ? def.w : 1.0);
-        const opH = draggedOpening.opData.h || (def ? def.h : 1.0);
+        const def = openingDefs[draggedOpening.opData.type] || { w: 1.0, h: 1.0 };
+        const opW = draggedOpening.opData.w || def.w;
+        const opH = draggedOpening.opData.h || def.h;
         const halfOpW = opW / 2;
 
         const plane = new THREE.Plane();
@@ -372,9 +356,6 @@ function setupDragAndDrop(container) {
                 localY = 0;
             }
 
-            // FIX 7: re-apply the offset captured on pointerdown so the opening
-            // keeps its position relative to the initial click instead of
-            // jumping so its center snaps to the raw raycast hit.
             localX = localX + dragOffsetX;
             if (draggedOpening.opData.type === 'Window') {
                 localY = Math.max(0, localY + dragOffsetY);
@@ -390,7 +371,8 @@ function setupDragAndDrop(container) {
             draggedOpening.opData.yOff = localY;
 
             draggedOpening.meshGroup.position.set(localX, localY + opH / 2, 0);
-            dragGhostMesh.position.set(localX, localY + opH / 2, 0.05);
+            dragGhostMesh.position.set(localX, localY + opH / 2, 0.08);
+            dragGhostMesh.visible = true;
         }
     });
 

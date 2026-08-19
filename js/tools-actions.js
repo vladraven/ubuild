@@ -1,3 +1,6 @@
+// ================================================
+// FILE: js/tools-actions.js
+// ================================================
 import * as THREE from 'three';
 import { openingsData, collectCurrentState, isMetric, setOpeningIdCounter, ltState, getU } from './state.js';
 import { clearAllReferenceModels } from './external-references-models.js';
@@ -10,15 +13,11 @@ const savedOutsidePos = new THREE.Vector3();
 const savedOutsideTarget = new THREE.Vector3();
 let isSavedPositionStored = false;
 
-/**
- * Настройка вызова модального окна Quote (Снимок сцены + заполнение Gravity Forms)
- */
 export function setupQuoteModal() {
     const quoteModalEl = document.getElementById('quoteModal');
     if (!quoteModalEl) return;
 
     quoteModalEl.addEventListener('show.bs.modal', function () {
-        // 1. Генерация снимка JPEG для превью в модалке
         const thumbImg = document.getElementById('summary-building-thumb');
         const fallbackIcon = document.getElementById('summary-building-fallback');
 
@@ -30,7 +29,6 @@ export function setupQuoteModal() {
             if (fallbackIcon) fallbackIcon.style.display = 'none';
         }
 
-        // 2. Заполнение форм Gravity Forms
         const u = getU();
         const wDisplay = parseFloat(document.getElementById('inputW')?.value || '0').toFixed(2);
         const lDisplay = parseFloat(document.getElementById('inputL')?.value || '0').toFixed(2);
@@ -128,9 +126,6 @@ export function setupQuoteModal() {
     });
 }
 
-/**
- * Переключатель Inside View (Вид изнутри / Снаружи)
- */
 export function initInsideView(cameraObj, controlsObj) {
     const viewInsideToggle = document.getElementById('viewInsideToggle');
     if (!viewInsideToggle) return;
@@ -307,7 +302,7 @@ export function applyUrlConfig(renderCallback) {
             let maxId = -1;
             ['F', 'B', 'L', 'R'].forEach(s => {
                 (openingsData[s] || []).forEach(op => {
-                    const numericId = parseInt(String(op.id).replace(/\D/g, ''));
+                    const numericId = parseInt(String(op.id).replace(/\D/g, ''), 10);
                     if (!isNaN(numericId) && numericId > maxId) maxId = numericId;
                 });
             });

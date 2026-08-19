@@ -1,3 +1,6 @@
+// ================================================
+// FILE: js/foundation.js
+// ================================================
 import * as THREE from 'three';
 
 const concreteMat = new THREE.MeshStandardMaterial({ 
@@ -39,31 +42,27 @@ export function createFoundationGroup(width, length, showLabels = true) {
         ? Math.min(bc.max_foundation_height, 0.6096) 
         : 0.45;
 
-    // Выступ цоколя наружу за стены
     const foundationLedge = 0.30; 
     const totalW = width + foundationLedge * 2;
     const totalL = length + foundationLedge * 2;
 
-    // 1. Основной массив фундамента (смещен чуть ниже 0, чтобы плоскости не конфликтовали)
+    // 1. Foundation Base Box
     const geo = new THREE.BoxGeometry(totalW, foundationHeight, totalL);
     const foundationMesh = new THREE.Mesh(geo, concreteMat);
-    // Верхняя грань фундамента находится строго на Y = -0.001 (чуть ниже основания стен)
     foundationMesh.position.set(0, -foundationHeight / 2 - 0.001, 0);
     foundationMesh.receiveShadow = true;
     foundationMesh.castShadow = true;
-
     group.add(foundationMesh);
 
-    // 2. Внутренняя плита пола (Slab)
-    // Делаем толщину 10 см и утапливаем верхнюю плоскость ровно на Y = 0.0
+    // 2. Interior Floor Slab
     const slabGeo = new THREE.BoxGeometry(width, 0.10, length);
     const slabMesh = new THREE.Mesh(slabGeo, concreteMat);
-    slabMesh.position.set(0, -0.05, 0); // Верх плиты ровно на Y = 0.0
+    slabMesh.position.set(0, -0.05, 0);
     slabMesh.receiveShadow = true;
     slabMesh.castShadow = true;
     group.add(slabMesh);
 
-    // 3. 3D-метки сторон
+    // 3. Side Orientation Labels
     if (showLabels) {
         const off = width / 2 + 8;
         const labelY = 0.05;

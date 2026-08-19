@@ -1,3 +1,6 @@
+// ================================================
+// FILE: js/interior-liner.js
+// ================================================
 import * as THREE from 'three';
 import { openingsData, openingDefs } from './state.js';
 import { intWallMat } from './colorise.js';
@@ -44,7 +47,6 @@ function createLinerShapeWithHoles(shapePoints, side, maxH) {
 
 export function createInteriorLinerGroup(width, length, height, pitchRatio, roofType, enabled, hPercent) {
     const group = new THREE.Group();
-
     if (!enabled || hPercent <= 0) {
         return group;
     }
@@ -72,7 +74,7 @@ export function createInteriorLinerGroup(width, length, height, pitchRatio, roof
     const actualLeftH = leftWallH * factor;
     const actualRightH = rightWallH * factor;
 
-    // 1. Левая и Правая внутренние стены (L & R)
+    // 1. Left & Right Walls
     const shapeL = createLinerShapeWithHoles([
         { x: -halfL, y: 0 }, { x: halfL, y: 0 },
         { x: halfL, y: actualLeftH }, { x: -halfL, y: actualLeftH }
@@ -101,10 +103,10 @@ export function createInteriorLinerGroup(width, length, height, pitchRatio, roof
     meshR.receiveShadow = true;
     group.add(meshR);
 
-    // 2. Передняя и Задняя внутренние стены (F & B)
+    // 2. Front & Back Walls
     const getFrontBackPoints = (isBack = false) => {
-        const hL = (isBack ? actualRightH : actualLeftH);
-        const hR = (isBack ? actualLeftH : actualRightH);
+        const hL = isBack ? actualRightH : actualLeftH;
+        const hR = isBack ? actualLeftH : actualRightH;
 
         if (isSingleSlope) {
             return [

@@ -1,3 +1,6 @@
+// ================================================
+// FILE: js/state.js
+// ================================================
 import * as THREE from 'three';
 
 export let isMetric = false;

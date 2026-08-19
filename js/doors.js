@@ -1,3 +1,6 @@
+// ================================================
+// FILE: js/doors.js
+// ================================================
 import * as THREE from 'three';
 import { openingsData, openingDefs, hitboxes } from './state.js';
 
@@ -83,7 +86,6 @@ export function createDoorsGroupForWall(side, wallLength) {
         const opObj = buildDoorMesh(op);
         opObj.mesh.position.set(op.x, yOff + opH / 2, 0);
 
-        // Индивидуальные данные с уникальным id
         opObj.hit.userData = {
             isOpening: true,
             side: side,

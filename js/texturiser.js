@@ -1,239 +1,79 @@
+// ================================================
+// FILE: js/texturiser.js
+// ================================================
 import * as THREE from 'three';
+import { roofMat } from './colorise.js';
+import { configurePanelSystem } from './panelSystem.js';
 
-import {
-    roofMat
-} from './colorise.js';
+let cachedRoofNormalMap = null;
 
-import {
-    configurePanelSystem
-} from './panelSystem.js';
+function createRoofNormalTexture(width = 512, height = 512, ribCount = 16) {
+    const canvas = document.createElement('canvas');
+    canvas.width = width;
+    canvas.height = height;
 
-let cachedRoofNormalMap =
-    null;
+    const ctx = canvas.getContext('2d');
+    ctx.fillStyle = 'rgb(128, 128, 255)';
+    ctx.fillRect(0, 0, width, height);
 
-function createRoofNormalTexture(
-    width = 512,
-    height = 512,
-    ribCount = 16
-) {
-    const canvas =
-        document.createElement(
-            'canvas'
-        );
+    const step = width / ribCount;
+    const ribWidth = step * 0.3;
 
-    canvas.width =
-        width;
+    for (let i = 0; i < ribCount; i++) {
+        const x = i * step;
 
-    canvas.height =
-        height;
+        const gradLeft = ctx.createLinearGradient(x, 0, x + ribWidth / 2, 0);
+        gradLeft.addColorStop(0, 'rgb(0, 64, 255)');
+        gradLeft.addColorStop(1, 'rgb(128, 128, 255)');
+        ctx.fillStyle = gradLeft;
+        ctx.fillRect(x, 0, ribWidth / 2, height);
 
-    const ctx =
-        canvas.getContext(
-            '2d'
-        );
+        ctx.fillStyle = 'rgb(128, 128, 255)';
+        ctx.fillRect(x + ribWidth / 2, 0, ribWidth / 2, height);
 
-    ctx.fillStyle =
-        'rgb(128, 128, 255)';
-
-    ctx.fillRect(
-        0,
-        0,
-        width,
-        height
-    );
-
-    const step =
-        width /
-        ribCount;
-
-    const ribWidth =
-        step * 0.3;
-
-    for (
-        let i = 0;
-        i < ribCount;
-        i++
-    ) {
-        const x =
-            i * step;
-
-        const gradLeft =
-            ctx.createLinearGradient(
-                x,
-                0,
-                x +
-                    ribWidth / 2,
-                0
-            );
-
-        gradLeft.addColorStop(
-            0,
-            'rgb(0, 64, 255)'
-        );
-
-        gradLeft.addColorStop(
-            1,
-            'rgb(128, 128, 255)'
-        );
-
-        ctx.fillStyle =
-            gradLeft;
-
-        ctx.fillRect(
-            x,
-            0,
-            ribWidth / 2,
-            height
-        );
-
-        ctx.fillStyle =
-            'rgb(128, 128, 255)';
-
-        ctx.fillRect(
-            x +
-                ribWidth / 2,
-            0,
-            ribWidth / 2,
-            height
-        );
-
-        const gradRight =
-            ctx.createLinearGradient(
-                x + ribWidth,
-                0,
-                x +
-                    ribWidth +
-                    ribWidth / 2,
-                0
-            );
-
-        gradRight.addColorStop(
-            0,
-            'rgb(128, 128, 255)'
-        );
-
-        gradRight.addColorStop(
-            1,
-            'rgb(255, 192, 255)'
-        );
-
-        ctx.fillStyle =
-            gradRight;
-
-        ctx.fillRect(
-            x + ribWidth,
-            0,
-            ribWidth / 2,
-            height
-        );
+        const gradRight = ctx.createLinearGradient(x + ribWidth, 0, x + ribWidth + ribWidth / 2, 0);
+        gradRight.addColorStop(0, 'rgb(128, 128, 255)');
+        gradRight.addColorStop(1, 'rgb(255, 192, 255)');
+        ctx.fillStyle = gradRight;
+        ctx.fillRect(x + ribWidth, 0, ribWidth / 2, height);
     }
 
-    const texture =
-        new THREE.CanvasTexture(
-            canvas
-        );
-
-    texture.wrapS =
-        THREE.RepeatWrapping;
-
-    texture.wrapT =
-        THREE.RepeatWrapping;
-
-    texture.anisotropy =
-        4;
-
-    texture.needsUpdate =
-        true;
+    const texture = new THREE.CanvasTexture(canvas);
+    texture.wrapS = THREE.RepeatWrapping;
+    texture.wrapT = THREE.RepeatWrapping;
+    texture.anisotropy = 4;
+    texture.needsUpdate = true;
 
     return texture;
 }
 
 function getRoofProfile() {
-    const select =
-        document.getElementById(
-            'roofProfile'
-        );
-
-    return select
-        ? select.value.toLowerCase()
-        : 'awr';
+    const select = document.getElementById('roofProfile');
+    return select ? select.value.toLowerCase() : 'awr';
 }
 
 function getWallProfile() {
-    const select =
-        document.getElementById(
-            'wallProfile'
-        );
-
-    return select
-        ? select.value.toLowerCase()
-        : 'awr';
+    const select = document.getElementById('wallProfile');
+    return select ? select.value.toLowerCase() : 'awr';
 }
 
-export function updateBuildingTextures(
-    buildingW = 18,
-    buildingL = 30,
-    buildingH = 5
-) {
-    /*
-     * WALL + WAINSCOT
-     *
-     * The panel system owns:
-     * - panel material
-     * - normal map
-     * - physical panel width
-     * - physical panel height
-     * - UV coordinate system
-     *
-     * Building dimensions deliberately do
-     * not participate in panel scaling.
-     */
+export function updateBuildingTextures(buildingW = 18, buildingL = 30, buildingH = 5) {
+    const wallProfile = getWallProfile();
+    configurePanelSystem(wallProfile);
 
-    const wallProfile =
-        getWallProfile();
-
-    configurePanelSystem(
-        wallProfile
-    );
-
-    /*
-     * ROOF
-     */
-
-    const roofProfile =
-        getRoofProfile();
+    const roofProfile = getRoofProfile();
 
     if (!cachedRoofNormalMap) {
-        cachedRoofNormalMap =
-            createRoofNormalTexture(
-                512,
-                512,
-                3
-            );
+        cachedRoofNormalMap = createRoofNormalTexture(512, 512, 3);
     }
 
-    const roofTex =
-        cachedRoofNormalMap.clone();
-
-    roofTex.needsUpdate =
-        true;
-
-    roofTex.wrapS =
-        THREE.RepeatWrapping;
-
-    roofTex.wrapT =
-        THREE.RepeatWrapping;
-
-    roofTex.anisotropy =
-        4;
-
-    roofTex.center.set(
-        0.5,
-        0.5
-    );
-
-    roofTex.rotation =
-        Math.PI / 2;
+    const roofTex = cachedRoofNormalMap.clone();
+    roofTex.needsUpdate = true;
+    roofTex.wrapS = THREE.RepeatWrapping;
+    roofTex.wrapT = THREE.RepeatWrapping;
+    roofTex.anisotropy = 4;
+    roofTex.center.set(0.5, 0.5);
+    roofTex.rotation = Math.PI / 2;
 
     const roofDensities = {
         awr: 1.5,
@@ -242,57 +82,28 @@ export function updateBuildingTextures(
         snap12: 2.0
     };
 
-    const roofDensity =
-        roofDensities[
-            roofProfile
-        ] || 1.5;
+    const roofDensity = roofDensities[roofProfile] || 1.5;
 
     roofTex.repeat.set(
         buildingL * 0.8,
-        (buildingW / 2) *
-            roofDensity
+        (buildingW / 2) * roofDensity
     );
 
-    roofMat.normalMap =
-        roofTex;
-
-    roofMat.normalScale.set(
-        6.0,
-        6.0
-    );
-
-    roofMat.needsUpdate =
-        true;
+    roofMat.normalMap = roofTex;
+    roofMat.normalScale.set(6.0, 6.0);
+    roofMat.needsUpdate = true;
 }
 
-export function initTexturiserUI(
-    renderCallback
-) {
-    [
-        'roofProfile',
-        'wallProfile'
-    ].forEach(
-        id => {
-            const el =
-                document.getElementById(
-                    id
-                );
-
-            if (el) {
-                el.addEventListener(
-                    'change',
-                    () => {
-                        updateBuildingTextures();
-
-                        if (
-                            typeof renderCallback ===
-                            'function'
-                        ) {
-                            renderCallback();
-                        }
-                    }
-                );
-            }
+export function initTexturiserUI(renderCallback) {
+    ['roofProfile', 'wallProfile'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) {
+            el.addEventListener('change', () => {
+                updateBuildingTextures();
+                if (typeof renderCallback === 'function') {
+                    renderCallback();
+                }
+            });
         }
-    );
+    });
 }

@@ -33,8 +33,8 @@ export const trimMat =
         shadowSide: THREE.DoubleSide,
         envMapIntensity: 1.2,
         polygonOffset: true,
-        polygonOffsetFactor: -1,
-        polygonOffsetUnits: -1
+        polygonOffsetFactor: -2,
+        polygonOffsetUnits: -2
     });
 
 export const eaveTrimMat =
@@ -46,8 +46,34 @@ export const eaveTrimMat =
         shadowSide: THREE.DoubleSide,
         envMapIntensity: 1.2,
         polygonOffset: true,
-        polygonOffsetFactor: -1,
-        polygonOffsetUnits: -1
+        polygonOffsetFactor: -3,
+        polygonOffsetUnits: -3
+    });
+
+export const rakeTrimMat =
+    new THREE.MeshStandardMaterial({
+        color: 0x707170,
+        metalness: 0.65,
+        roughness: 0.28,
+        side: THREE.DoubleSide,
+        shadowSide: THREE.DoubleSide,
+        envMapIntensity: 1.2,
+        polygonOffset: true,
+        polygonOffsetFactor: -4,
+        polygonOffsetUnits: -4
+    });
+
+export const ridgeTrimMat =
+    new THREE.MeshStandardMaterial({
+        color: 0x707170,
+        metalness: 0.65,
+        roughness: 0.28,
+        side: THREE.DoubleSide,
+        shadowSide: THREE.DoubleSide,
+        envMapIntensity: 1.2,
+        polygonOffset: true,
+        polygonOffsetFactor: -5,
+        polygonOffsetUnits: -5
     });
 
 export const steelMat =
@@ -75,13 +101,6 @@ export const frameMat =
         roughness: 0.8
     });
 
-/*
- * Backward-compatible exports.
- *
- * Existing modules such as awnings.js import wallMat
- * from this file. Keep the export while the actual
- * wall panel material remains owned by panelSystem.js.
- */
 export const wallMat =
     getWallPanelMaterial();
 
@@ -116,89 +135,52 @@ export const intWallMat =
 
 export function updateMaterialColors() {
     const roofColor =
-        document.getElementById(
-            'colorRoof'
-        )?.value ||
-        '#3d3834';
+        document.getElementById('colorRoof')?.value || '#3d3834';
 
     const wallColor =
-        document.getElementById(
-            'colorWall'
-        )?.value ||
-        '#007cba';
+        document.getElementById('colorWall')?.value || '#007cba';
 
     const trimColor =
-        document.getElementById(
-            'colorTrim'
-        )?.value ||
-        '#707170';
+        document.getElementById('colorTrim')?.value || '#707170';
 
     const eaveTrimColor =
-        document.getElementById(
-            'colorEaveTrim'
-        )?.value ||
-        trimColor;
+        document.getElementById('colorEaveTrim')?.value || trimColor;
 
     const wainscotColor =
-        document.getElementById(
-            'colorWainscot'
-        )?.value ||
-        '#707170';
+        document.getElementById('colorWainscot')?.value || '#707170';
 
-    roofMat.color.set(
-        roofColor
-    );
+    roofMat.color.set(roofColor);
 
-    setWallPanelColor(
-        wallColor
-    );
+    setWallPanelColor(wallColor);
 
-    setWainscotPanelColor(
-        wainscotColor
-    );
+    setWainscotPanelColor(wainscotColor);
 
-    trimMat.color.set(
-        trimColor
-    );
+    trimMat.color.set(trimColor);
 
-    eaveTrimMat.color.set(
-        eaveTrimColor
-    );
+    eaveTrimMat.color.set(eaveTrimColor);
+
+    rakeTrimMat.color.set(trimColor);
+
+    ridgeTrimMat.color.set(trimColor);
 
     const ceilingEl =
-        document.getElementById(
-            'colorCeiling'
-        );
+        document.getElementById('colorCeiling');
 
     if (ceilingEl) {
-        ceilingMat.color.set(
-            ceilingEl.value
-        );
+        ceilingMat.color.set(ceilingEl.value);
     }
 
     const mezzEl =
-        document.getElementById(
-            'colorMezzanine'
-        );
+        document.getElementById('colorMezzanine');
 
     if (mezzEl) {
-        mezzMat.color.set(
-            mezzEl.value
-        );
+        mezzMat.color.set(mezzEl.value);
     }
 
-    /*
-     * Interior wall material historically followed
-     * the exterior wall color.
-     */
-    intWallMat.color.set(
-        wallColor
-    );
+    intWallMat.color.set(wallColor);
 }
 
-export function initColoriseUI(
-    renderCallback
-) {
+export function initColoriseUI(renderCallback) {
     const colorSelectIds = [
         'colorRoof',
         'colorWall',
@@ -209,28 +191,15 @@ export function initColoriseUI(
         'colorMezzanine'
     ];
 
-    colorSelectIds.forEach(
-        id => {
-            const select =
-                document.getElementById(
-                    id
-                );
-
-            if (select) {
-                select.addEventListener(
-                    'change',
-                    () => {
-                        updateMaterialColors();
-
-                        if (
-                            typeof renderCallback ===
-                            'function'
-                        ) {
-                            renderCallback();
-                        }
-                    }
-                );
-            }
+    colorSelectIds.forEach(id => {
+        const select = document.getElementById(id);
+        if (select) {
+            select.addEventListener('change', () => {
+                updateMaterialColors();
+                if (typeof renderCallback === 'function') {
+                    renderCallback();
+                }
+            });
         }
-    );
+    });
 }

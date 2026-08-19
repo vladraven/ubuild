@@ -1,3 +1,6 @@
+// ================================================
+// FILE: js/logo.js
+// ================================================
 import * as THREE from 'three';
 
 const textureLoader = new THREE.TextureLoader();
@@ -17,9 +20,9 @@ export function createLogoGroup(width, length, height, pitchRatio, roofType) {
     const logoWidth = 1.0;
     const logoHeight = 0.33;
     const plateThick = 0.08;
-    const margin = 0.15; // Зазор от карниза/крыши
+    const margin = 0.15;
 
-    // 1. Подложка и рамка
+    // 1. Frame & plate
     const plateGeo = new THREE.BoxGeometry(logoWidth + 0.1, logoHeight + 0.1, plateThick);
     const plateMesh = new THREE.Mesh(plateGeo, whitePlateMat);
     plateMesh.castShadow = true;
@@ -31,13 +34,13 @@ export function createLogoGroup(width, length, height, pitchRatio, roofType) {
     frameMesh.position.z = -plateThick / 2;
     logoGroup.add(frameMesh);
 
-    // 2. Лицевая панель с логотипом
+    // 2. Logo Decal
     const logoMat = new THREE.MeshBasicMaterial({ map: logoTexture, transparent: true, side: THREE.DoubleSide });
     const logoMesh = new THREE.Mesh(new THREE.PlaneGeometry(logoWidth, logoHeight), logoMat);
     logoMesh.position.z = plateThick / 2 + 0.005;
     logoGroup.add(logoMesh);
 
-    // 3. Динамический расчет высоты размещения
+    // 3. Position Calculation
     const halfW = width / 2;
     const halfL = length / 2;
     const wallThick = 0.05;
@@ -47,11 +50,7 @@ export function createLogoGroup(width, length, height, pitchRatio, roofType) {
     const isG = roofType === 'gabled';
     const isLSloped = roofType === 'left-sloped';
     const isRSloped = roofType === 'right-sloped';
-    const isSingle = isLSloped || isRSloped;
 
-    const totalRise = isSingle ? width * pitchRatio : halfW * pitchRatio;
-
-    // Вычисляем высоту крыши над левым и правым углом рамки
     let roofHAtLeftCorner = height;
     let roofHAtRightCorner = height;
 
@@ -59,22 +58,16 @@ export function createLogoGroup(width, length, height, pitchRatio, roofType) {
         roofHAtLeftCorner = height + (halfW - halfPlateW) * pitchRatio;
         roofHAtRightCorner = height + (halfW - halfPlateW) * pitchRatio;
     } else if (isLSloped) {
-        // Подъём слева направо (левая сторона ниже)
         roofHAtLeftCorner = height + (halfW - halfPlateW) * pitchRatio;
         roofHAtRightCorner = height + (halfW + halfPlateW) * pitchRatio;
     } else if (isRSloped) {
-        // Подъём справа налево (правая сторона ниже)
         roofHAtLeftCorner = height + (halfW + halfPlateW) * pitchRatio;
         roofHAtRightCorner = height + (halfW - halfPlateW) * pitchRatio;
     }
 
-    // Наименьшая точка кровли над плашкой
     const minAvailableRoofH = Math.min(roofHAtLeftCorner, roofHAtRightCorner);
-
-    // Центрирование с учётом безопасности
     const maxTopY = minAvailableRoofH - margin;
     const targetY = maxTopY - halfPlateH;
-
     const plateZPos = halfL + wallThick + plateThick / 2;
 
     logoGroup.position.set(0, targetY, plateZPos);

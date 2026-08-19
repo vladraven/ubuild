@@ -1,13 +1,13 @@
 import * as THREE from 'three';
-import { trimMat, eaveTrimMat } from './colorise.js';
+import { eaveTrimMat, rakeTrimMat } from './colorise.js';
 
 export const TRIM_CONFIG = {
     eaveLengthOffset: -0.124,
     eaveHeightExtra: 0.03,
-    eaveYOffset: 0.0,
+    eaveYOffset: 0.001,
     rakeLengthOffset: 0.0,
     rakeHeightExtra: 0.03,
-    rakeZOffset: 0.0,
+    rakeZOffset: 0.002,
     tS: 0.12
 };
 
@@ -50,156 +50,70 @@ export function createEaveTrim(len, sideX, tS, extraH) {
     );
     shape.closePath();
 
-    const safeLength =
-        Math.max(0.01, len);
+    const safeLength = Math.max(0.01, len);
 
-    const geo =
-        new THREE.ExtrudeGeometry(
-            shape,
-            {
-                depth: safeLength,
-                bevelEnabled: false
-            }
-        );
+    const geo = new THREE.ExtrudeGeometry(shape, {
+        depth: safeLength,
+        bevelEnabled: false
+    });
 
-    geo.translate(
-        0,
-        0,
-        -safeLength / 2
-    );
+    geo.translate(0, 0, -safeLength / 2);
 
-    const mesh =
-        new THREE.Mesh(
-            geo,
-            eaveTrimMat
-        );
-
+    const mesh = new THREE.Mesh(geo, eaveTrimMat);
     mesh.castShadow = true;
-    mesh.renderOrder = 2;
+    mesh.renderOrder = 4;
 
     return mesh;
 }
 
-export function createCornerTrimGeo(
-    colH,
-    tS,
-    sx,
-    sz
-) {
+export function createCornerTrimGeo(colH, tS, sx, sz) {
     const halfT = tS / 2;
     const legT = tS * 0.28;
 
-    const shape =
-        new THREE.Shape();
+    const shape = new THREE.Shape();
 
-    shape.moveTo(
-        sx * -halfT,
-        sz * -halfT
-    );
-
-    shape.lineTo(
-        sx * halfT,
-        sz * -halfT
-    );
-
-    shape.lineTo(
-        sx * halfT,
-        sz * (-halfT + legT)
-    );
-
-    shape.lineTo(
-        sx * (-halfT + legT),
-        sz * (-halfT + legT)
-    );
-
-    shape.lineTo(
-        sx * (-halfT + legT),
-        sz * halfT
-    );
-
-    shape.lineTo(
-        sx * -halfT,
-        sz * halfT
-    );
-
+    shape.moveTo(sx * -halfT, sz * -halfT);
+    shape.lineTo(sx * halfT, sz * -halfT);
+    shape.lineTo(sx * halfT, sz * (-halfT + legT));
+    shape.lineTo(sx * (-halfT + legT), sz * (-halfT + legT));
+    shape.lineTo(sx * (-halfT + legT), sz * halfT);
+    shape.lineTo(sx * -halfT, sz * halfT);
     shape.closePath();
 
-    const geo =
-        new THREE.ExtrudeGeometry(
-            shape,
-            {
-                depth: colH,
-                bevelEnabled: false
-            }
-        );
+    const geo = new THREE.ExtrudeGeometry(shape, {
+        depth: colH,
+        bevelEnabled: false
+    });
 
-    geo.rotateX(
-        -Math.PI / 2
-    );
+    geo.rotateX(-Math.PI / 2);
 
     return geo;
 }
 
-export function createRakeTrim(
-    len,
-    signZ,
-    tS,
-    extraH
-) {
+export function createRakeTrim(len, signZ, tS, extraH) {
     const depthS = tS;
     const h = tS + extraH;
 
-    const shape =
-        new THREE.Shape();
+    const shape = new THREE.Shape();
 
-    shape.moveTo(
-        0,
-        h / 2
-    );
-
-    shape.lineTo(
-        0,
-        -h / 2
-    );
-
-    shape.lineTo(
-        signZ * depthS,
-        -h / 2
-    );
-
-    shape.lineTo(
-        signZ * depthS,
-        h / 2
-    );
-
+    shape.moveTo(0, h / 2);
+    shape.lineTo(0, -h / 2);
+    shape.lineTo(signZ * depthS, -h / 2);
+    shape.lineTo(signZ * depthS, h / 2);
     shape.closePath();
 
-    const safeLength =
-        Math.max(0.01, len);
+    const safeLength = Math.max(0.01, len);
 
-    const geo =
-        new THREE.ExtrudeGeometry(
-            shape,
-            {
-                depth: safeLength,
-                bevelEnabled: false
-            }
-        );
+    const geo = new THREE.ExtrudeGeometry(shape, {
+        depth: safeLength,
+        bevelEnabled: false
+    });
 
-    geo.translate(
-        0,
-        0,
-        -safeLength / 2
-    );
+    geo.translate(0, 0, -safeLength / 2);
 
-    const mesh =
-        new THREE.Mesh(
-            geo,
-            trimMat
-        );
-
+    const mesh = new THREE.Mesh(geo, rakeTrimMat);
     mesh.castShadow = true;
-    mesh.renderOrder = 1;
+    mesh.renderOrder = 5;
 
     return mesh;
 }
