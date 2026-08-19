@@ -23,6 +23,9 @@ const DEFAULTS = Object.freeze({
     gutterOutletOffset: 0.07,
     pipeWallOffset: 0.05,
     pipeGroundOffset: 0.15,
+    downspoutMaxSpacing: 7.62,
+    downspoutStartOffsetZ: 0.30,
+    downspoutEndClearanceZ: 0.60,
     downspoutTopDropMin: 0.30,
     downspoutTopDropFactor: 1.4,
     downspoutElbowOffsetY: 0.08,
@@ -195,7 +198,6 @@ function createRoofGeometry({ width, length, height, pitchRatio, roofType, overh
     const totalLength = length + overhangs.overF + overhangs.overB;
     const zOffset = (overhangs.overF - overhangs.overB) / 2;
 
-    // Централизованный расчет карнизов (eaves), используемый в trims и gutters
     const eaveDropL = overhangs.overL * Math.tan(pitchAngle);
     const eaveDropR = overhangs.overR * Math.tan(pitchAngle);
 
@@ -390,7 +392,6 @@ function createTrimsSpatialData({ width, length, height, roof, wallThickness }) 
     const roofLength = roof.totalLength;
     const roofZOffset = roof.zOffset;
 
-    // Используем готовые данные карнизов из roof.eaves без повторных вычислений
     const leftEaveY = roof.eaves.left.y;
     const rightEaveY = roof.eaves.right.y;
     const eaveDropL = roof.eaves.left.drop;
@@ -486,18 +487,32 @@ function createGuttersSpatialData({
     const pipeWallOffset = DEFAULTS.pipeWallOffset;
     const pipeGroundOffset = DEFAULTS.pipeGroundOffset;
 
-    const metersPerSpout = 25 * 0.3048;
     const numDownspouts =
         Math.max(
             2,
-            Math.ceil(roofLength / metersPerSpout) + 1
+            Math.ceil(
+                roofLength /
+                DEFAULTS.downspoutMaxSpacing
+            ) + 1
+        );
+
+    const usableLength =
+        Math.max(
+            0,
+            roofLength -
+            DEFAULTS.downspoutEndClearanceZ
         );
 
     const spacing =
-        (roofLength - 0.6) /
-        Math.max(1, numDownspouts - 1);
+        usableLength /
+        Math.max(
+            1,
+            numDownspouts - 1
+        );
 
-    const gutterStartZ = -roofLength / 2;
+    const gutterStartZ =
+        -roofLength / 2 +
+        DEFAULTS.downspoutStartOffsetZ;
 
     const downspouts = [];
 
@@ -505,7 +520,6 @@ function createGuttersSpatialData({
         const zPos =
             roofZOffset +
             gutterStartZ +
-            0.3 +
             i * spacing;
 
         const wallPos =
@@ -757,19 +771,17 @@ function createGuttersSpatialData({
 
         eaves: {
             left: {
-                x:
-                    -halfW -
-                    roof.overhang.overL,
-                y: leftEaveY,
-                z: roofZOffset
+                x: roof.eaves.left.x,
+                y: roof.eaves.left.y,
+                z: roof.eaves.left.z,
+                length: roof.eaves.left.length
             },
 
             right: {
-                x:
-                    halfW +
-                    roof.overhang.overR,
-                y: rightEaveY,
-                z: roofZOffset
+                x: roof.eaves.right.x,
+                y: roof.eaves.right.y,
+                z: roof.eaves.right.z,
+                length: roof.eaves.right.length
             }
         },
 
@@ -1016,8 +1028,8 @@ function createEndWallColumnsSpatialData({ interior, height, roof }) {
 
 function createFoundationSpatialData({ width, length }, bc) {
     const ledge = DEFAULTS.foundationLedge;
-    const foundationHeight = bc.max_foundation_height !== undefined 
-        ? Math.min(bc.max_foundation_height, 0.6096) 
+    const foundationHeight = bc.max_foundation_height !== undefined
+        ? Math.min(bc.max_foundation_height, 0.6096)
         : 0.45;
 
     const totalW = width + ledge * 2;

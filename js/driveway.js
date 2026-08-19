@@ -1,10 +1,6 @@
 // js/driveway.js
 import * as THREE from 'three';
-
-const concreteMat = new THREE.MeshStandardMaterial({
-    color: 0x94a3b8,
-    roughness: 0.9
-});
+import { concreteMat } from './colorise.js';
 
 export function createDrivewayGroup(geometry, enabled) {
     const group = new THREE.Group();

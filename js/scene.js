@@ -4,6 +4,7 @@ import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { hitboxes, openingsData, isMetric, openingDefs } from './state.js';
 import { updateBuilding } from './builder.js';
 import { populateOpeningsUI } from './ui.js';
+import { grassMeshMat } from './colorise.js';
 
 export const scene = new THREE.Scene();
 export const mainGroup = new THREE.Group();
@@ -14,7 +15,7 @@ export let grassMesh;
 const raycaster = new THREE.Raycaster();
 const mouse = new THREE.Vector2();
 
-let draggedOpening = null;    
+let draggedOpening = null;      
 let currentSelectedOpening = null;
 let dragOffsetX = 0;
 let dragOffsetY = 0;
@@ -40,15 +41,6 @@ grassTex.wrapS = THREE.RepeatWrapping;
 grassTex.wrapT = THREE.RepeatWrapping;
 grassTex.repeat.set(80, 80); 
 grassTex.anisotropy = 16; 
-
-const grassMeshMat = new THREE.MeshStandardMaterial({ 
-    map: grassTex, 
-    bumpMap: grassTex,
-    bumpScale: 0.15,
-    vertexColors: true,
-    roughness: 1.95,
-    metalness: 0.0
-});
 
 const skyPath = 'https://cdn.jsdelivr.net/gh/mrdoob/three.js@r148/examples/textures/cube/skyboxsun25deg/';
 const cubeTextureLoader = new THREE.CubeTextureLoader();
@@ -100,7 +92,7 @@ export function initScene(container) {
 
     sun.shadow.bias = -0.001;        
     sun.shadow.normalBias = 0.05;    
-    sun.shadow.radius = 2.5;           
+    sun.shadow.radius = 2.5;            
     sun.shadow.mapSize.width = 4096;  
     sun.shadow.mapSize.height = 4096;
 
@@ -164,6 +156,9 @@ function createHillyTerrain() {
 
     terrainGeo.computeVertexNormals();
     terrainGeo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+
+    grassMeshMat.map = grassTex;
+    grassMeshMat.bumpMap = grassTex;
 
     grassMesh = new THREE.Mesh(terrainGeo, grassMeshMat);
     grassMesh.rotation.x = -Math.PI / 2;
@@ -238,7 +233,6 @@ function setupDragAndDrop(container) {
 
     container.addEventListener('dblclick', (e) => {
         stopAutoRotation();
-
         const rect = renderer.domElement.getBoundingClientRect();
         mouse.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
         mouse.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
@@ -260,7 +254,6 @@ function setupDragAndDrop(container) {
 
     container.addEventListener('pointerdown', (e) => {
         stopAutoRotation();
-
         const rect = renderer.domElement.getBoundingClientRect();
         mouse.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
         mouse.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
@@ -316,8 +309,6 @@ function setupDragAndDrop(container) {
     container.addEventListener('pointermove', (e) => {
         if (!draggedOpening) return;
 
-        stopAutoRotation();
-
         const rect = renderer.domElement.getBoundingClientRect();
         mouse.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
         mouse.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
@@ -370,7 +361,6 @@ function setupDragAndDrop(container) {
 
             draggedOpening.meshGroup.position.set(localX, localY + opH / 2, 0);
             dragGhostMesh.position.set(localX, localY + opH / 2, 0.08);
-            dragGhostMesh.visible = true;
         }
     });
 

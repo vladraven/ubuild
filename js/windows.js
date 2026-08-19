@@ -1,16 +1,7 @@
 // js/windows.js
 import * as THREE from 'three';
 import { openingsData, openingDefs, hitboxes } from './state.js';
-
-const frameMat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.7 });
-const glassMat = new THREE.MeshPhysicalMaterial({
-    color: 0x88ccff,
-    metalness: 0.2,
-    roughness: 0.1,
-    transmission: 0.8,
-    transparent: true,
-    opacity: 0.7
-});
+import { frameMat, glassMat } from './colorise.js';
 
 function createBox(w, h, d, mat, x = 0, y = 0, z = 0) {
     const mesh = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat);
