@@ -1,37 +1,16 @@
-// ================================================
-// FILE: js/overhangs.js
-// ================================================
+// js/overhangs.js
 import * as THREE from 'three';
 import { roofMat } from './colorise.js';
 
-export function createOverhangsGroup(
-    width,
-    length,
-    height,
-    pitchRatio,
-    roofType,
-    overL,
-    overR,
-    overF,
-    overB,
-    vis = {},
-    buildingGeometry = null
-) {
+export function createOverhangsGroup(geometry, vis = {}) {
     const group = new THREE.Group();
 
-    if (!vis.checkRoof || !buildingGeometry) {
+    if (!vis.checkRoof || !geometry || !geometry.overhangs?.enabled) {
         return group;
     }
 
-    const overhangs = buildingGeometry.overhangs;
-    if (!overhangs?.enabled) {
-        return group;
-    }
-
-    const roof = buildingGeometry.roof;
-    if (!roof) {
-        return group;
-    }
+    const roof = geometry.roof;
+    if (!roof) return group;
 
     const roofThickness = roof.thickness;
 
@@ -49,9 +28,7 @@ export function createOverhangsGroup(
         return group;
     }
 
-    if (!roof.gabled) {
-        return group;
-    }
+    if (!roof.gabled) return group;
 
     const left = roof.gabled.left;
     const leftGeometry = new THREE.BoxGeometry(left.slopeLength, roofThickness, roof.totalLength);

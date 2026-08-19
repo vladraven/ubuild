@@ -86,88 +86,39 @@ function createRafterBeam(rafterLength, dStart, dEnd, flangeW = 0.20, flangeT = 
     return group;
 }
 
-export function createMainFramesGroup(width, length, height, pitchRatio, roofType, geometry = null) {
+export function createMainFramesGroup(geometry) {
     const group = new THREE.Group();
-    if (!geometry) return group;
+    if (!geometry || !geometry.mainFrames) return group;
 
-    const isGabled = roofType === 'gabled';
-    const numFrames = Math.max(2, Math.round(length / 6) + 1);
+    const framesData = geometry.mainFrames.frames;
 
-    const halfW = geometry.building.halfWidth;
-    const halfL = geometry.building.halfLength;
-    const ang = geometry.building.pitchAngle || Math.atan(pitchRatio);
-
-    const colDStart = 0.20;
-    const colDEnd = 0.40;
-    const rafterDStart = 0.40;
-    const rafterDEnd = 0.20;
-
-    const insetX = 0.18;
-    const insetZ = 0.15;
-    const innerHalfW = halfW - insetX;
-    const usableLength = length - insetZ * 2;
-    const spacing = usableLength / (numFrames - 1);
-
-    for (let i = 0; i < numFrames; i++) {
+    framesData.forEach(frameData => {
         const frame = new THREE.Group();
-        const zPos = -halfL + insetZ + i * spacing;
 
-        if (isGabled) {
-            const colL = createSolidColumnMesh(height, colDStart, colDEnd);
-            colL.position.set(-innerHalfW, 0, 0);
-            frame.add(colL);
+        // 1. Колонны
+        const colLData = frameData.columns.left;
+        const colL = createSolidColumnMesh(colLData.height, colLData.dStart, colLData.dEnd);
+        colL.position.set(colLData.x, colLData.y, 0);
+        colL.scale.x = colLData.scaleX;
+        frame.add(colL);
 
-            const colR = createSolidColumnMesh(height, colDStart, colDEnd);
-            colR.position.set(innerHalfW, 0, 0);
-            colR.scale.x = -1;
-            frame.add(colR);
+        const colRData = frameData.columns.right;
+        const colR = createSolidColumnMesh(colRData.height, colRData.dStart, colRData.dEnd);
+        colR.position.set(colRData.x, colRData.y, 0);
+        colR.scale.x = colRData.scaleX;
+        frame.add(colR);
 
-            const rafterSpan = innerHalfW - colDEnd / 2;
-            const rafterLen = rafterSpan / Math.cos(ang);
+        // 2. Стропила
+        frameData.rafters.forEach(raftData => {
+            const raft = createRafterBeam(raftData.length, raftData.dStart, raftData.dEnd);
+            raft.position.set(raftData.position.x, raftData.position.y, raftData.position.z);
+            raft.rotation.z = raftData.rotationZ;
+            frame.add(raft);
+        });
 
-            const raftL = createRafterBeam(rafterLen, rafterDStart, rafterDEnd);
-            raftL.position.set(-innerHalfW + colDEnd / 2, height, 0);
-            raftL.rotation.z = ang;
-            frame.add(raftL);
-
-            const raftR = createRafterBeam(rafterLen, rafterDEnd, rafterDStart);
-            raftR.position.set(0, height + rafterSpan * Math.tan(ang), 0);
-            raftR.rotation.z = -ang;
-            frame.add(raftR);
-        } else {
-            const isLeftSloped = (roofType === 'left-sloped');
-            const totalRise = geometry.building.totalRise;
-            const hL = isLeftSloped ? height : height + totalRise;
-            const hR = isLeftSloped ? height + totalRise : height;
-
-            const colL = createSolidColumnMesh(hL, colDStart, colDEnd);
-            colL.position.set(-innerHalfW, 0, 0);
-            frame.add(colL);
-
-            const colR = createSolidColumnMesh(hR, colDStart, colDEnd);
-            colR.position.set(innerHalfW, 0, 0);
-            colR.scale.x = -1;
-            frame.add(colR);
-
-            const rafterSpan = (innerHalfW * 2) - colDEnd;
-            const rafterLen = rafterSpan / Math.cos(ang);
-
-            if (isLeftSloped) {
-                const raft = createRafterBeam(rafterLen, rafterDEnd, rafterDStart);
-                raft.position.set(-innerHalfW + colDEnd / 2, hL, 0);
-                raft.rotation.z = ang;
-                frame.add(raft);
-            } else {
-                const raft = createRafterBeam(rafterLen, rafterDStart, rafterDEnd);
-                raft.position.set(-innerHalfW + colDEnd / 2, hL, 0);
-                raft.rotation.z = -ang;
-                frame.add(raft);
-            }
-        }
-
-        frame.position.z = zPos;
+        frame.position.z = frameData.zPos;
         group.add(frame);
-    }
+    });
 
     return group;
 }

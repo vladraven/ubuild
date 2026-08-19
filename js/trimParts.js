@@ -9,16 +9,16 @@ export const TRIM_CONFIG = {
     rakeLengthOffset: 0.0,
     rakeHeightExtra: 0.03,
     rakeZOffset: 0.0,
-    tS: 0.12
+    tS: 0.10 // 10 см - реалистичная ширина полки нащельника
 };
 
 export function createEaveTrim(len, sideX, tS, extraH) {
     const shape = new THREE.Shape();
     const h = tS + extraH;
     const w = tS;
-    const t = Math.max(0.006, tS * 0.15);
-    const lip = w * 0.4;
-    const drip = w * 0.28;
+    const t = 0.01;
+    const lip = w * 0.35;
+    const drip = w * 0.25;
 
     shape.moveTo(0, h / 2);
     shape.lineTo(sideX * lip, h / 2);
@@ -37,7 +37,6 @@ export function createEaveTrim(len, sideX, tS, extraH) {
         depth: safeLength,
         bevelEnabled: false
     });
-
     geo.translate(0, 0, -safeLength / 2);
 
     const mesh = new THREE.Mesh(geo, eaveTrimMat);
@@ -48,16 +47,17 @@ export function createEaveTrim(len, sideX, tS, extraH) {
 }
 
 export function createCornerTrimGeo(colH, tS, sx, sz) {
-    const halfT = tS / 2;
-    const legT = tS * 0.28;
-
+    const t = 0.01; // Толщина металла нащельника (1 см)
     const shape = new THREE.Shape();
-    shape.moveTo(sx * -halfT, sz * -halfT);
-    shape.lineTo(sx * halfT, sz * -halfT);
-    shape.lineTo(sx * halfT, sz * (-halfT + legT));
-    shape.lineTo(sx * (-halfT + legT), sz * (-halfT + legT));
-    shape.lineTo(sx * (-halfT + legT), sz * halfT);
-    shape.lineTo(sx * -halfT, sz * halfT);
+
+    // L-образный профиль, внутренний угол которого плотно садится ровно на (0, 0)
+    // а полки шириной tS идут строго вдоль внешних граней стен
+    shape.moveTo(0, 0);
+    shape.lineTo(sx * tS, 0);
+    shape.lineTo(sx * tS, sz * t);
+    shape.lineTo(sx * t, sz * t);
+    shape.lineTo(sx * t, sz * tS);
+    shape.lineTo(0, sz * tS);
     shape.closePath();
 
     const geo = new THREE.ExtrudeGeometry(shape, {
@@ -70,14 +70,16 @@ export function createCornerTrimGeo(colH, tS, sx, sz) {
 }
 
 export function createRakeTrim(len, signZ, tS, extraH) {
-    const depthS = tS;
     const h = tS + extraH;
+    const t = 0.01;
 
     const shape = new THREE.Shape();
     shape.moveTo(0, h / 2);
     shape.lineTo(0, -h / 2);
-    shape.lineTo(signZ * depthS, -h / 2);
-    shape.lineTo(signZ * depthS, h / 2);
+    shape.lineTo(signZ * tS, -h / 2);
+    shape.lineTo(signZ * tS, -h / 2 + t);
+    shape.lineTo(signZ * t, -h / 2 + t);
+    shape.lineTo(signZ * t, h / 2);
     shape.closePath();
 
     const safeLength = Math.max(0.01, len);
@@ -85,7 +87,6 @@ export function createRakeTrim(len, signZ, tS, extraH) {
         depth: safeLength,
         bevelEnabled: false
     });
-
     geo.translate(0, 0, -safeLength / 2);
 
     const mesh = new THREE.Mesh(geo, rakeTrimMat || trimMat);

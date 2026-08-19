@@ -8,8 +8,9 @@ const logoUrl = 'https://ubuildsb.com/wp-content/themes/U-Build/js/U-build-logo.
 const trimMat = new THREE.MeshStandardMaterial({ color: 0x334155, metalness: 0.3, roughness: 0.6 });
 const whitePlateMat = new THREE.MeshStandardMaterial({ color: 0xeeeeee, roughness: 0.4, metalness: 0 });
 
-export function createLogoGroup(width, length, height, pitchRatio, roofType, geometry = null) {
+export function createLogoGroup(geometry) {
     const logoGroup = new THREE.Group();
+    if (!geometry || !geometry.logo) return logoGroup;
 
     if (!logoTexture) {
         logoTexture = textureLoader.load(logoUrl);
@@ -18,8 +19,8 @@ export function createLogoGroup(width, length, height, pitchRatio, roofType, geo
     const logoWidth = 1.0;
     const logoHeight = 0.33;
     const plateThick = 0.08;
-    const margin = 0.15;
 
+    // 1. Подложка и рамка
     const plateGeo = new THREE.BoxGeometry(logoWidth + 0.1, logoHeight + 0.1, plateThick);
     const plateMesh = new THREE.Mesh(plateGeo, whitePlateMat);
     plateMesh.castShadow = true;
@@ -31,41 +32,18 @@ export function createLogoGroup(width, length, height, pitchRatio, roofType, geo
     frameMesh.position.z = -plateThick / 2;
     logoGroup.add(frameMesh);
 
+    // 2. Лицевая панель с текстурой
     const logoMat = new THREE.MeshBasicMaterial({ map: logoTexture, transparent: true, side: THREE.DoubleSide });
     const logoMesh = new THREE.Mesh(new THREE.PlaneGeometry(logoWidth, logoHeight), logoMat);
     logoMesh.position.z = plateThick / 2 + 0.005;
     logoGroup.add(logoMesh);
 
-    const halfW = width / 2;
-    const halfL = length / 2;
-    const wallThick = geometry ? geometry.building.wallThickness : 0.05;
-    const halfPlateW = (logoWidth + 0.12) / 2;
-    const halfPlateH = (logoHeight + 0.12) / 2;
-
-    const isG = roofType === 'gabled';
-    const isLSloped = roofType === 'left-sloped';
-    const isRSloped = roofType === 'right-sloped';
-
-    let roofHAtLeftCorner = height;
-    let roofHAtRightCorner = height;
-
-    if (isG) {
-        roofHAtLeftCorner = height + (halfW - halfPlateW) * pitchRatio;
-        roofHAtRightCorner = height + (halfW - halfPlateW) * pitchRatio;
-    } else if (isLSloped) {
-        roofHAtLeftCorner = height + (halfW - halfPlateW) * pitchRatio;
-        roofHAtRightCorner = height + (halfW + halfPlateW) * pitchRatio;
-    } else if (isRSloped) {
-        roofHAtLeftCorner = height + (halfW + halfPlateW) * pitchRatio;
-        roofHAtRightCorner = height + (halfW - halfPlateW) * pitchRatio;
-    }
-
-    const minAvailableRoofH = Math.min(roofHAtLeftCorner, roofHAtRightCorner);
-    const maxTopY = minAvailableRoofH - margin;
-    const targetY = maxTopY - halfPlateH;
-    const plateZPos = halfL + wallThick + plateThick / 2;
-
-    logoGroup.position.set(0, targetY, plateZPos);
+    // 3. Позиционирование из единой модели
+    logoGroup.position.set(
+        geometry.logo.position.x,
+        geometry.logo.position.y,
+        geometry.logo.position.z
+    );
 
     return logoGroup;
 }

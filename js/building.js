@@ -104,16 +104,7 @@ function createRoofMesh(roof) {
     return group;
 }
 
-export function createBuildingGroup(
-    width,
-    length,
-    height,
-    pitchRatio,
-    roofType,
-    hasOverhangs = false,
-    vis = {},
-    geometry = null
-) {
+export function createBuildingGroup(geometry, hasOverhangs = false, vis = {}) {
     const group = new THREE.Group();
     if (!geometry) return group;
 

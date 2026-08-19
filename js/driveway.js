@@ -6,18 +6,14 @@ const concreteMat = new THREE.MeshStandardMaterial({
     roughness: 0.9
 });
 
-export function createDrivewayGroup(width, length, enabled, geometry = null) {
+export function createDrivewayGroup(geometry, enabled) {
     const group = new THREE.Group();
-    if (!enabled) return group;
+    if (!enabled || !geometry || !geometry.driveway) return group;
 
-    const halfL = geometry ? geometry.building.halfLength : length / 2;
-    const driveW = width * 0.25;
-    const driveL = 8.0;
-    const driveH = 0.08;
-
-    const geo = new THREE.BoxGeometry(driveW, driveH, driveL);
+    const dData = geometry.driveway;
+    const geo = new THREE.BoxGeometry(dData.width, dData.height, dData.length);
     const driveway = new THREE.Mesh(geo, concreteMat);
-    driveway.position.set(0, -driveH / 2, halfL + driveL / 2);
+    driveway.position.set(dData.position.x, dData.position.y, dData.position.z);
     driveway.receiveShadow = true;
 
     group.add(driveway);

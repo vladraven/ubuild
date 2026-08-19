@@ -43,18 +43,7 @@ function createWainscotMesh(shapeData, material, uvOriginX, thickness) {
     return mesh;
 }
 
-export function createWainscotGroup(
-    width,
-    length,
-    height,
-    pitchRatio,
-    roofType,
-    wsHeight,
-    wsColorHex,
-    enabled,
-    vis = {},
-    geometry = null
-) {
+export function createWainscotGroup(geometry) {
     const group = new THREE.Group();
     if (!geometry || !geometry.wainscot || !geometry.wainscot.enabled) {
         return group;

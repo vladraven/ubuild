@@ -1,6 +1,4 @@
-// ================================================
-// FILE: js/ui.js
-// ================================================
+// js/ui.js
 import { isMetric, setMetric, openingsData, openingDefs, incrementOpeningId, ltState, collectCurrentState } from './state.js';
 import { controls } from './scene.js';
 import { initExternalModelsUI } from './external-references-models.js';

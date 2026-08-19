@@ -1,6 +1,4 @@
-// ================================================
-// FILE: js/scene.js
-// ================================================
+// js/scene.js
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { hitboxes, openingsData, isMetric, openingDefs } from './state.js';

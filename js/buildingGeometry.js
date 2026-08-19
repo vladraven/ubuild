@@ -5,7 +5,20 @@ const DEFAULTS = Object.freeze({
     overhangRoofThickness: 0.15,
     wainscotThickness: 0.02,
     wainscotOffset: 0.002,
-    trimSize: 0.12
+    trimSize: 0.12,
+    frameInsetX: 0.18,
+    frameInsetZ: 0.15,
+    colDStart: 0.20,
+    colDEnd: 0.40,
+    rafterDStart: 0.40,
+    rafterDEnd: 0.20,
+    girtThickness: 0.08,
+    girtStepY: 1.2,
+    purlinSize: 0.10,
+    purlinStepDist: 1.2,
+    endWallColThickness: 0.15,
+    endWallColStep: 3.5,
+    foundationLedge: 0.30
 });
 
 function finite(value, fallback = 0) {
@@ -332,12 +345,18 @@ function createWainscotGeometry({ width, length, leftWallHeight, rightWallHeight
     };
 }
 
-function createTrimsSpatialData({ width, length, height, totalRise, roofAngle, roofType, overhangs, roofLength, roofZOffset, wallThickness, wainscotThickness, wsEnabled }) {
+function createTrimsSpatialData({ width, length, height, roof, wallThickness, wainscotThickness, wsEnabled }) {
     const halfW = width / 2;
     const halfL = length / 2;
-    const isLSloped = (roofType === 'left-sloped');
-    const isRSloped = (roofType === 'right-sloped');
-    const isG = (roofType === 'gabled');
+    const isLSloped = (roof.type === 'left-sloped');
+    const isRSloped = (roof.type === 'right-sloped');
+    const isG = (roof.type === 'gabled');
+
+    const totalRise = roof.totalRise;
+    const roofAngle = roof.pitchAngle;
+    const overhangs = roof.overhang;
+    const roofLength = roof.totalLength;
+    const roofZOffset = roof.zOffset;
 
     const eaveDropL = overhangs.overL * Math.tan(roofAngle);
     const eaveDropR = overhangs.overR * Math.tan(roofAngle);
@@ -351,7 +370,6 @@ function createTrimsSpatialData({ width, length, height, totalRise, roofAngle, r
     if (isLSloped) rightEaveY = height + totalRise + eaveDropR;
     if (isRSloped) leftEaveY = height + totalRise + eaveDropL;
 
-    // Угловые планки строго по внешнему углу стены без смещения за боковые плоскости
     const cornerBaseOffset = wallThickness / 2;
     const cornerX = halfW + cornerBaseOffset;
     const cornerZ = halfL + cornerBaseOffset;
@@ -422,12 +440,17 @@ function createTrimsSpatialData({ width, length, height, totalRise, roofAngle, r
     };
 }
 
-function createGuttersSpatialData({ width, length, height, roofAngle, roofType, overhangs, roofLength, roofZOffset, openingsData, openingDefs }) {
+function createGuttersSpatialData({ width, height, roof }) {
     const halfW = width / 2;
-    const isLSloped = (roofType === 'left-sloped');
-    const isRSloped = (roofType === 'right-sloped');
+    const isLSloped = (roof.type === 'left-sloped');
+    const isRSloped = (roof.type === 'right-sloped');
 
-    const totalRise = (isLSloped || isRSloped) ? width * Math.tan(roofAngle) : halfW * Math.tan(roofAngle);
+    const totalRise = roof.totalRise;
+    const roofAngle = roof.pitchAngle;
+    const overhangs = roof.overhang;
+    const roofLength = roof.totalLength;
+    const roofZOffset = roof.zOffset;
+
     const eaveDropL = overhangs.overL * Math.tan(roofAngle);
     const eaveDropR = overhangs.overR * Math.tan(roofAngle);
 
@@ -476,6 +499,563 @@ function createGuttersSpatialData({ width, length, height, roofAngle, roofType, 
     };
 }
 
+function createMainFramesSpatialData({ width, length, height, roof }) {
+    const isGabled = (roof.type === 'gabled');
+    const isLeftSloped = (roof.type === 'left-sloped');
+    const halfW = width / 2;
+    const halfL = length / 2;
+    const ang = roof.pitchAngle;
+    const totalRise = roof.totalRise;
+
+    const numFrames = Math.max(2, Math.round(length / 6) + 1);
+    const innerHalfW = halfW - DEFAULTS.frameInsetX;
+    const usableLength = length - DEFAULTS.frameInsetZ * 2;
+    const spacing = usableLength / (numFrames - 1);
+
+    const frames = [];
+
+    for (let i = 0; i < numFrames; i++) {
+        const zPos = -halfL + DEFAULTS.frameInsetZ + i * spacing;
+
+        if (isGabled) {
+            const rafterSpan = innerHalfW - DEFAULTS.colDEnd / 2;
+            const rafterLen = rafterSpan / Math.cos(ang);
+
+            frames.push({
+                index: i,
+                zPos,
+                isGabled: true,
+                columns: {
+                    left: { x: -innerHalfW, y: 0, height, scaleX: 1, dStart: DEFAULTS.colDStart, dEnd: DEFAULTS.colDEnd },
+                    right: { x: innerHalfW, y: 0, height, scaleX: -1, dStart: DEFAULTS.colDStart, dEnd: DEFAULTS.colDEnd }
+                },
+                rafters: [
+                    {
+                        type: 'left',
+                        length: rafterLen,
+                        dStart: DEFAULTS.rafterDStart,
+                        dEnd: DEFAULTS.rafterDEnd,
+                        rotationZ: ang,
+                        position: { x: -innerHalfW + DEFAULTS.colDEnd / 2, y: height, z: 0 }
+                    },
+                    {
+                        type: 'right',
+                        length: rafterLen,
+                        dStart: DEFAULTS.rafterDEnd,
+                        dEnd: DEFAULTS.rafterDStart,
+                        rotationZ: -ang,
+                        position: { x: 0, y: height + rafterSpan * Math.tan(ang), z: 0 }
+                    }
+                ]
+            });
+        } else {
+            const hL = isLeftSloped ? height : height + totalRise;
+            const hR = isLeftSloped ? height + totalRise : height;
+            const rafterSpan = (innerHalfW * 2) - DEFAULTS.colDEnd;
+            const rafterLen = rafterSpan / Math.cos(ang);
+
+            frames.push({
+                index: i,
+                zPos,
+                isGabled: false,
+                columns: {
+                    left: { x: -innerHalfW, y: 0, height: hL, scaleX: 1, dStart: DEFAULTS.colDStart, dEnd: DEFAULTS.colDEnd },
+                    right: { x: innerHalfW, y: 0, height: hR, scaleX: -1, dStart: DEFAULTS.colDStart, dEnd: DEFAULTS.colDEnd }
+                },
+                rafters: [
+                    {
+                        type: isLeftSloped ? 'left-slope' : 'right-slope',
+                        length: rafterLen,
+                        dStart: isLeftSloped ? DEFAULTS.rafterDEnd : DEFAULTS.rafterDStart,
+                        dEnd: isLeftSloped ? DEFAULTS.rafterDStart : DEFAULTS.rafterDEnd,
+                        rotationZ: isLeftSloped ? ang : -ang,
+                        position: { x: -innerHalfW + DEFAULTS.colDEnd / 2, y: hL, z: 0 }
+                    }
+                ]
+            });
+        }
+    }
+
+    return {
+        count: numFrames,
+        spacing,
+        usableLength,
+        innerHalfW,
+        frames
+    };
+}
+
+function createGirtsSpatialData({ interior, height }) {
+    const innerW = interior.width;
+    const innerL = interior.length;
+    const girtThick = DEFAULTS.girtThickness;
+    const stepY = DEFAULTS.girtStepY;
+    const numGirts = Math.floor(height / stepY);
+
+    const levels = [];
+    for (let i = 1; i <= numGirts; i++) {
+        const y = i * stepY;
+        levels.push({
+            index: i,
+            y,
+            left: { x: -innerW / 2 + girtThick / 2, z: 0, length: innerL },
+            right: { x: innerW / 2 - girtThick / 2, z: 0, length: innerL },
+            front: { x: 0, z: innerL / 2 - girtThick / 2, width: innerW - girtThick * 2 },
+            back: { x: 0, z: -innerL / 2 + girtThick / 2, width: innerW - girtThick * 2 }
+        });
+    }
+
+    return {
+        countPerSide: numGirts,
+        thickness: girtThick,
+        stepY,
+        levels
+    };
+}
+
+function createPurlinsSpatialData({ interior, height, roof }) {
+    const innerW = interior.width;
+    const innerL = interior.length;
+    const halfW = innerW / 2;
+
+    const isG = (roof.type === 'gabled');
+    const isRSloped = (roof.type === 'right-sloped');
+    const ang = roof.pitchAngle;
+
+    const pSize = DEFAULTS.purlinSize;
+    const stepDist = DEFAULTS.purlinStepDist;
+    const offset = pSize / 2;
+
+    const items = [];
+
+    if (isG) {
+        const numPurlins = Math.floor(halfW / (stepDist * Math.cos(ang)));
+        for (let i = 1; i <= numPurlins; i++) {
+            const dist = i * stepDist;
+
+            // Right Slope Side (+1 direction)
+            const xR = (halfW - dist * Math.cos(ang)) + offset * Math.sin(ang);
+            const yR = (height + dist * Math.sin(ang)) - offset * Math.cos(ang);
+            items.push({
+                slope: 'right',
+                distOnSlope: dist,
+                position: { x: xR, y: yR, z: 0 },
+                rotationZ: ang,
+                length: innerL,
+                size: pSize
+            });
+
+            // Left Slope Side (-1 direction)
+            const xL = -(halfW - dist * Math.cos(ang)) - offset * Math.sin(ang);
+            const yL = (height + dist * Math.sin(ang)) - offset * Math.cos(ang);
+            items.push({
+                slope: 'left',
+                distOnSlope: dist,
+                position: { x: xL, y: yL, z: 0 },
+                rotationZ: -ang,
+                length: innerL,
+                size: pSize
+            });
+        }
+    } else {
+        const totalSpan = innerW / Math.cos(ang);
+        const numPurlins = Math.floor(totalSpan / stepDist);
+        const dir = isRSloped ? -1 : 1;
+        const startX = isRSloped ? halfW : -halfW;
+
+        for (let i = 1; i <= numPurlins; i++) {
+            const dist = i * stepDist;
+            const posX = (startX + dir * (dist * Math.cos(ang))) + offset * Math.sin(dir * ang);
+            const posY = (height + dist * Math.sin(ang)) - offset * Math.cos(ang);
+
+            items.push({
+                slope: 'single',
+                distOnSlope: dist,
+                position: { x: posX, y: posY, z: 0 },
+                rotationZ: dir * ang,
+                length: innerL,
+                size: pSize
+            });
+        }
+    }
+
+    return {
+        size: pSize,
+        stepDist,
+        innerLength: innerL,
+        items
+    };
+}
+
+function createEndWallColumnsSpatialData({ interior, height, roof }) {
+    const innerW = interior.width;
+    const innerL = interior.length;
+    const colThick = DEFAULTS.endWallColThickness;
+    const colStep = DEFAULTS.endWallColStep;
+    const halfW = innerW / 2;
+    const zOffset = colThick / 2 + 0.25;
+
+    const isG = (roof.type === 'gabled');
+    const isLSloped = (roof.type === 'left-sloped');
+    const isRSloped = (roof.type === 'right-sloped');
+    const pitchRatio = roof.pitchRatio;
+
+    const columns = [];
+
+    for (const z of [-innerL / 2 + zOffset, innerL / 2 - zOffset]) {
+        const wallName = z > 0 ? 'front' : 'back';
+        for (let x = -halfW + colStep; x <= halfW - colStep; x += colStep) {
+            let colH = height;
+            if (isG) {
+                colH += (halfW - Math.abs(x)) * pitchRatio;
+            } else if (isLSloped) {
+                colH += (x + halfW) * pitchRatio;
+            } else if (isRSloped) {
+                colH += (halfW - x) * pitchRatio;
+            }
+
+            columns.push({
+                wall: wallName,
+                x,
+                z,
+                height: colH,
+                thickness: colThick
+            });
+        }
+    }
+
+    return {
+        thickness: colThick,
+        stepX: colStep,
+        zOffsets: [-innerL / 2 + zOffset, innerL / 2 - zOffset],
+        columns
+    };
+}
+
+function createFoundationSpatialData({ width, length }) {
+    const ledge = DEFAULTS.foundationLedge;
+    const totalW = width + ledge * 2;
+    const totalL = length + ledge * 2;
+    const off = width / 2 + 8;
+    const labelY = 0.05;
+
+    return {
+        width: totalW,
+        length: totalL,
+        halfWidth: totalW / 2,
+        halfLength: totalL / 2,
+        ledge,
+        slab: {
+            width,
+            length,
+            height: 0.10,
+            y: -0.05
+        },
+        labels: {
+            F: { x: 0, y: labelY, z: length / 2 + ledge + off, rotation: [-Math.PI / 2, 0, 0] },
+            B: { x: 0, y: labelY, z: -length / 2 - ledge - off, rotation: [-Math.PI / 2, 0, Math.PI] },
+            R: { x: width / 2 + ledge + off, y: labelY, z: 0, rotation: [-Math.PI / 2, 0, Math.PI / 2] },
+            L: { x: -width / 2 - ledge - off, y: labelY, z: 0, rotation: [-Math.PI / 2, 0, -Math.PI / 2] }
+        }
+    };
+}
+
+function createInteriorLinerSpatialData({ interior, height, roof, intLinerEn, intLinerH, walls }) {
+    if (!intLinerEn || intLinerH <= 0) {
+        return { enabled: false, sides: {} };
+    }
+
+    const offsetIn = 0.75;
+    const linerThick = 0.01;
+    const innerW = interior.width - (offsetIn - DEFAULTS.wallThickness) * 2;
+    const innerL = interior.length - (offsetIn - DEFAULTS.wallThickness) * 2;
+    const halfW = innerW / 2;
+    const halfL = innerL / 2;
+
+    const factor = Math.min(100, Math.max(0, intLinerH)) / 100;
+    const totalRise = roof.totalRise;
+    const isSingleSlope = roof.isSingleSlope;
+    const isLeftSloped = (roof.type === 'left-sloped');
+    const isRightSloped = (roof.type === 'right-sloped');
+
+    let leftWallH = height;
+    let rightWallH = height;
+    if (isLeftSloped) rightWallH = height + totalRise;
+    else if (isRightSloped) leftWallH = height + totalRise;
+
+    const actualLeftH = leftWallH * factor;
+    const actualRightH = rightWallH * factor;
+
+    const sides = {};
+
+    if (walls.L) {
+        sides.L = {
+            shapeData: createWainscotShapeData(halfL, actualLeftH, walls.L.holes),
+            position: { x: -halfW, y: 0, z: 0 },
+            rotationY: Math.PI / 2
+        };
+    }
+    if (walls.R) {
+        sides.R = {
+            shapeData: createWainscotShapeData(halfL, actualRightH, walls.R.holes),
+            position: { x: halfW, y: 0, z: 0 },
+            rotationY: -Math.PI / 2
+        };
+    }
+
+    const maxFrontH = Math.max(actualLeftH, actualRightH);
+
+    const getFrontBackShapeData = (isBack = false) => {
+        const hL = isBack ? actualRightH : actualLeftH;
+        const hR = isBack ? actualLeftH : actualRightH;
+        let points;
+
+        if (isSingleSlope) {
+            points = [
+                { x: -halfW, y: 0 },
+                { x: halfW, y: 0 },
+                { x: halfW, y: hR },
+                { x: -halfW, y: hL }
+            ];
+        } else {
+            const centerH = (height + totalRise) * factor;
+            points = [
+                { x: -halfW, y: 0 },
+                { x: halfW, y: 0 },
+                { x: halfW, y: hR },
+                { x: 0, y: centerH },
+                { x: -halfW, y: hL }
+            ];
+        }
+        return {
+            points,
+            holes: (isBack ? walls.B?.holes : walls.F?.holes) || []
+        };
+    };
+
+    if (walls.F) {
+        sides.F = {
+            shapeData: getFrontBackShapeData(false),
+            position: { x: 0, y: 0, z: halfL - linerThick },
+            rotationY: 0
+        };
+    }
+    if (walls.B) {
+        sides.B = {
+            shapeData: getFrontBackShapeData(true),
+            position: { x: 0, y: 0, z: -halfL + linerThick },
+            rotationY: Math.PI
+        };
+    }
+
+    return {
+        enabled: true,
+        thickness: linerThick,
+        offsetIn,
+        sides
+    };
+}
+
+function createMezzanineSpatialData({ interior, height, mezzEn, mezzCov, mezzZ, mezzH }) {
+    if (!mezzEn) return null;
+
+    const innerW = interior.width;
+    const innerL = interior.length;
+    const covFactor = (parseInt(mezzCov, 10) || 1) / 3;
+    const mezzL = innerL * covFactor;
+    const actualH = height * (Math.min(100, Math.max(40, mezzH)) / 100);
+    const maxZShift = innerL - mezzL;
+    const zOffset = -innerL / 2 + mezzL / 2 + maxZShift * (Math.min(100, Math.max(0, mezzZ)) / 100);
+
+    const columnPositions = [
+        { x: -innerW / 2 + 0.3, y: 0, z: zOffset - mezzL / 2 + 0.3, height: actualH },
+        { x: -innerW / 2 + 0.3, y: 0, z: zOffset + mezzL / 2 - 0.3, height: actualH },
+        { x: innerW / 2 - 0.3, y: 0, z: zOffset - mezzL / 2 + 0.3, height: actualH },
+        { x: innerW / 2 - 0.3, y: 0, z: zOffset + mezzL / 2 - 0.3, height: actualH }
+    ];
+
+    return {
+        width: innerW,
+        length: mezzL,
+        height: actualH,
+        zOffset,
+        columnPositions
+    };
+}
+
+function createCraneSpatialData({ interior, height, craneEn, craneZ }) {
+    if (!craneEn) return null;
+
+    const innerW = interior.width;
+    const innerL = interior.length;
+    const craneY = height * 0.75;
+    const bridgeZ = -innerL / 2 + innerL * (Math.min(100, Math.max(0, craneZ)) / 100);
+
+    return {
+        runwayLength: innerL,
+        height: craneY,
+        rails: {
+            left: { x: -innerW / 2 + 0.1, y: craneY, z: 0 },
+            right: { x: innerW / 2 - 0.1, y: craneY, z: 0 }
+        },
+        bridge: {
+            width: innerW - 0.2,
+            y: craneY + 0.2,
+            z: bridgeZ
+        }
+    };
+}
+
+function createAuxiliarySpatialData({ width, length, height, pitchRatio, roofType, wallThickness, drivewayEn }) {
+    const halfW = width / 2;
+    const halfL = length / 2;
+    const driveW = width * 0.25;
+    const driveL = 8.0;
+    const driveH = 0.08;
+
+    const driveway = drivewayEn ? {
+        width: driveW,
+        length: driveL,
+        height: driveH,
+        position: { x: 0, y: -driveH / 2, z: halfL + driveL / 2 }
+    } : null;
+
+    // Logo calculations
+    const logoWidth = 1.0;
+    const logoHeight = 0.33;
+    const plateThick = 0.08;
+    const margin = 0.15;
+    const halfPlateW = (logoWidth + 0.12) / 2;
+    const halfPlateH = (logoHeight + 0.12) / 2;
+
+    const isG = (roofType === 'gabled');
+    const isLSloped = (roofType === 'left-sloped');
+    const isRSloped = (roofType === 'right-sloped');
+
+    let roofHAtLeftCorner = height;
+    let roofHAtRightCorner = height;
+
+    if (isG) {
+        roofHAtLeftCorner = height + (halfW - halfPlateW) * pitchRatio;
+        roofHAtRightCorner = height + (halfW - halfPlateW) * pitchRatio;
+    } else if (isLSloped) {
+        roofHAtLeftCorner = height + (halfW - halfPlateW) * pitchRatio;
+        roofHAtRightCorner = height + (halfW + halfPlateW) * pitchRatio;
+    } else if (isRSloped) {
+        roofHAtLeftCorner = height + (halfW + halfPlateW) * pitchRatio;
+        roofHAtRightCorner = height + (halfW - halfPlateW) * pitchRatio;
+    }
+
+    const minAvailableRoofH = Math.min(roofHAtLeftCorner, roofHAtRightCorner);
+    const maxTopY = minAvailableRoofH - margin;
+    const targetY = maxTopY - halfPlateH;
+
+    const logo = {
+        targetY,
+        position: { x: 0, y: targetY, z: halfL + wallThickness + plateThick / 2 }
+    };
+
+    return { driveway, logo };
+}
+
+function createAwningsSpatialData({ width, length, height, ltState, openingsData, openingDefs }) {
+    const maxAllowedDepth = width / 2;
+    const wallOffset = 0.03;
+    const wOX = width / 2 + wallOffset;
+    const wOZ = length / 2 + wallOffset;
+
+    const awnings = {};
+
+    ['L', 'R', 'F', 'B'].forEach(side => {
+        const c = ltState[side];
+        if (!c || !c.active) return;
+
+        const actualDepth = Math.min(c.depth, maxAllowedDepth);
+        const isFB = (side === 'F' || side === 'B');
+        const baseLength = isFB ? width : length;
+        const actualW = baseLength - c.cutL - c.cutR;
+        if (actualW <= 0) return;
+
+        let startY = height - c.drop;
+        const pitchAng = Math.atan(c.pitch / 12);
+        const shiftOffset = (c.cutL - c.cutR) / 2;
+
+        const wallOps = openingsData[side] || [];
+        let minAllowedRoofTopY = 0;
+        let windowForbiddenRanges = [];
+
+        wallOps.forEach(op => {
+            const def = openingDefs[op.type] || { w: 1.0, h: 1.0, yOff: 0 };
+            const h = op.h || def.h;
+            const isWindow = op.type === 'Window';
+
+            if (isWindow) {
+                const yOff = op.yOff !== undefined ? op.yOff : (def.yOff || 1.0);
+                const winBottom = yOff;
+                const winTop = yOff + h;
+
+                windowForbiddenRanges.push({
+                    bottomBoundary: Math.max(0, winBottom - 0.05),
+                    topBoundary: winTop + 0.05
+                });
+            } else {
+                const doorTop = h + 0.05;
+                if (doorTop > minAllowedRoofTopY) {
+                    minAllowedRoofTopY = doorTop;
+                }
+            }
+        });
+
+        if (minAllowedRoofTopY > 0 && startY < minAllowedRoofTopY) {
+            startY = minAllowedRoofTopY;
+        }
+
+        windowForbiddenRanges.forEach(range => {
+            if (startY > range.bottomBoundary && startY < range.topBoundary) {
+                if (minAllowedRoofTopY > 0) {
+                    startY = range.topBoundary;
+                } else {
+                    const distToTop = Math.abs(range.topBoundary - startY);
+                    const distToBottom = Math.abs(startY - range.bottomBoundary);
+                    if (distToTop <= distToBottom || range.bottomBoundary <= 0.2) {
+                        startY = range.topBoundary;
+                    } else {
+                        startY = range.bottomBoundary;
+                    }
+                }
+            }
+        });
+
+        if (startY > height) startY = height;
+
+        const postH = startY - (actualDepth * Math.tan(pitchAng));
+        if (postH <= 0.2) return;
+
+        let pos = { x: 0, y: startY, z: 0 };
+        let rotY = 0;
+
+        if (side === 'F') { pos = { x: shiftOffset, y: startY, z: wOZ }; rotY = -Math.PI / 2; }
+        else if (side === 'B') { pos = { x: shiftOffset, y: startY, z: -wOZ }; rotY = Math.PI / 2; }
+        else if (side === 'R') { pos = { x: wOX, y: startY, z: shiftOffset }; rotY = 0; }
+        else if (side === 'L') { pos = { x: -wOX, y: startY, z: shiftOffset }; rotY = Math.PI; }
+
+        awnings[side] = {
+            width: actualW,
+            depth: actualDepth,
+            startY,
+            postH,
+            position: pos,
+            rotationY: rotY,
+            roof: {
+                lengthOnSlope: actualDepth / Math.cos(pitchAng),
+                pitchAngle: pitchAng
+            }
+        };
+    });
+
+    return awnings;
+}
+
 export function createBuildingGeometry(options = {}) {
     const width = finite(options.width, 18.288);
     const length = finite(options.length, 30.48);
@@ -488,6 +1068,20 @@ export function createBuildingGeometry(options = {}) {
     const wainscotOffset = finite(options.wainscotOffset, DEFAULTS.wainscotOffset);
     const wsHeight = finite(options.wsHeight, 0.9144);
     const wsEnabled = Boolean(options.wsEnabled);
+
+    const intLinerEn = Boolean(options.intLinerEn);
+    const intLinerH = finite(options.intLinerH, 100);
+
+    const mezzEn = Boolean(options.mezzEn);
+    const mezzCov = options.mezzCov || '1';
+    const mezzZ = finite(options.mezzZ, 0);
+    const mezzH = finite(options.mezzH, 50);
+
+    const craneEn = Boolean(options.craneEn);
+    const craneZ = finite(options.craneZ, 50);
+
+    const drivewayEn = Boolean(options.drivewayEn);
+    const ltState = options.ltState || { L: {}, R: {}, F: {}, B: {} };
 
     const visibility = normalizeVisibility(options.visibility);
     const openingsData = options.openingsData || {};
@@ -602,6 +1196,13 @@ export function createBuildingGeometry(options = {}) {
     const innerW = width - wallThickness * 2;
     const innerL = length - wallThickness * 2;
 
+    const interior = {
+        width: innerW,
+        length: innerL,
+        halfWidth: innerW / 2,
+        halfLength: innerL / 2
+    };
+
     const wainscot = createWainscotGeometry({
         width,
         length,
@@ -619,12 +1220,7 @@ export function createBuildingGeometry(options = {}) {
         width,
         length,
         height,
-        totalRise,
-        roofAngle: pitchAngle,
-        roofType,
-        overhangs,
-        roofLength: roof.totalLength,
-        roofZOffset: roof.zOffset,
+        roof,
         wallThickness,
         wainscotThickness,
         wsEnabled
@@ -632,13 +1228,79 @@ export function createBuildingGeometry(options = {}) {
 
     const gutters = createGuttersSpatialData({
         width,
+        height,
+        roof
+    });
+
+    const mainFrames = createMainFramesSpatialData({
+        width,
         length,
         height,
-        roofAngle: pitchAngle,
+        roof
+    });
+
+    const girts = createGirtsSpatialData({
+        interior,
+        height
+    });
+
+    const purlins = createPurlinsSpatialData({
+        interior,
+        height,
+        roof
+    });
+
+    const endWallColumns = createEndWallColumnsSpatialData({
+        interior,
+        height,
+        roof
+    });
+
+    const foundation = createFoundationSpatialData({
+        width,
+        length
+    });
+
+    const interiorLiner = createInteriorLinerSpatialData({
+        interior,
+        height,
+        roof,
+        intLinerEn,
+        intLinerH,
+        walls
+    });
+
+    const mezzanine = createMezzanineSpatialData({
+        interior,
+        height,
+        mezzEn,
+        mezzCov,
+        mezzZ,
+        mezzH
+    });
+
+    const crane = createCraneSpatialData({
+        interior,
+        height,
+        craneEn,
+        craneZ
+    });
+
+    const { driveway, logo } = createAuxiliarySpatialData({
+        width,
+        length,
+        height,
+        pitchRatio,
         roofType,
-        overhangs,
-        roofLength: roof.totalLength,
-        roofZOffset: roof.zOffset,
+        wallThickness,
+        drivewayEn
+    });
+
+    const awnings = createAwningsSpatialData({
+        width,
+        length,
+        height,
+        ltState,
         openingsData,
         openingDefs
     });
@@ -660,30 +1322,29 @@ export function createBuildingGeometry(options = {}) {
             rightWallHeight,
             wallThickness
         },
-        interior: {
-            width: innerW,
-            length: innerL,
-            halfWidth: innerW / 2,
-            halfLength: innerL / 2
-        },
+        interior,
         walls,
         roof,
         wainscot,
         trims,
         gutters,
+        mainFrames,
+        girts,
+        purlins,
+        endWallColumns,
+        interiorLiner,
+        mezzanine,
+        crane,
+        driveway,
+        logo,
+        awnings,
         overhangs: {
             ...overhangs,
             enabled: hasOverhangs,
             totalLength: length + overhangs.overF + overhangs.overB,
             zOffset: (overhangs.overF - overhangs.overB) / 2
         },
-        foundation: {
-            width,
-            length,
-            halfWidth: halfW,
-            halfLength: halfL,
-            center: { x: 0, y: 0, z: 0 }
-        },
+        foundation,
         referencePlanes: {
             front: { z: halfL },
             back: { z: -halfL },

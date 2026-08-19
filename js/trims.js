@@ -8,20 +8,7 @@ import {
 } from './trimParts.js';
 import { trimMat } from './colorise.js';
 
-export function createTrimsGroup(
-    width,
-    length,
-    height,
-    pitchRatio,
-    roofType,
-    enabled,
-    overL = 0,
-    overR = 0,
-    overF = 0,
-    overB = 0,
-    guttersEnabled = false,
-    geometry = null
-) {
+export function createTrimsGroup(geometry, enabled = true) {
     const group = new THREE.Group();
     if (!enabled || !geometry || !geometry.trims) {
         return group;
@@ -31,7 +18,7 @@ export function createTrimsGroup(
     const tS = TRIM_CONFIG.tS;
     const extraH = TRIM_CONFIG.eaveHeightExtra;
 
-    // 1. Угловые планки
+    // 1. Угловые нащельники
     trimsData.corners.forEach(c => {
         const corner = new THREE.Mesh(createCornerTrimGeo(c.colH, tS, c.sx, c.sz), trimMat);
         corner.position.set(c.x, 0, c.z);
@@ -55,7 +42,7 @@ export function createTrimsGroup(
     eaveR.renderOrder = 4;
     group.add(eaveR);
 
-    // 3. Фронтонные планки (Rake Trims)
+    // 3. Фронтонные торцевые планки (Rake Trims)
     trimsData.rakes.forEach(rake => {
         const rakeG = new THREE.Group();
         rakeG.position.set(rake.position.x, rake.position.y + extraH / 2, rake.position.z);

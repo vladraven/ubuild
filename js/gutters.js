@@ -10,23 +10,8 @@ export const GUTTER_CONFIG = {
         offsetX: 0.0,
         offsetY: -0.135
     },
-    topElbow: {
-        angleDeg: 25,
-        length: 0.35,
-        offsetX: 0.0,
-        offsetY: -0.025,
-        offsetZ: 0.0
-    },
-    bottomElbow: {
-        angleDeg: 45,
-        length: 0.12,
-        offsetX: 0.0,
-        offsetY: 0.025,
-        offsetZ: 0.0
-    },
     pipe: {
         wallOffset: 0.05,
-        heightOffset: 0.0,
         groundOffset: 0.15,
         width: 0.08,
         depth: 0.06
@@ -117,7 +102,7 @@ function addPipeSegment(group, xA, yA, xB, yB, zPos, pipeMat) {
     const dx = xB - xA;
     const dy = yB - yA;
     const len = Math.hypot(dx, dy);
-    if (len < 0.005) return;
+    if (len < 0.002) return;
 
     const angle = Math.atan2(dx, -dy);
     const geo = createRectPipeGeo(len);
@@ -125,6 +110,7 @@ function addPipeSegment(group, xA, yA, xB, yB, zPos, pipeMat) {
     mesh.position.set((xA + xB) / 2, (yA + yB) / 2, zPos);
     mesh.rotation.z = angle;
     mesh.castShadow = true;
+    mesh.renderOrder = 5;
     group.add(mesh);
 }
 
@@ -133,60 +119,50 @@ function createDownspout(eaveY, sideX, overhang, width) {
     const pipeMat = trimMat;
     const halfW = width / 2;
 
-    const xGutter = sideX * (halfW + overhang + 0.07);
-    const yGutter = eaveY + GUTTER_CONFIG.gutter.offsetY;
+    const xGutterOutlet = sideX * (halfW + overhang + 0.07);
+    const yGutterOutlet = eaveY + GUTTER_CONFIG.gutter.offsetY;
+
     const xWall = sideX * (halfW + GUTTER_CONFIG.pipe.wallOffset);
     const yBottom = Math.max(0.02, GUTTER_CONFIG.pipe.groundOffset);
 
-    const topDrop = 0.35;
-    const yElbowEnd = yGutter - topDrop;
+    const topDrop = Math.max(0.30, Math.abs(xGutterOutlet - xWall) * 1.4);
+    const yElbowEnd = yGutterOutlet - topDrop;
+    const yElbowMid = yGutterOutlet - 0.08;
 
-    // 1. Верхнее S-колено (от желоба под угол к стене)
-    const yElbowMid = yGutter - topDrop * 0.2;
-    addPipeSegment(group, xGutter, yGutter, xGutter, yElbowMid, 0, pipeMat);
-    addPipeSegment(group, xGutter, yElbowMid, xWall, yElbowEnd, 0, pipeMat);
+    addPipeSegment(group, xGutterOutlet, yGutterOutlet, xGutterOutlet, yElbowMid, 0, pipeMat);
+    addPipeSegment(group, xGutterOutlet, yElbowMid, xWall, yElbowEnd, 0, pipeMat);
 
-    // 2. Длинная вертикальная труба вдоль стены до земли
     const yShoeStart = yBottom + 0.20;
-    addPipeSegment(group, xWall, yElbowEnd, xWall, yShoeStart, 0, pipeMat);
+    if (yElbowEnd > yShoeStart) {
+        addPipeSegment(group, xWall, yElbowEnd, xWall, yShoeStart, 0, pipeMat);
+    }
 
-    // 3. Нижний сливной башмак
-    const shoeLen = 0.18;
+    const shoeLen = 0.20;
     const shoeAngle = Math.PI / 4;
     const xShoeEnd = xWall + sideX * (shoeLen * Math.sin(shoeAngle));
     const yShoeEnd = yShoeStart - (shoeLen * Math.cos(shoeAngle));
     addPipeSegment(group, xWall, yShoeStart, xShoeEnd, yShoeEnd, 0, pipeMat);
 
-    // Хомуты крепления
     const strapGeo = new THREE.BoxGeometry(GUTTER_CONFIG.pipe.width * 1.3, 0.02, GUTTER_CONFIG.pipe.depth * 1.3);
-    const strapMat = new THREE.MeshStandardMaterial({ color: 0x444444, metalness: 0.8, roughness: 0.3 });
+    const strapMat = new THREE.MeshStandardMaterial({ color: 0x334155, metalness: 0.8, roughness: 0.3 });
 
-    const totalHeight = yElbowEnd - yShoeStart;
-    const numStraps = Math.max(2, Math.floor(totalHeight / 2.5));
-    for (let i = 0; i <= numStraps; i++) {
-        const yPos = yShoeStart + (totalHeight * i) / numStraps;
-        const bracket = new THREE.Mesh(strapGeo, strapMat);
-        bracket.position.set(xWall, yPos, 0);
-        bracket.castShadow = true;
-        group.add(bracket);
+    const span = yElbowEnd - yShoeStart;
+    if (span > 0.6) {
+        const strapCount = Math.max(2, Math.floor(span / 2.2));
+        for (let i = 0; i <= strapCount; i++) {
+            const yPos = yShoeStart + 0.15 + (span - 0.3) * (i / strapCount);
+            const bracket = new THREE.Mesh(strapGeo, strapMat);
+            bracket.position.set(xWall, yPos, 0);
+            bracket.castShadow = true;
+            bracket.renderOrder = 6;
+            group.add(bracket);
+        }
     }
 
     return group;
 }
 
-export function createGuttersGroup(
-    width,
-    length,
-    height,
-    pitchRatio,
-    roofType,
-    enabled,
-    overL = 0,
-    overR = 0,
-    overF = 0,
-    overB = 0,
-    geometry = null
-) {
+export function createGuttersGroup(geometry, enabled = true) {
     const group = new THREE.Group();
     if (!enabled || !geometry || !geometry.gutters) {
         return group;

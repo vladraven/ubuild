@@ -4,43 +4,42 @@ import * as THREE from 'three';
 const steelMat = new THREE.MeshStandardMaterial({ color: 0xeab308, metalness: 0.5, roughness: 0.4 });
 const railMat = new THREE.MeshStandardMaterial({ color: 0x1e293b, metalness: 0.8, roughness: 0.2 });
 
-export function createCraneGroup(width, length, height, enabled, zPercent, geometry = null) {
+export function createCraneGroup(geometry, enabled, zPercent) {
     const group = new THREE.Group();
-    if (!enabled || !geometry) return group;
+    if (!enabled || !geometry || !geometry.crane) return group;
 
-    const innerW = geometry.interior.width;
-    const innerL = geometry.interior.length;
-    const craneY = height * 0.75;
+    const craneData = geometry.crane;
 
-    const railBeamGeo = new THREE.BoxGeometry(0.15, 0.25, innerL);
+    // 1. Подкрановые пути
+    const railBeamGeo = new THREE.BoxGeometry(0.15, 0.25, craneData.runwayLength);
 
     const leftRail = new THREE.Mesh(railBeamGeo, railMat);
-    leftRail.position.set(-innerW / 2 + 0.1, craneY, 0);
+    leftRail.position.set(craneData.rails.left.x, craneData.rails.left.y, craneData.rails.left.z);
     leftRail.castShadow = true;
     group.add(leftRail);
 
     const rightRail = new THREE.Mesh(railBeamGeo, railMat);
-    rightRail.position.set(innerW / 2 - 0.1, craneY, 0);
+    rightRail.position.set(craneData.rails.right.x, craneData.rails.right.y, craneData.rails.right.z);
     rightRail.castShadow = true;
     group.add(rightRail);
 
-    const bridgeZ = -innerL / 2 + innerL * (Math.min(100, Math.max(0, zPercent)) / 100);
-
-    const bridgeGeo = new THREE.BoxGeometry(innerW - 0.2, 0.35, 0.3);
+    // 2. Мостовая балка крана
+    const bridgeGeo = new THREE.BoxGeometry(craneData.bridge.width, 0.35, 0.3);
     const bridgeMesh = new THREE.Mesh(bridgeGeo, steelMat);
-    bridgeMesh.position.set(0, craneY + 0.2, bridgeZ);
+    bridgeMesh.position.set(0, craneData.bridge.y, craneData.bridge.z);
     bridgeMesh.castShadow = true;
     group.add(bridgeMesh);
 
+    // 3. Тельфер и крюк
     const trolleyGeo = new THREE.BoxGeometry(0.4, 0.4, 0.4);
     const trolleyMesh = new THREE.Mesh(trolleyGeo, railMat);
-    trolleyMesh.position.set(0, craneY, bridgeZ);
+    trolleyMesh.position.set(0, craneData.bridge.y - 0.2, craneData.bridge.z);
     trolleyMesh.castShadow = true;
     group.add(trolleyMesh);
 
     const cableGeo = new THREE.CylinderGeometry(0.015, 0.015, 1.2, 8);
     const cableMesh = new THREE.Mesh(cableGeo, railMat);
-    cableMesh.position.set(0, craneY - 0.7, bridgeZ);
+    cableMesh.position.set(0, craneData.bridge.y - 0.9, craneData.bridge.z);
     group.add(cableMesh);
 
     return group;

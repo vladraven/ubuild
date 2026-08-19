@@ -7,39 +7,40 @@ const steelMat = new THREE.MeshStandardMaterial({
     roughness: 0.48
 });
 
-export function createGirtsGroup(width, length, height, enabled, geometry = null) {
+export function createGirtsGroup(geometry, enabled) {
     const group = new THREE.Group();
-    if (!enabled || !geometry) return group;
+    if (!enabled || !geometry || !geometry.girts) return group;
 
-    const innerW = geometry.interior.width;
-    const innerL = geometry.interior.length;
-    const girtThick = 0.08;
-    const stepY = 1.2;
-    const numGirts = Math.floor(height / stepY);
+    const girtsData = geometry.girts;
+    const girtThick = girtsData.thickness;
 
-    for (let i = 1; i <= numGirts; i++) {
-        const y = i * stepY;
+    girtsData.levels.forEach(level => {
+        const y = level.y;
 
-        const gL = new THREE.Mesh(new THREE.BoxGeometry(girtThick, girtThick, innerL), steelMat);
-        gL.position.set(-innerW / 2 + girtThick / 2, y, 0);
+        // Левый прогон
+        const gL = new THREE.Mesh(new THREE.BoxGeometry(girtThick, girtThick, level.left.length), steelMat);
+        gL.position.set(level.left.x, y, level.left.z);
         gL.castShadow = true;
         group.add(gL);
 
-        const gR = new THREE.Mesh(new THREE.BoxGeometry(girtThick, girtThick, innerL), steelMat);
-        gR.position.set(innerW / 2 - girtThick / 2, y, 0);
+        // Правый прогон
+        const gR = new THREE.Mesh(new THREE.BoxGeometry(girtThick, girtThick, level.right.length), steelMat);
+        gR.position.set(level.right.x, y, level.right.z);
         gR.castShadow = true;
         group.add(gR);
 
-        const gF = new THREE.Mesh(new THREE.BoxGeometry(innerW - girtThick * 2, girtThick, girtThick), steelMat);
-        gF.position.set(0, y, innerL / 2 - girtThick / 2);
+        // Передний прогон
+        const gF = new THREE.Mesh(new THREE.BoxGeometry(level.front.width, girtThick, girtThick), steelMat);
+        gF.position.set(level.front.x, y, level.front.z);
         gF.castShadow = true;
         group.add(gF);
 
-        const gB = new THREE.Mesh(new THREE.BoxGeometry(innerW - girtThick * 2, girtThick, girtThick), steelMat);
-        gB.position.set(0, y, -innerL / 2 + girtThick / 2);
+        // Задний прогон
+        const gB = new THREE.Mesh(new THREE.BoxGeometry(level.back.width, girtThick, girtThick), steelMat);
+        gB.position.set(level.back.x, y, level.back.z);
         gB.castShadow = true;
         group.add(gB);
-    }
+    });
 
     return group;
 }

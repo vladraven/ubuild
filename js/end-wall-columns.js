@@ -7,39 +7,21 @@ const steelMat = new THREE.MeshStandardMaterial({
     roughness: 0.5
 });
 
-export function createEndWallColumnsGroup(width, length, height, pitchRatio, roofType, enabled, geometry = null) {
+export function createEndWallColumnsGroup(geometry, enabled) {
     const group = new THREE.Group();
-    if (!enabled || !geometry) return group;
+    if (!enabled || !geometry || !geometry.endWallColumns) return group;
 
-    const innerW = geometry.interior.width;
-    const innerL = geometry.interior.length;
-    const colThick = 0.15;
+    const columnsData = geometry.endWallColumns.columns;
 
-    const isG = roofType === 'gabled';
-    const isLSloped = roofType === 'left-sloped';
-    const isRSloped = roofType === 'right-sloped';
-
-    const colStep = 3.5;
-    const halfW = innerW / 2;
-    const zOffset = colThick / 2 + 0.25;
-
-    for (let z of [-innerL / 2 + zOffset, innerL / 2 - zOffset]) {
-        for (let x = -halfW + colStep; x <= halfW - colStep; x += colStep) {
-            let colH = height;
-            if (isG) {
-                colH += (halfW - Math.abs(x)) * pitchRatio;
-            } else if (isLSloped) {
-                colH += (x + halfW) * pitchRatio;
-            } else if (isRSloped) {
-                colH += (halfW - x) * pitchRatio;
-            }
-
-            const col = new THREE.Mesh(new THREE.BoxGeometry(colThick, colH, colThick), steelMat);
-            col.position.set(x, colH / 2, z);
-            col.castShadow = true;
-            group.add(col);
-        }
-    }
+    columnsData.forEach(colData => {
+        const col = new THREE.Mesh(
+            new THREE.BoxGeometry(colData.thickness, colData.height, colData.thickness),
+            steelMat
+        );
+        col.position.set(colData.x, colData.height / 2, colData.z);
+        col.castShadow = true;
+        group.add(col);
+    });
 
     return group;
 }

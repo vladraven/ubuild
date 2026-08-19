@@ -32,54 +32,55 @@ function createTextLabel(txt) {
     return mesh;
 }
 
-export function createFoundationGroup(width, length, showLabels = true, geometry = null) {
+export function createFoundationGroup(geometry, showLabels = true) {
     const group = new THREE.Group();
-    const bc = window.ConfiguratorBackendConstraints || {};
+    if (!geometry || !geometry.foundation) return group;
 
+    const bc = window.ConfiguratorBackendConstraints || {};
     const foundationHeight = bc.max_foundation_height !== undefined 
         ? Math.min(bc.max_foundation_height, 0.6096) 
         : 0.45;
 
-    const foundationLedge = 0.30; 
-    const totalW = width + foundationLedge * 2;
-    const totalL = length + foundationLedge * 2;
+    const fData = geometry.foundation;
 
-    const geo = new THREE.BoxGeometry(totalW, foundationHeight, totalL);
+    // 1. Основной массив фундамента
+    const geo = new THREE.BoxGeometry(fData.width, foundationHeight, fData.length);
     const foundationMesh = new THREE.Mesh(geo, concreteMat);
     foundationMesh.position.set(0, -foundationHeight / 2 - 0.001, 0);
     foundationMesh.receiveShadow = true;
     foundationMesh.castShadow = true;
     group.add(foundationMesh);
 
-    const slabGeo = new THREE.BoxGeometry(width, 0.10, length);
+    // 2. Внутренняя плита пола (Slab)
+    const slabGeo = new THREE.BoxGeometry(fData.slab.width, fData.slab.height, fData.slab.length);
     const slabMesh = new THREE.Mesh(slabGeo, concreteMat);
-    slabMesh.position.set(0, -0.05, 0);
+    slabMesh.position.set(0, fData.slab.y, 0);
     slabMesh.receiveShadow = true;
     slabMesh.castShadow = true;
     group.add(slabMesh);
 
+    // 3. 3D-метки сторон
     if (showLabels) {
-        const off = width / 2 + 8;
-        const labelY = 0.05;
+        const labels = fData.labels;
 
         const lF = createTextLabel("Front");
-        lF.position.set(0, labelY, length / 2 + foundationLedge + off);
-        lF.rotation.set(-Math.PI / 2, 0, 0);
+        lF.position.set(labels.F.x, labels.F.y, labels.F.z);
+        lF.rotation.set(...labels.F.rotation);
         group.add(lF);
 
         const lB = createTextLabel("Back");
-        lB.position.set(0, labelY, -length / 2 - foundationLedge - off);
-        lB.rotation.set(-Math.PI / 2, 0, Math.PI);
+        lB.position.set(labels.B.x, labels.B.y, labels.B.z);
+        lB.rotation.set(...labels.B.rotation);
         group.add(lB);
 
         const lR = createTextLabel("Right");
-        lR.position.set(width / 2 + foundationLedge + off, labelY, 0);
-        lR.rotation.set(-Math.PI / 2, 0, Math.PI / 2);
+        lR.position.set(labels.R.x, labels.R.y, labels.R.z);
+        lR.rotation.set(...labels.R.rotation);
         group.add(lR);
 
         const lL = createTextLabel("Left");
-        lL.position.set(-width / 2 - foundationLedge - off, labelY, 0);
-        lL.rotation.set(-Math.PI / 2, 0, -Math.PI / 2);
+        lL.position.set(labels.L.x, labels.L.y, labels.L.z);
+        lL.rotation.set(...labels.L.rotation);
         group.add(lL);
     }
 
