@@ -104,25 +104,64 @@ export const intWallMat = new THREE.MeshStandardMaterial({
     side: THREE.DoubleSide
 });
 
+export const craneMat = new THREE.MeshStandardMaterial({
+    color: 0xeab308,
+    metalness: 0.5,
+    roughness: 0.4
+});
+
+export const craneRailMat = new THREE.MeshStandardMaterial({
+    color: 0x1e293b,
+    metalness: 0.8,
+    roughness: 0.2
+});
+
 export function updateMaterialColors() {
-    const roofColor = document.getElementById('colorRoof')?.value || '#3d3834';
-    const wallColor = document.getElementById('colorWall')?.value || '#007cba';
-    const trimColor = document.getElementById('colorTrim')?.value || '#707170';
-    const eaveTrimColor = document.getElementById('colorEaveTrim')?.value || trimColor;
-    const wainscotColor = document.getElementById('colorWainscot')?.value || '#707170';
+    const roofColor =
+        document.getElementById('colorRoof')?.value ||
+        '#3d3834';
+
+    const wallColor =
+        document.getElementById('colorWall')?.value ||
+        '#007cba';
+
+    const trimColor =
+        document.getElementById('colorTrim')?.value ||
+        '#707170';
+
+    const eaveTrimColor =
+        document.getElementById('colorEaveTrim')?.value ||
+        trimColor;
+
+    const wainscotColor =
+        document.getElementById('colorWainscot')?.value ||
+        '#707170';
 
     roofMat.color.set(roofColor);
     setWallPanelColor(wallColor);
     setWainscotPanelColor(wainscotColor);
+
     trimMat.color.set(trimColor);
     eaveTrimMat.color.set(eaveTrimColor);
     rakeTrimMat.color.set(trimColor);
 
-    const ceilingEl = document.getElementById('colorCeiling');
-    if (ceilingEl) ceilingMat.color.set(ceilingEl.value);
+    const ceilingEl =
+        document.getElementById('colorCeiling');
 
-    const mezzEl = document.getElementById('colorMezzanine');
-    if (mezzEl) mezzMat.color.set(mezzEl.value);
+    if (ceilingEl) {
+        ceilingMat.color.set(
+            ceilingEl.value
+        );
+    }
+
+    const mezzEl =
+        document.getElementById('colorMezzanine');
+
+    if (mezzEl) {
+        mezzMat.color.set(
+            mezzEl.value
+        );
+    }
 
     intWallMat.color.set(wallColor);
 }
@@ -139,14 +178,23 @@ export function initColoriseUI(renderCallback) {
     ];
 
     colorSelectIds.forEach(id => {
-        const select = document.getElementById(id);
+        const select =
+            document.getElementById(id);
+
         if (select) {
-            select.addEventListener('change', () => {
-                updateMaterialColors();
-                if (typeof renderCallback === 'function') {
-                    renderCallback();
+            select.addEventListener(
+                'change',
+                () => {
+                    updateMaterialColors();
+
+                    if (
+                        typeof renderCallback ===
+                        'function'
+                    ) {
+                        renderCallback();
+                    }
                 }
-            });
+            );
         }
     });
 }

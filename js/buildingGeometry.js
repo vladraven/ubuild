@@ -22,7 +22,19 @@ const DEFAULTS = Object.freeze({
     gutterOffsetY: -0.135,
     gutterOutletOffset: 0.07,
     pipeWallOffset: 0.05,
-    pipeGroundOffset: 0.15
+    pipeGroundOffset: 0.15,
+    downspoutTopDropMin: 0.30,
+    downspoutTopDropFactor: 1.4,
+    downspoutElbowOffsetY: 0.08,
+    downspoutShoeOffsetY: 0.20,
+    downspoutShoeLength: 0.20,
+    downspoutShoeAngle: Math.PI / 4,
+    downspoutGroundMin: 0.02,
+    downspoutDoorTolerance: 0.30,
+    downspoutStrapStartOffset: 0.15,
+    downspoutStrapEndOffset: 0.30,
+    downspoutStrapMinSpan: 0.60,
+    downspoutStrapSpacing: 2.2
 });
 
 function finite(value, fallback = 0) {
@@ -456,12 +468,17 @@ function createTrimsSpatialData({ width, length, height, roof, wallThickness }) 
     };
 }
 
-function createGuttersSpatialData({ width, height, roof, openingsData, openingDefs }) {
+function createGuttersSpatialData({
+    width,
+    height,
+    roof,
+    openingsData,
+    openingDefs
+}) {
     const halfW = width / 2;
     const roofLength = roof.totalLength;
     const roofZOffset = roof.zOffset;
 
-    // Используем готовые координаты карнизов из roof.eaves
     const leftEaveY = roof.eaves.left.y;
     const rightEaveY = roof.eaves.right.y;
 
@@ -470,52 +487,266 @@ function createGuttersSpatialData({ width, height, roof, openingsData, openingDe
     const pipeGroundOffset = DEFAULTS.pipeGroundOffset;
 
     const metersPerSpout = 25 * 0.3048;
-    const numDownspouts = Math.max(2, Math.ceil(roofLength / metersPerSpout) + 1);
-    const spacing = (roofLength - 0.6) / Math.max(1, numDownspouts - 1);
+    const numDownspouts =
+        Math.max(
+            2,
+            Math.ceil(roofLength / metersPerSpout) + 1
+        );
+
+    const spacing =
+        (roofLength - 0.6) /
+        Math.max(1, numDownspouts - 1);
+
     const gutterStartZ = -roofLength / 2;
 
     const downspouts = [];
-    const DOWNSPOUT_DOOR_TOLERANCE = 0.3;
 
     for (let i = 0; i < numDownspouts; i++) {
-        const zPos = roofZOffset + gutterStartZ + 0.3 + i * spacing;
-        const wallPos = zPos - roofZOffset;
+        const zPos =
+            roofZOffset +
+            gutterStartZ +
+            0.3 +
+            i * spacing;
+
+        const wallPos =
+            zPos - roofZOffset;
 
         ['L', 'R'].forEach(side => {
-            const doorsOnWall = (openingsData[side] || []).filter(op => op.type !== 'Window');
-            const isColliding = doorsOnWall.some(door => {
-                const def = openingDefs[door.type] || { w: 2.0 };
-                const doorW = door.w || def.w;
-                const minX = door.x - doorW / 2 - DOWNSPOUT_DOOR_TOLERANCE;
-                const maxX = door.x + doorW / 2 + DOWNSPOUT_DOOR_TOLERANCE;
-                return (wallPos >= minX && wallPos <= maxX);
-            });
+            const doorsOnWall =
+                (openingsData[side] || [])
+                    .filter(op => op.type !== 'Window');
 
-            const sideX = side === 'L' ? -1 : 1;
-            const eaveY = side === 'L' ? leftEaveY : rightEaveY;
-            const overhang = side === 'L' ? roof.overhang.overL : roof.overhang.overR;
+            const isColliding =
+                doorsOnWall.some(door => {
+                    const def =
+                        openingDefs[door.type] || {
+                            w: 2.0
+                        };
+
+                    const doorW =
+                        door.w || def.w;
+
+                    const minX =
+                        door.x -
+                        doorW / 2 -
+                        DEFAULTS.downspoutDoorTolerance;
+
+                    const maxX =
+                        door.x +
+                        doorW / 2 +
+                        DEFAULTS.downspoutDoorTolerance;
+
+                    return (
+                        wallPos >= minX &&
+                        wallPos <= maxX
+                    );
+                });
+
+            const sideX =
+                side === 'L'
+                    ? -1
+                    : 1;
+
+            const eaveY =
+                side === 'L'
+                    ? leftEaveY
+                    : rightEaveY;
+
+            const overhang =
+                side === 'L'
+                    ? roof.overhang.overL
+                    : roof.overhang.overR;
 
             const xGutterOutlet =
-			sideX * (
-				halfW +
-				overhang +
-				DEFAULTS.gutterOutletOffset
-			);
-            const yGutterOutlet = eaveY + gutterOffsetY;
-            const xWall = sideX * (halfW + pipeWallOffset);
+                sideX *
+                (
+                    halfW +
+                    overhang +
+                    DEFAULTS.gutterOutletOffset
+                );
+
+            const yGutterOutlet =
+                eaveY +
+                gutterOffsetY;
+
+            const xWall =
+                sideX *
+                (
+                    halfW +
+                    pipeWallOffset
+                );
+
+            const groundOffset =
+                Math.max(
+                    DEFAULTS.downspoutGroundMin,
+                    pipeGroundOffset
+                );
+
+            const topDrop =
+                Math.max(
+                    DEFAULTS.downspoutTopDropMin,
+                    Math.abs(
+                        xGutterOutlet -
+                        xWall
+                    ) *
+                    DEFAULTS.downspoutTopDropFactor
+                );
+
+            const yElbowEnd =
+                yGutterOutlet -
+                topDrop;
+
+            const yElbowMid =
+                yGutterOutlet -
+                DEFAULTS.downspoutElbowOffsetY;
+
+            const yShoeStart =
+                groundOffset +
+                DEFAULTS.downspoutShoeOffsetY;
+
+            const shoeLen =
+                DEFAULTS.downspoutShoeLength;
+
+            const shoeAngle =
+                DEFAULTS.downspoutShoeAngle;
+
+            const xShoeEnd =
+                xWall +
+                sideX *
+                (
+                    shoeLen *
+                    Math.sin(shoeAngle)
+                );
+
+            const yShoeEnd =
+                yShoeStart -
+                (
+                    shoeLen *
+                    Math.cos(shoeAngle)
+                );
+
+            const verticalSegments = [];
+
+            verticalSegments.push({
+                start: {
+                    x: xGutterOutlet,
+                    y: yGutterOutlet
+                },
+                end: {
+                    x: xGutterOutlet,
+                    y: yElbowMid
+                }
+            });
+
+            verticalSegments.push({
+                start: {
+                    x: xGutterOutlet,
+                    y: yElbowMid
+                },
+                end: {
+                    x: xWall,
+                    y: yElbowEnd
+                }
+            });
+
+            if (yElbowEnd > yShoeStart) {
+                verticalSegments.push({
+                    start: {
+                        x: xWall,
+                        y: yElbowEnd
+                    },
+                    end: {
+                        x: xWall,
+                        y: yShoeStart
+                    }
+                });
+            }
+
+            verticalSegments.push({
+                start: {
+                    x: xWall,
+                    y: yShoeStart
+                },
+                end: {
+                    x: xShoeEnd,
+                    y: yShoeEnd
+                }
+            });
+
+            const span =
+                yElbowEnd -
+                yShoeStart;
+
+            const straps = [];
+
+            if (
+                span >
+                DEFAULTS.downspoutStrapMinSpan
+            ) {
+                const strapCount =
+                    Math.max(
+                        2,
+                        Math.floor(
+                            span /
+                            DEFAULTS.downspoutStrapSpacing
+                        )
+                    );
+
+                for (
+                    let strapIndex = 0;
+                    strapIndex <= strapCount;
+                    strapIndex++
+                ) {
+                    straps.push({
+                        x: xWall,
+                        y:
+                            yShoeStart +
+                            DEFAULTS.downspoutStrapStartOffset +
+                            (
+                                span -
+                                DEFAULTS.downspoutStrapEndOffset
+                            ) *
+                            (
+                                strapIndex /
+                                strapCount
+                            )
+                    });
+                }
+            }
 
             downspouts.push({
                 side,
-                eaveY,
                 sideX,
                 overhang,
                 zPos,
                 wallPos,
                 visible: !isColliding,
-                xGutterOutlet,
-                yGutterOutlet,
-                xWall,
-                groundOffset: pipeGroundOffset
+
+                outlet: {
+                    x: xGutterOutlet,
+                    y: yGutterOutlet
+                },
+
+                wall: {
+                    x: xWall
+                },
+
+                groundOffset,
+
+                segments: verticalSegments,
+
+                shoe: {
+                    start: {
+                        x: xWall,
+                        y: yShoeStart
+                    },
+                    end: {
+                        x: xShoeEnd,
+                        y: yShoeEnd
+                    }
+                },
+
+                straps
             });
         });
     }
@@ -523,15 +754,31 @@ function createGuttersSpatialData({ width, height, roof, openingsData, openingDe
     return {
         length: roofLength,
         zOffset: roofZOffset,
+
         eaves: {
-            left: { x: -halfW - roof.overhang.overL, y: leftEaveY, z: roofZOffset },
-            right: { x: halfW + roof.overhang.overR, y: rightEaveY, z: roofZOffset }
+            left: {
+                x:
+                    -halfW -
+                    roof.overhang.overL,
+                y: leftEaveY,
+                z: roofZOffset
+            },
+
+            right: {
+                x:
+                    halfW +
+                    roof.overhang.overR,
+                y: rightEaveY,
+                z: roofZOffset
+            }
         },
+
         config: {
             gutterOffsetY,
             pipeWallOffset,
             pipeGroundOffset
         },
+
         downspouts
     };
 }
