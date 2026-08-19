@@ -99,8 +99,8 @@ export function initScene(container) {
     sun.castShadow = true;
 
     sun.shadow.bias = -0.001;        
-    sun.shadow.normalBias = 0.05;     
-    sun.shadow.radius = 2.5;            
+    sun.shadow.normalBias = 0.05;    
+    sun.shadow.radius = 2.5;           
     sun.shadow.mapSize.width = 4096;  
     sun.shadow.mapSize.height = 4096;
 
