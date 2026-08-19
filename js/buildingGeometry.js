@@ -1052,6 +1052,9 @@ function createAwningsSpatialData({ width, length, height, ltState, openingsData
             postH,
             position: pos,
             rotationY: rotY,
+            wallF: c.wallF,
+            wallL: c.wallL,
+            wallR: c.wallR,
             roof: {
                 lengthOnSlope: actualDepth / Math.cos(pitchAng),
                 pitchAngle: pitchAng

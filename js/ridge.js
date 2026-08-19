@@ -6,7 +6,7 @@ export const RIDGE_CONFIG = {
     width: 0.4,
     thickness: 0.03,
     rise: 0.08,
-    lengthOffset: -0.124
+    lengthOffset: 0.0
 };
 
 export function createRidgeGroup(geometry) {

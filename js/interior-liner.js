@@ -22,7 +22,9 @@ function createLinerShapeFromData(shapeData) {
 
 export function createInteriorLinerGroup(geometry, enabled, hPercent) {
     const group = new THREE.Group();
-    if (!enabled || !geometry || !geometry.interiorLiner || !geometry.interiorLiner.enabled) return group;
+    if (!enabled || !geometry || !geometry.interiorLiner || !geometry.interiorLiner.enabled) {
+        return group;
+    }
 
     const liner = geometry.interiorLiner;
     ['L', 'R', 'F', 'B'].forEach(side => {

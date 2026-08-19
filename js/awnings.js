@@ -1,6 +1,5 @@
 // js/awnings.js
 import * as THREE from 'three';
-import { ltState } from './state.js';
 import { roofMat, wallMat, trimMat } from './colorise.js';
 
 export function createAwningsGroup(geometry) {
@@ -11,10 +10,8 @@ export function createAwningsGroup(geometry) {
     const awnDataMap = geometry.awnings;
 
     ['L', 'R', 'F', 'B'].forEach(side => {
-        const config = ltState[side];
         const awn = awnDataMap[side];
-
-        if (!config || !config.active || !awn) return;
+        if (!awn) return;
 
         const awnGroup = new THREE.Group();
         awnGroup.position.set(awn.position.x, awn.position.y, awn.position.z);
@@ -32,7 +29,7 @@ export function createAwningsGroup(geometry) {
         awnGroup.add(roofMesh);
 
         // 2. Фасадная стена
-        if (config.wallF) {
+        if (awn.wallF) {
             const frontShape = new THREE.Shape();
             frontShape.moveTo(-awn.width / 2, 0);
             frontShape.lineTo(awn.width / 2, 0);
@@ -82,8 +79,8 @@ export function createAwningsGroup(geometry) {
             awnGroup.add(sideMesh);
         };
 
-        if (config.wallL) createSideWallMesh(true);
-        if (config.wallR) createSideWallMesh(false);
+        if (awn.wallL) createSideWallMesh(true);
+        if (awn.wallR) createSideWallMesh(false);
 
         // 4. Опорные стойки
         const colSize = 0.15;
