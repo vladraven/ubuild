@@ -20,6 +20,7 @@ const DEFAULTS = Object.freeze({
     endWallColStep: 3.5,
     foundationLedge: 0.30,
     gutterOffsetY: -0.135,
+    gutterOutletOffset: 0.07,
     pipeWallOffset: 0.05,
     pipeGroundOffset: 0.15
 });
@@ -193,7 +194,7 @@ function createRoofGeometry({ width, length, height, pitchRatio, roofType, overh
     let rightEaveY = height - eaveDropR;
 
     if (isLeftSloped) rightEaveY = height + totalRise + eaveDropR;
-    if (isRSloped) leftEaveY = height + totalRise + eaveDropL;
+    if (isRightSloped) leftEaveY = height + totalRise + eaveDropL;
 
     const result = {
         type: roofType,
@@ -368,8 +369,8 @@ function createWainscotGeometry({ width, length, leftWallHeight, rightWallHeight
 function createTrimsSpatialData({ width, length, height, roof, wallThickness }) {
     const halfW = width / 2;
     const halfL = length / 2;
-    const isLSloped = (roof.type === 'left-sloped');
-    const isRSloped = (roof.type === 'right-sloped');
+    const isLeftSloped = (roof.type === 'left-sloped');
+    const isRightSloped = (roof.type === 'right-sloped');
     const isG = (roof.type === 'gabled');
 
     const totalRise = roof.totalRise;
@@ -390,10 +391,10 @@ function createTrimsSpatialData({ width, length, height, roof, wallThickness }) 
     const cornerZ = halfL + cornerBaseOffset;
 
     const corners = [
-        { sx: -1, sz: 1, x: -cornerX, z: cornerZ, colH: (isRSloped ? height + totalRise : height) },
-        { sx: 1, sz: 1, x: cornerX, z: cornerZ, colH: (isLSloped ? height + totalRise : height) },
-        { sx: 1, sz: -1, x: cornerX, z: -cornerZ, colH: (isLSloped ? height + totalRise : height) },
-        { sx: -1, sz: -1, x: -cornerX, z: -cornerZ, colH: (isRSloped ? height + totalRise : height) }
+        { sx: -1, sz: 1, x: -cornerX, z: cornerZ, colH: (isRightSloped ? height + totalRise : height) },
+        { sx: 1, sz: 1, x: cornerX, z: cornerZ, colH: (isLeftSloped ? height + totalRise : height) },
+        { sx: 1, sz: -1, x: cornerX, z: -cornerZ, colH: (isLeftSloped ? height + totalRise : height) },
+        { sx: -1, sz: -1, x: -cornerX, z: -cornerZ, colH: (isRightSloped ? height + totalRise : height) }
     ];
 
     const rakes = [];
@@ -423,8 +424,8 @@ function createTrimsSpatialData({ width, length, height, roof, wallThickness }) 
                 rotationZ: -roofAngle
             });
         } else {
-            const activeOver = isLSloped ? roof.overhang.overL : roof.overhang.overR;
-            const activeDrop = isLSloped ? eaveDropL : eaveDropR;
+            const activeOver = isLeftSloped ? roof.overhang.overL : roof.overhang.overR;
+            const activeDrop = isLeftSloped ? eaveDropL : eaveDropR;
             const slopeLen = Math.hypot(width + activeOver * 2, totalRise + activeDrop * 2);
             rakes.push({
                 type: 'single-slope',
@@ -432,7 +433,7 @@ function createTrimsSpatialData({ width, length, height, roof, wallThickness }) 
                 zPos,
                 slopeLength: slopeLen,
                 position: { x: 0, y: height + totalRise / 2, z: zPos },
-                rotationZ: isLSloped ? roofAngle : -roofAngle
+                rotationZ: isLeftSloped ? roofAngle : -roofAngle
             });
         }
     }
@@ -494,7 +495,12 @@ function createGuttersSpatialData({ width, height, roof, openingsData, openingDe
             const eaveY = side === 'L' ? leftEaveY : rightEaveY;
             const overhang = side === 'L' ? roof.overhang.overL : roof.overhang.overR;
 
-            const xGutterOutlet = sideX * (halfW + overhang + 0.07);
+            const xGutterOutlet =
+			sideX * (
+				halfW +
+				overhang +
+				DEFAULTS.gutterOutletOffset
+			);
             const yGutterOutlet = eaveY + gutterOffsetY;
             const xWall = sideX * (halfW + pipeWallOffset);
 
@@ -650,7 +656,7 @@ function createPurlinsSpatialData({ interior, height, roof }) {
     const halfW = innerW / 2;
 
     const isG = (roof.type === 'gabled');
-    const isRSloped = (roof.type === 'right-sloped');
+    const isRightSloped = (roof.type === 'right-sloped');
     const ang = roof.pitchAngle;
 
     const pSize = DEFAULTS.purlinSize;
@@ -689,8 +695,8 @@ function createPurlinsSpatialData({ interior, height, roof }) {
     } else {
         const totalSpan = innerW / Math.cos(ang);
         const numPurlins = Math.floor(totalSpan / stepDist);
-        const dir = isRSloped ? -1 : 1;
-        const startX = isRSloped ? halfW : -halfW;
+        const dir = isRightSloped ? -1 : 1;
+        const startX = isRightSloped ? halfW : -halfW;
 
         for (let i = 1; i <= numPurlins; i++) {
             const dist = i * stepDist;
@@ -725,8 +731,8 @@ function createEndWallColumnsSpatialData({ interior, height, roof }) {
     const zOffset = colThick / 2 + 0.25;
 
     const isG = (roof.type === 'gabled');
-    const isLSloped = (roof.type === 'left-sloped');
-    const isRSloped = (roof.type === 'right-sloped');
+    const isLeftSloped = (roof.type === 'left-sloped');
+    const isRightSloped = (roof.type === 'right-sloped');
     const pitchRatio = roof.pitchRatio;
 
     const columns = [];
@@ -737,9 +743,9 @@ function createEndWallColumnsSpatialData({ interior, height, roof }) {
             let colH = height;
             if (isG) {
                 colH += (halfW - Math.abs(x)) * pitchRatio;
-            } else if (isLSloped) {
+            } else if (isLeftSloped) {
                 colH += (x + halfW) * pitchRatio;
-            } else if (isRSloped) {
+            } else if (isRightSloped) {
                 colH += (halfW - x) * pitchRatio;
             }
 
@@ -960,8 +966,8 @@ function createAuxiliarySpatialData({ width, length, height, pitchRatio, roofTyp
     const halfPlateH = (logoHeight + 0.12) / 2;
 
     const isG = (roofType === 'gabled');
-    const isLSloped = (roofType === 'left-sloped');
-    const isRSloped = (roofType === 'right-sloped');
+    const isLeftSloped = (roofType === 'left-sloped');
+    const isRightSloped = (roofType === 'right-sloped');
 
     let roofHAtLeftCorner = height;
     let roofHAtRightCorner = height;
@@ -969,10 +975,10 @@ function createAuxiliarySpatialData({ width, length, height, pitchRatio, roofTyp
     if (isG) {
         roofHAtLeftCorner = height + (halfW - halfPlateW) * pitchRatio;
         roofHAtRightCorner = height + (halfW - halfPlateW) * pitchRatio;
-    } else if (isLSloped) {
+    } else if (isLeftSloped) {
         roofHAtLeftCorner = height + (halfW - halfPlateW) * pitchRatio;
         roofHAtRightCorner = height + (halfW + halfPlateW) * pitchRatio;
-    } else if (isRSloped) {
+    } else if (isRightSloped) {
         roofHAtLeftCorner = height + (halfW + halfPlateW) * pitchRatio;
         roofHAtRightCorner = height + (halfW - halfPlateW) * pitchRatio;
     }
