@@ -8,7 +8,6 @@ function createLinerShapeFromData(shapeData) {
         if (idx === 0) shape.moveTo(pt.x, pt.y);
         else shape.lineTo(pt.x, pt.y);
     });
-
     shapeData.holes.forEach(holeData => {
         const hole = new THREE.Path();
         hole.moveTo(holeData.minX, holeData.minY);
@@ -18,27 +17,20 @@ function createLinerShapeFromData(shapeData) {
         hole.lineTo(holeData.minX, holeData.minY);
         shape.holes.push(hole);
     });
-
     return shape;
 }
 
 export function createInteriorLinerGroup(geometry, enabled, hPercent) {
     const group = new THREE.Group();
-    if (!enabled || hPercent <= 0 || !geometry || !geometry.interiorLiner) {
-        return group;
-    }
+    if (!enabled || !geometry || !geometry.interiorLiner || !geometry.interiorLiner.enabled) return group;
 
-    const linerData = geometry.interiorLiner;
-
+    const liner = geometry.interiorLiner;
     ['L', 'R', 'F', 'B'].forEach(side => {
-        const sideData = linerData.sides[side];
+        const sideData = liner.sides[side];
         if (!sideData) return;
 
         const shape = createLinerShapeFromData(sideData.shapeData);
-        const geo = new THREE.ExtrudeGeometry(shape, {
-            depth: linerData.thickness,
-            bevelEnabled: false
-        });
+        const geo = new THREE.ExtrudeGeometry(shape, { depth: liner.thickness, bevelEnabled: false });
         geo.computeVertexNormals();
 
         const mesh = new THREE.Mesh(geo, intWallMat);
@@ -48,6 +40,5 @@ export function createInteriorLinerGroup(geometry, enabled, hPercent) {
         mesh.receiveShadow = true;
         group.add(mesh);
     });
-
     return group;
 }

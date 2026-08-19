@@ -43,166 +43,81 @@ function readVisibility() {
 
 function readBuildingParameters() {
     const bc = window.ConfiguratorBackendConstraints || {};
-
-    const width = readMetricValue('inputW', bc.max_width || 18.288);
-    const length = readMetricValue('inputL', bc.max_length || 30.48);
-    const height = readMetricValue('inputH', bc.max_height || 4.8768);
-
-    const pitchInput = document.getElementById('inputPitch');
-    const pitchRatio = pitchInput ? (parseFloat(pitchInput.value) || 0.05) : 0.05;
-
-    const roofTypeSelect = document.getElementById('roofType');
-    const roofType = roofTypeSelect ? roofTypeSelect.value : 'gabled';
-
-    const overhangs = {
-        overL: readMetricValue('overL', 0),
-        overR: readMetricValue('overR', 0),
-        overF: readMetricValue('overF', 0),
-        overB: readMetricValue('overB', 0)
-    };
-
-    const wsEnabled = document.getElementById('wainscotEn')?.checked || false;
-    const wsHeight = readMetricValue('inputWSHeight', 0.9144);
-
-    const intLinerEn = document.getElementById('intWallsEn')?.checked || false;
-    const intLinerH = parseFloat(document.getElementById('intWallsH')?.value || 100);
-
-    const mezzEn = document.getElementById('mezzEn')?.checked || false;
-    const mezzCov = document.getElementById('mezzCov')?.value || '1';
-    const mezzZ = parseFloat(document.getElementById('mezzZ')?.value || 0);
-    const mezzH = parseFloat(document.getElementById('mezzH')?.value || 50);
-    const mezzColor = document.getElementById('colorMezzanine')?.value;
-
-    const craneEn = document.getElementById('craneEn')?.checked || false;
-    const craneZ = parseFloat(document.getElementById('craneZ')?.value || 50);
-
-    const drivewayEn = document.getElementById('drivewayEn')?.checked ?? false;
-
     return {
-        width,
-        length,
-        height,
-        pitchRatio,
-        roofType,
-        overhangs,
-        wsEnabled,
-        wsHeight,
-        intLinerEn,
-        intLinerH,
-        mezzEn,
-        mezzCov,
-        mezzZ,
-        mezzH,
-        mezzColor,
-        craneEn,
-        craneZ,
-        drivewayEn
+        width: readMetricValue('inputW', bc.max_width || 18.288),
+        length: readMetricValue('inputL', bc.max_length || 30.48),
+        height: readMetricValue('inputH', bc.max_height || 4.8768),
+        pitchRatio: parseFloat(document.getElementById('inputPitch')?.value) || 0.05,
+        roofType: document.getElementById('roofType')?.value || 'gabled',
+        overhangs: {
+            overL: readMetricValue('overL', 0),
+            overR: readMetricValue('overR', 0),
+            overF: readMetricValue('overF', 0),
+            overB: readMetricValue('overB', 0)
+        },
+        wsEnabled: document.getElementById('wainscotEn')?.checked || false,
+        wsHeight: readMetricValue('inputWSHeight', 0.9144),
+        intLinerEn: document.getElementById('intWallsEn')?.checked || false,
+        intLinerH: parseFloat(document.getElementById('intWallsH')?.value || 100),
+        mezzEn: document.getElementById('mezzEn')?.checked || false,
+        mezzCov: document.getElementById('mezzCov')?.value || '1',
+        mezzZ: parseFloat(document.getElementById('mezzZ')?.value || 0),
+        mezzH: parseFloat(document.getElementById('mezzH')?.value || 50),
+        mezzColor: document.getElementById('colorMezzanine')?.value,
+        craneEn: document.getElementById('craneEn')?.checked || false,
+        craneZ: parseFloat(document.getElementById('craneZ')?.value || 50),
+        drivewayEn: document.getElementById('drivewayEn')?.checked ?? false
     };
 }
 
 export function updateBuilding() {
     validateAndClampOpenings();
     updateMaterialColors();
-
     mainGroup.clear();
 
     const vis = readVisibility();
     const params = readBuildingParameters();
 
     const geometry = createBuildingGeometry({
-        width: params.width,
-        length: params.length,
-        height: params.height,
-        pitchRatio: params.pitchRatio,
-        roofType: params.roofType,
-        overL: params.overhangs.overL,
-        overR: params.overhangs.overR,
-        overF: params.overhangs.overF,
-        overB: params.overhangs.overB,
-        wsEnabled: params.wsEnabled,
-        wsHeight: params.wsHeight,
-        intLinerEn: params.intLinerEn,
-        intLinerH: params.intLinerH,
-        mezzEn: params.mezzEn,
-        mezzCov: params.mezzCov,
-        mezzZ: params.mezzZ,
-        mezzH: params.mezzH,
-        craneEn: params.craneEn,
-        craneZ: params.craneZ,
-        drivewayEn: params.drivewayEn,
-        ltState,
+        ...params,
         openingsData,
         openingDefs,
+        ltState,
         visibility: vis
     });
 
     updateBuildingTextures(params.width, params.length, params.height);
 
-    // 1. Фундамент
     mainGroup.add(createFoundationGroup(geometry, vis.checkLabels));
-
-    // 2. Несущий каркас (Main Frames)
     mainGroup.add(createMainFramesGroup(geometry));
-
-    // 3. Стены и проёмы
-    const hasOverhangs = geometry.overhangs.enabled;
-    mainGroup.add(createBuildingGroup(geometry, hasOverhangs, vis));
-
-    // 4. Кровельные свесы (Overhangs)
-    if (hasOverhangs) {
+    mainGroup.add(createBuildingGroup(geometry, geometry.overhangs.enabled, vis));
+    if (geometry.overhangs.enabled) {
         mainGroup.add(createOverhangsGroup(geometry, vis));
     }
-
-    // 5. Навесы / Пристройки (Awnings / Lean-Tos)
     mainGroup.add(createAwningsGroup(geometry));
-
-    // 6. Цоколь (Wainscot)
     mainGroup.add(createWainscotGroup(geometry));
-
-    // 7. Внутренняя обшивка (Interior Liner)
     mainGroup.add(createInteriorLinerGroup(geometry, params.intLinerEn, params.intLinerH));
-
-    // 8. Мезонин (Mezzanine)
     mainGroup.add(createMezzanineGroup(geometry, params.mezzEn, params.mezzCov, params.mezzZ, params.mezzH, params.mezzColor));
-
-    // 9. Кран (Crane)
     mainGroup.add(createCraneGroup(geometry, params.craneEn, params.craneZ));
 
-    // 10. Фасонные элементы (Trims)
     const checkTrims = document.getElementById('checkTrims')?.checked ?? true;
     const checkGutters = document.getElementById('checkGutters')?.checked ?? false;
-
-    const trimsGroup = createTrimsGroup(geometry, checkTrims);
-    mainGroup.add(trimsGroup);
-
-    // 11. Конёк (Ridge Cap)
+    
+    mainGroup.add(createTrimsGroup(geometry, checkTrims));
     if (checkTrims && geometry.roof.type === 'gabled') {
         mainGroup.add(createRidgeGroup(geometry));
     }
-
-    // 12. Водостоки (Gutters)
     if (checkGutters) {
         const guttersGroup = createGuttersGroup(geometry, true);
         mainGroup.add(guttersGroup);
         updateDownspoutVisibility(guttersGroup);
     }
 
-    // 13. Стеновые ригели (Girts)
-    const checkGirts = document.getElementById('checkGirts')?.checked ?? true;
-    mainGroup.add(createGirtsGroup(geometry, checkGirts));
-
-    // 14. Кровельные прогоны (Purlins)
-    const checkPurlins = document.getElementById('checkPurlins')?.checked ?? true;
-    mainGroup.add(createPurlinsGroup(geometry, checkPurlins));
-
-    // 15. Торцевые фахверковые колонны (End Wall Columns)
-    const checkEWColumns = document.getElementById('checkEWColumns')?.checked ?? true;
-    mainGroup.add(createEndWallColumnsGroup(geometry, checkEWColumns));
-
-    // 16. Подъездная площадка (Driveway)
+    mainGroup.add(createGirtsGroup(geometry, document.getElementById('checkGirts')?.checked ?? true));
+    mainGroup.add(createPurlinsGroup(geometry, document.getElementById('checkPurlins')?.checked ?? true));
+    mainGroup.add(createEndWallColumnsGroup(geometry, document.getElementById('checkEWColumns')?.checked ?? true));
     mainGroup.add(createDrivewayGroup(geometry, params.drivewayEn));
 
-    // 17. Логотип (Logo)
     if (vis.wF) {
         mainGroup.add(createLogoGroup(geometry));
     }

@@ -11,9 +11,9 @@ export function createPurlinsGroup(geometry, enabled) {
     const group = new THREE.Group();
     if (!enabled || !geometry || !geometry.purlins) return group;
 
-    const purlinsData = geometry.purlins;
+    const pData = geometry.purlins;
 
-    purlinsData.items.forEach(item => {
+    pData.items.forEach(item => {
         const purlin = new THREE.Mesh(
             new THREE.BoxGeometry(item.size, item.size, item.length),
             steelMat

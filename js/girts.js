@@ -11,33 +11,29 @@ export function createGirtsGroup(geometry, enabled) {
     const group = new THREE.Group();
     if (!enabled || !geometry || !geometry.girts) return group;
 
-    const girtsData = geometry.girts;
-    const girtThick = girtsData.thickness;
+    const gData = geometry.girts;
+    const gT = gData.thickness;
 
-    girtsData.levels.forEach(level => {
-        const y = level.y;
+    gData.levels.forEach(lvl => {
+        const y = lvl.y;
 
-        // Левый прогон
-        const gL = new THREE.Mesh(new THREE.BoxGeometry(girtThick, girtThick, level.left.length), steelMat);
-        gL.position.set(level.left.x, y, level.left.z);
+        const gL = new THREE.Mesh(new THREE.BoxGeometry(gT, gT, lvl.left.length), steelMat);
+        gL.position.set(lvl.left.x, y, lvl.left.z);
         gL.castShadow = true;
         group.add(gL);
 
-        // Правый прогон
-        const gR = new THREE.Mesh(new THREE.BoxGeometry(girtThick, girtThick, level.right.length), steelMat);
-        gR.position.set(level.right.x, y, level.right.z);
+        const gR = new THREE.Mesh(new THREE.BoxGeometry(gT, gT, lvl.right.length), steelMat);
+        gR.position.set(lvl.right.x, y, lvl.right.z);
         gR.castShadow = true;
         group.add(gR);
 
-        // Передний прогон
-        const gF = new THREE.Mesh(new THREE.BoxGeometry(level.front.width, girtThick, girtThick), steelMat);
-        gF.position.set(level.front.x, y, level.front.z);
+        const gF = new THREE.Mesh(new THREE.BoxGeometry(lvl.front.width, gT, gT), steelMat);
+        gF.position.set(lvl.front.x, y, lvl.front.z);
         gF.castShadow = true;
         group.add(gF);
 
-        // Задний прогон
-        const gB = new THREE.Mesh(new THREE.BoxGeometry(level.back.width, girtThick, girtThick), steelMat);
-        gB.position.set(level.back.x, y, level.back.z);
+        const gB = new THREE.Mesh(new THREE.BoxGeometry(lvl.back.width, gT, gT), steelMat);
+        gB.position.set(lvl.back.x, y, lvl.back.z);
         gB.castShadow = true;
         group.add(gB);
     });

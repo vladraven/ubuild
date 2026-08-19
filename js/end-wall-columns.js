@@ -11,9 +11,7 @@ export function createEndWallColumnsGroup(geometry, enabled) {
     const group = new THREE.Group();
     if (!enabled || !geometry || !geometry.endWallColumns) return group;
 
-    const columnsData = geometry.endWallColumns.columns;
-
-    columnsData.forEach(colData => {
+    geometry.endWallColumns.columns.forEach(colData => {
         const col = new THREE.Mesh(
             new THREE.BoxGeometry(colData.thickness, colData.height, colData.thickness),
             steelMat

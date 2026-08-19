@@ -17,7 +17,6 @@ function createSolidColumnMesh(height, dBottom, dTop, flangeW = 0.20, flangeT = 
 
     const group = new THREE.Group();
 
-    // 1. Web
     const webGeo = new THREE.ExtrudeGeometry(colShape, { depth: webT, bevelEnabled: false });
     const webMesh = new THREE.Mesh(webGeo, frameMat);
     webMesh.position.z = -webT / 2;
@@ -25,7 +24,6 @@ function createSolidColumnMesh(height, dBottom, dTop, flangeW = 0.20, flangeT = 
     webMesh.receiveShadow = true;
     group.add(webMesh);
 
-    // 2. Inner Flange
     const innerFlangeGeo = new THREE.BoxGeometry(flangeT, height, flangeW);
     const innerFlange = new THREE.Mesh(innerFlangeGeo, frameMat);
     innerFlange.position.set(-flangeT / 2, height / 2, 0);
@@ -33,7 +31,6 @@ function createSolidColumnMesh(height, dBottom, dTop, flangeW = 0.20, flangeT = 
     innerFlange.receiveShadow = true;
     group.add(innerFlange);
 
-    // 3. Outer Flange
     const outerLen = Math.hypot(height, dTop - dBottom);
     const outerFlangeGeo = new THREE.BoxGeometry(flangeT, outerLen, flangeW);
     const outerFlange = new THREE.Mesh(outerFlangeGeo, frameMat);
@@ -90,12 +87,9 @@ export function createMainFramesGroup(geometry) {
     const group = new THREE.Group();
     if (!geometry || !geometry.mainFrames) return group;
 
-    const framesData = geometry.mainFrames.frames;
-
-    framesData.forEach(frameData => {
+    geometry.mainFrames.frames.forEach(frameData => {
         const frame = new THREE.Group();
 
-        // 1. Колонны
         const colLData = frameData.columns.left;
         const colL = createSolidColumnMesh(colLData.height, colLData.dStart, colLData.dEnd);
         colL.position.set(colLData.x, colLData.y, 0);
@@ -108,7 +102,6 @@ export function createMainFramesGroup(geometry) {
         colR.scale.x = colRData.scaleX;
         frame.add(colR);
 
-        // 2. Стропила
         frameData.rafters.forEach(raftData => {
             const raft = createRafterBeam(raftData.length, raftData.dStart, raftData.dEnd);
             raft.position.set(raftData.position.x, raftData.position.y, raftData.position.z);

@@ -1,7 +1,6 @@
 // js/gutters.js
 import * as THREE from 'three';
 import { trimMat, eaveTrimMat } from './colorise.js';
-import { openingsData, openingDefs } from './state.js';
 
 export const GUTTER_CONFIG = {
     gutter: {
@@ -17,8 +16,6 @@ export const GUTTER_CONFIG = {
         depth: 0.06
     }
 };
-
-const DOWNSPOUT_DOOR_TOLERANCE = 0.3;
 
 function createGutter(length) {
     const shape = new THREE.Shape();
@@ -182,36 +179,9 @@ export function createGuttersGroup(geometry, enabled = true) {
     gData.downspouts.forEach(dsData => {
         const ds = createDownspout(dsData.eaveY, dsData.sideX, dsData.overhang, geometry.building.width);
         ds.position.set(0, 0, dsData.zPos);
-        ds.userData = { isDownspout: true, side: dsData.side, wallPos: dsData.wallPos };
+        ds.visible = dsData.visible;
         group.add(ds);
     });
 
     return group;
-}
-
-export function updateDownspoutVisibility(root) {
-    if (!root) return;
-    const downspouts = [];
-
-    root.traverse(obj => {
-        if (obj.userData && obj.userData.isDownspout) {
-            downspouts.push(obj);
-        }
-    });
-
-    downspouts.forEach(ds => {
-        const side = ds.userData.side;
-        const dsPos = ds.userData.wallPos;
-        const doorsOnWall = (openingsData[side] || []).filter(op => op.type !== 'Window');
-
-        const collides = doorsOnWall.some(door => {
-            const def = openingDefs[door.type] || { w: 2.0 };
-            const doorW = door.w || def.w;
-            const minX = door.x - doorW / 2 - DOWNSPOUT_DOOR_TOLERANCE;
-            const maxX = door.x + doorW / 2 + DOWNSPOUT_DOOR_TOLERANCE;
-            return (dsPos >= minX && dsPos <= maxX);
-        });
-
-        ds.visible = !collides;
-    });
 }

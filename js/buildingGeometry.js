@@ -440,7 +440,7 @@ function createTrimsSpatialData({ width, length, height, roof, wallThickness, wa
     };
 }
 
-function createGuttersSpatialData({ width, height, roof }) {
+function createGuttersSpatialData({ width, height, roof, openingsData, openingDefs }) {
     const halfW = width / 2;
     const isLSloped = (roof.type === 'left-sloped');
     const isRSloped = (roof.type === 'right-sloped');
@@ -466,25 +466,31 @@ function createGuttersSpatialData({ width, height, roof }) {
     const gutterStartZ = -roofLength / 2;
 
     const downspouts = [];
+    const DOWNSPOUT_DOOR_TOLERANCE = 0.3;
+
     for (let i = 0; i < numDownspouts; i++) {
         const zPos = roofZOffset + gutterStartZ + 0.3 + i * spacing;
         const wallPos = zPos - roofZOffset;
 
-        downspouts.push({
-            side: 'L',
-            eaveY: leftEaveY,
-            sideX: -1,
-            overhang: overhangs.overL,
-            zPos,
-            wallPos
-        });
-        downspouts.push({
-            side: 'R',
-            eaveY: rightEaveY,
-            sideX: 1,
-            overhang: overhangs.overR,
-            zPos,
-            wallPos
+        ['L', 'R'].forEach(side => {
+            const doorsOnWall = (openingsData[side] || []).filter(op => op.type !== 'Window');
+            const isColliding = doorsOnWall.some(door => {
+                const def = openingDefs[door.type] || { w: 2.0 };
+                const doorW = door.w || def.w;
+                const minX = door.x - doorW / 2 - DOWNSPOUT_DOOR_TOLERANCE;
+                const maxX = door.x + doorW / 2 + DOWNSPOUT_DOOR_TOLERANCE;
+                return (wallPos >= minX && wallPos <= maxX);
+            });
+
+            downspouts.push({
+                side,
+                eaveY: side === 'L' ? leftEaveY : rightEaveY,
+                sideX: side === 'L' ? -1 : 1,
+                overhang: side === 'L' ? overhangs.overL : overhangs.overR,
+                zPos,
+                wallPos,
+                visible: !isColliding
+            });
         });
     }
 
@@ -730,8 +736,12 @@ function createEndWallColumnsSpatialData({ interior, height, roof }) {
     };
 }
 
-function createFoundationSpatialData({ width, length }) {
+function createFoundationSpatialData({ width, length }, bc) {
     const ledge = DEFAULTS.foundationLedge;
+    const foundationHeight = bc.max_foundation_height !== undefined 
+        ? Math.min(bc.max_foundation_height, 0.6096) 
+        : 0.45;
+
     const totalW = width + ledge * 2;
     const totalL = length + ledge * 2;
     const off = width / 2 + 8;
@@ -740,6 +750,7 @@ function createFoundationSpatialData({ width, length }) {
     return {
         width: totalW,
         length: totalL,
+        height: foundationHeight,
         halfWidth: totalW / 2,
         halfLength: totalL / 2,
         ledge,
@@ -800,8 +811,6 @@ function createInteriorLinerSpatialData({ interior, height, roof, intLinerEn, in
             rotationY: -Math.PI / 2
         };
     }
-
-    const maxFrontH = Math.max(actualLeftH, actualRightH);
 
     const getFrontBackShapeData = (isBack = false) => {
         const hL = isBack ? actualRightH : actualLeftH;
@@ -1226,7 +1235,9 @@ export function createBuildingGeometry(options = {}) {
     const gutters = createGuttersSpatialData({
         width,
         height,
-        roof
+        roof,
+        openingsData,
+        openingDefs
     });
 
     const mainFrames = createMainFramesSpatialData({
@@ -1253,10 +1264,11 @@ export function createBuildingGeometry(options = {}) {
         roof
     });
 
+    const bc = window.ConfiguratorBackendConstraints || {};
     const foundation = createFoundationSpatialData({
         width,
         length
-    });
+    }, bc);
 
     const interiorLiner = createInteriorLinerSpatialData({
         interior,

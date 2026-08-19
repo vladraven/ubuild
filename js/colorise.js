@@ -30,8 +30,8 @@ export const trimMat = new THREE.MeshStandardMaterial({
     shadowSide: THREE.DoubleSide,
     envMapIntensity: 1.2,
     polygonOffset: true,
-    polygonOffsetFactor: -2,
-    polygonOffsetUnits: -2
+    polygonOffsetFactor: -4,
+    polygonOffsetUnits: -4
 });
 
 export const eaveTrimMat = new THREE.MeshStandardMaterial({
@@ -42,8 +42,8 @@ export const eaveTrimMat = new THREE.MeshStandardMaterial({
     shadowSide: THREE.DoubleSide,
     envMapIntensity: 1.2,
     polygonOffset: true,
-    polygonOffsetFactor: -3,
-    polygonOffsetUnits: -3
+    polygonOffsetFactor: -6,
+    polygonOffsetUnits: -6
 });
 
 export const rakeTrimMat = new THREE.MeshStandardMaterial({

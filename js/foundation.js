@@ -36,17 +36,12 @@ export function createFoundationGroup(geometry, showLabels = true) {
     const group = new THREE.Group();
     if (!geometry || !geometry.foundation) return group;
 
-    const bc = window.ConfiguratorBackendConstraints || {};
-    const foundationHeight = bc.max_foundation_height !== undefined 
-        ? Math.min(bc.max_foundation_height, 0.6096) 
-        : 0.45;
-
     const fData = geometry.foundation;
 
     // 1. Основной массив фундамента
-    const geo = new THREE.BoxGeometry(fData.width, foundationHeight, fData.length);
+    const geo = new THREE.BoxGeometry(fData.width, fData.height, fData.length);
     const foundationMesh = new THREE.Mesh(geo, concreteMat);
-    foundationMesh.position.set(0, -foundationHeight / 2 - 0.001, 0);
+    foundationMesh.position.set(0, -fData.height / 2 - 0.001, 0);
     foundationMesh.receiveShadow = true;
     foundationMesh.castShadow = true;
     group.add(foundationMesh);

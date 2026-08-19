@@ -437,10 +437,14 @@ export function initUI(renderCallback, renderer, scene, cameraObj, controlsObj) 
 
     const wainscotEn = document.getElementById('wainscotEn');
     if (wainscotEn) {
+        wainscotEn.checked = true;
+        const wsSettingsBlock = document.getElementById('wsSettingsBlock');
+        if (wsSettingsBlock) wsSettingsBlock.style.display = 'block';
+
         wainscotEn.addEventListener('change', () => {
             stopCameraAutoRotation();
-            const wsSettingsBlock = document.getElementById('wsSettingsBlock');
-            if (wsSettingsBlock) wsSettingsBlock.style.display = wainscotEn.checked ? 'block' : 'none';
+            const wsBlock = document.getElementById('wsSettingsBlock');
+            if (wsBlock) wsBlock.style.display = wainscotEn.checked ? 'block' : 'none';
             if (typeof renderCallback === 'function') renderCallback();
         });
     }
