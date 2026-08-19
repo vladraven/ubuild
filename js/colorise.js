@@ -1,5 +1,6 @@
 // js/colorise.js
 import * as THREE from 'three';
+
 import {
     getWallPanelMaterial,
     getWainscotPanelMaterial,
@@ -7,114 +8,150 @@ import {
     setWainscotPanelColor
 } from './panelSystem.js';
 
-export const concreteMat = new THREE.MeshStandardMaterial({
-    color: 0xbdc3c7,
-    roughness: 0.9,
-    metalness: 0.1
-});
+export const concreteMat =
+    new THREE.MeshStandardMaterial({
+        color: 0xbdc3c7,
+        roughness: 0.9,
+        metalness: 0.1
+    });
 
-export const roofMat = new THREE.MeshStandardMaterial({
-    color: 0x3d3834,
-    metalness: 0.55,
-    roughness: 0.34,
-    side: THREE.DoubleSide,
-    shadowSide: THREE.DoubleSide,
-    envMapIntensity: 1.15
-});
+export const roofMat =
+    new THREE.MeshStandardMaterial({
+        color: 0x3d3834,
+        metalness: 0.55,
+        roughness: 0.34,
+        side: THREE.DoubleSide,
+        shadowSide: THREE.DoubleSide,
+        envMapIntensity: 1.15
+    });
 
-export const trimMat = new THREE.MeshStandardMaterial({
-    color: 0x707170,
-    metalness: 0.65,
-    roughness: 0.28,
-    side: THREE.DoubleSide,
-    shadowSide: THREE.DoubleSide,
-    envMapIntensity: 1.2,
-    polygonOffset: true,
-    polygonOffsetFactor: -4,
-    polygonOffsetUnits: -4
-});
+export const trimMat =
+    new THREE.MeshStandardMaterial({
+        color: 0x707170,
+        metalness: 0.65,
+        roughness: 0.28,
+        side: THREE.DoubleSide,
+        shadowSide: THREE.DoubleSide,
+        envMapIntensity: 1.2,
+        polygonOffset: true,
+        polygonOffsetFactor: -4,
+        polygonOffsetUnits: -4
+    });
 
-export const eaveTrimMat = new THREE.MeshStandardMaterial({
-    color: 0x707170,
-    metalness: 0.65,
-    roughness: 0.28,
-    side: THREE.DoubleSide,
-    shadowSide: THREE.DoubleSide,
-    envMapIntensity: 1.2,
-    polygonOffset: true,
-    polygonOffsetFactor: -6,
-    polygonOffsetUnits: -6
-});
+export const eaveTrimMat =
+    new THREE.MeshStandardMaterial({
+        color: 0x707170,
+        metalness: 0.65,
+        roughness: 0.28,
+        side: THREE.DoubleSide,
+        shadowSide: THREE.DoubleSide,
+        envMapIntensity: 1.2,
+        polygonOffset: true,
+        polygonOffsetFactor: -6,
+        polygonOffsetUnits: -6
+    });
 
-export const rakeTrimMat = new THREE.MeshStandardMaterial({
-    color: 0x707170,
-    metalness: 0.65,
-    roughness: 0.28,
-    side: THREE.DoubleSide,
-    shadowSide: THREE.DoubleSide,
-    envMapIntensity: 1.2,
-    polygonOffset: true,
-    polygonOffsetFactor: -4,
-    polygonOffsetUnits: -4
-});
+export const rakeTrimMat =
+    new THREE.MeshStandardMaterial({
+        color: 0x707170,
+        metalness: 0.65,
+        roughness: 0.28,
+        side: THREE.DoubleSide,
+        shadowSide: THREE.DoubleSide,
+        envMapIntensity: 1.2,
+        polygonOffset: true,
+        polygonOffsetFactor: -4,
+        polygonOffsetUnits: -4
+    });
 
-export const steelMat = new THREE.MeshStandardMaterial({
-    color: 0x2c3e50,
-    metalness: 0.7,
-    roughness: 0.3,
-    envMapIntensity: 1.2
-});
+export const steelMat =
+    new THREE.MeshStandardMaterial({
+        color: 0x2c3e50,
+        metalness: 0.7,
+        roughness: 0.3,
+        envMapIntensity: 1.2
+    });
 
-export const glassMat = new THREE.MeshStandardMaterial({
-    color: 0x87ceeb,
-    metalness: 0.9,
-    roughness: 0.05,
-    transparent: true,
-    opacity: 0.4,
-    side: THREE.DoubleSide,
-    envMapIntensity: 2.0
-});
+export const glassMat =
+    new THREE.MeshStandardMaterial({
+        color: 0x87ceeb,
+        metalness: 0.9,
+        roughness: 0.05,
+        transparent: true,
+        opacity: 0.4,
+        side: THREE.DoubleSide,
+        envMapIntensity: 2.0
+    });
 
-export const frameMat = new THREE.MeshStandardMaterial({
-    color: 0xffffff,
-    roughness: 0.8
-});
+export const frameMat =
+    new THREE.MeshStandardMaterial({
+        color: 0xffffff,
+        roughness: 0.8
+    });
 
-export const wallMat = getWallPanelMaterial();
-export const wainscotMat = getWainscotPanelMaterial();
-export const panelMat = wallMat;
+export const wallMat =
+    getWallPanelMaterial();
 
-export const ceilingMat = new THREE.MeshStandardMaterial({
-    color: 0xffffff,
-    metalness: 0.1,
-    roughness: 0.9,
-    side: THREE.DoubleSide
-});
+export const wainscotMat =
+    getWainscotPanelMaterial();
 
-export const mezzMat = new THREE.MeshStandardMaterial({
-    metalness: 0.4,
-    roughness: 0.4,
-    side: THREE.DoubleSide
-});
+export const panelMat =
+    wallMat;
 
-export const intWallMat = new THREE.MeshStandardMaterial({
-    color: 0xeeeeee,
-    metalness: 0.15,
-    roughness: 0.5,
-    side: THREE.DoubleSide
-});
+export const ceilingMat =
+    new THREE.MeshStandardMaterial({
+        color: 0xffffff,
+        metalness: 0.1,
+        roughness: 0.9,
+        side: THREE.DoubleSide
+    });
 
-export const craneMat = new THREE.MeshStandardMaterial({
-    color: 0xeab308,
-    metalness: 0.5,
-    roughness: 0.4
-});
+export const mezzMat =
+    new THREE.MeshStandardMaterial({
+        metalness: 0.4,
+        roughness: 0.4,
+        side: THREE.DoubleSide
+    });
 
-export const craneRailMat = new THREE.MeshStandardMaterial({
-    color: 0x1e293b,
-    metalness: 0.8,
-    roughness: 0.2
-});
+export const intWallMat =
+    new THREE.MeshStandardMaterial({
+        color: 0xeeeeee,
+        metalness: 0.15,
+        roughness: 0.5,
+        side: THREE.DoubleSide
+    });
+
+export const craneMat =
+    new THREE.MeshStandardMaterial({
+        color: 0xeab308,
+        metalness: 0.5,
+        roughness: 0.4
+    });
+
+export const craneRailMat =
+    new THREE.MeshStandardMaterial({
+        color: 0x1e293b,
+        metalness: 0.8,
+        roughness: 0.2
+    });
+
+export const doorFrameMat =
+    new THREE.MeshStandardMaterial({
+        color: 0xffffff,
+        roughness: 0.8
+    });
+
+export const doorPanelMat =
+    new THREE.MeshStandardMaterial({
+        color: 0xdddddd,
+        roughness: 0.8
+    });
+
+export const doorTrimMat =
+    new THREE.MeshStandardMaterial({
+        color: 0x334155,
+        roughness: 0.5
+    });
 
 export function updateMaterialColors() {
     const roofColor =
@@ -137,16 +174,34 @@ export function updateMaterialColors() {
         document.getElementById('colorWainscot')?.value ||
         '#707170';
 
-    roofMat.color.set(roofColor);
-    setWallPanelColor(wallColor);
-    setWainscotPanelColor(wainscotColor);
+    roofMat.color.set(
+        roofColor
+    );
 
-    trimMat.color.set(trimColor);
-    eaveTrimMat.color.set(eaveTrimColor);
-    rakeTrimMat.color.set(trimColor);
+    setWallPanelColor(
+        wallColor
+    );
+
+    setWainscotPanelColor(
+        wainscotColor
+    );
+
+    trimMat.color.set(
+        trimColor
+    );
+
+    eaveTrimMat.color.set(
+        eaveTrimColor
+    );
+
+    rakeTrimMat.color.set(
+        trimColor
+    );
 
     const ceilingEl =
-        document.getElementById('colorCeiling');
+        document.getElementById(
+            'colorCeiling'
+        );
 
     if (ceilingEl) {
         ceilingMat.color.set(
@@ -155,7 +210,9 @@ export function updateMaterialColors() {
     }
 
     const mezzEl =
-        document.getElementById('colorMezzanine');
+        document.getElementById(
+            'colorMezzanine'
+        );
 
     if (mezzEl) {
         mezzMat.color.set(
@@ -163,10 +220,14 @@ export function updateMaterialColors() {
         );
     }
 
-    intWallMat.color.set(wallColor);
+    intWallMat.color.set(
+        wallColor
+    );
 }
 
-export function initColoriseUI(renderCallback) {
+export function initColoriseUI(
+    renderCallback
+) {
     const colorSelectIds = [
         'colorRoof',
         'colorWall',
