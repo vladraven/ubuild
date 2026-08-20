@@ -4,7 +4,11 @@ const ROOF_TYPES = Object.freeze([
     'right-sloped'
 ]);
 
-function point(x, y, z) {
+function point(
+    x,
+    y,
+    z
+) {
     return Object.freeze({
         x,
         y,
@@ -12,56 +16,100 @@ function point(x, y, z) {
     });
 }
 
-function edge(start, end) {
+function edge(
+    start,
+    end
+) {
     return Object.freeze({
         start,
         end,
-        length: Math.hypot(
-            end.x - start.x,
-            end.y - start.y,
-            end.z - start.z
-        )
+
+        length:
+            Math.hypot(
+                end.x - start.x,
+                end.y - start.y,
+                end.z - start.z
+            )
     });
 }
 
-function calculateBounds(points) {
-    const xs = points.map(
-        value => value.x
-    );
+function bounds(
+    points
+) {
+    const xs =
+        points.map(
+            value =>
+                value.x
+        );
 
-    const ys = points.map(
-        value => value.y
-    );
+    const ys =
+        points.map(
+            value =>
+                value.y
+        );
 
-    const zs = points.map(
-        value => value.z
-    );
+    const zs =
+        points.map(
+            value =>
+                value.z
+        );
 
-    const min = point(
-        Math.min(...xs),
-        Math.min(...ys),
-        Math.min(...zs)
-    );
+    const min =
+        point(
+            Math.min(
+                ...xs
+            ),
+            Math.min(
+                ...ys
+            ),
+            Math.min(
+                ...zs
+            )
+        );
 
-    const max = point(
-        Math.max(...xs),
-        Math.max(...ys),
-        Math.max(...zs)
-    );
+    const max =
+        point(
+            Math.max(
+                ...xs
+            ),
+            Math.max(
+                ...ys
+            ),
+            Math.max(
+                ...zs
+            )
+        );
 
     return Object.freeze({
         min,
         max,
 
-        center: point(
-            (min.x + max.x) / 2,
-            (min.y + max.y) / 2,
-            (min.z + max.z) / 2
-        ),
+        center:
+            point(
+                (
+                    min.x +
+                    max.x
+                ) / 2,
 
-        width: max.x - min.x,
-        height: max.y - min.y,
-        length: max.z - min.z
+                (
+                    min.y +
+                    max.y
+                ) / 2,
+
+                (
+                    min.z +
+                    max.z
+                ) / 2
+            ),
+
+        width:
+            max.x - min.x,
+
+        height:
+            max.y - min.y,
+
+        length:
+            max.z - min.z
     });
 }
 
@@ -69,7 +117,132 @@ function calculateRise(
     width,
     pitchRatio
 ) {
-    return width * pitchRatio;
+    return (
+        width *
+        pitchRatio
+    );
+}
+
+function createGabledRakes(
+    leftFront,
+    ridgeFront,
+    rightFront,
+    leftBack,
+    ridgeBack,
+    rightBack
+) {
+    return Object.freeze([
+        Object.freeze({
+            id:
+                'front-left',
+
+            side:
+                'front',
+
+            slope:
+                'left',
+
+            edge:
+                edge(
+                    leftFront,
+                    ridgeFront
+                )
+        }),
+
+        Object.freeze({
+            id:
+                'front-right',
+
+            side:
+                'front',
+
+            slope:
+                'right',
+
+            edge:
+                edge(
+                    ridgeFront,
+                    rightFront
+                )
+        }),
+
+        Object.freeze({
+            id:
+                'back-left',
+
+            side:
+                'back',
+
+            slope:
+                'left',
+
+            edge:
+                edge(
+                    leftBack,
+                    ridgeBack
+                )
+        }),
+
+        Object.freeze({
+            id:
+                'back-right',
+
+            side:
+                'back',
+
+            slope:
+                'right',
+
+            edge:
+                edge(
+                    ridgeBack,
+                    rightBack
+                )
+        })
+    ]);
+}
+
+function createMonoSlopeRakes(
+    leftFront,
+    rightFront,
+    leftBack,
+    rightBack
+) {
+    return Object.freeze([
+        Object.freeze({
+            id:
+                'front',
+
+            side:
+                'front',
+
+            slope:
+                null,
+
+            edge:
+                edge(
+                    leftFront,
+                    rightFront
+                )
+        }),
+
+        Object.freeze({
+            id:
+                'back',
+
+            side:
+                'back',
+
+            slope:
+                null,
+
+            edge:
+                edge(
+                    leftBack,
+                    rightBack
+                )
+        })
+    ]);
 }
 
 function createRoof(
@@ -175,7 +348,9 @@ function createRoof(
         type === 'gabled'
             ? [
                 {
-                    id: 'left',
+                    id:
+                        'left',
+
                     corners: [
                         leftFront,
                         ridgeFront,
@@ -185,7 +360,9 @@ function createRoof(
                 },
 
                 {
-                    id: 'right',
+                    id:
+                        'right',
+
                     corners: [
                         ridgeFront,
                         rightFront,
@@ -196,7 +373,9 @@ function createRoof(
             ]
             : [
                 {
-                    id: type,
+                    id:
+                        type,
+
                     corners: [
                         leftFront,
                         rightFront,
@@ -206,6 +385,47 @@ function createRoof(
                 }
             ];
 
+    const frontEdge =
+        edge(
+            leftFront,
+            rightFront
+        );
+
+    const backEdge =
+        edge(
+            leftBack,
+            rightBack
+        );
+
+    const leftEave =
+        edge(
+            leftFront,
+            leftBack
+        );
+
+    const rightEave =
+        edge(
+            rightFront,
+            rightBack
+        );
+
+    const rake =
+        type === 'gabled'
+            ? createGabledRakes(
+                leftFront,
+                ridgeFront,
+                rightFront,
+                leftBack,
+                ridgeBack,
+                rightBack
+            )
+            : createMonoSlopeRakes(
+                leftFront,
+                rightFront,
+                leftBack,
+                rightBack
+            );
+
     const points = [
         leftFront,
         leftBack,
@@ -213,7 +433,9 @@ function createRoof(
         rightBack
     ];
 
-    if (ridgeFront) {
+    if (
+        ridgeFront
+    ) {
         points.push(
             ridgeFront,
             ridgeBack
@@ -232,65 +454,100 @@ function createRoof(
 
         rise,
 
-        eaves: {
-            left: {
-                front: leftFront,
-                back: leftBack,
-                edge: edge(
-                    leftFront,
-                    leftBack
-                )
-            },
+        overhangs:
+            Object.freeze({
+                front:
+                    overhangs.front,
 
-            right: {
-                front: rightFront,
-                back: rightBack,
-                edge: edge(
-                    rightFront,
-                    rightBack
-                )
-            }
-        },
+                back:
+                    overhangs.back,
+
+                left:
+                    overhangs.left,
+
+                right:
+                    overhangs.right
+            }),
+
+        eaves:
+            Object.freeze({
+                left:
+                    Object.freeze({
+                        front:
+                            leftFront,
+
+                        back:
+                            leftBack,
+
+                        edge:
+                            leftEave
+                    }),
+
+                right:
+                    Object.freeze({
+                        front:
+                            rightFront,
+
+                        back:
+                            rightBack,
+
+                        edge:
+                            rightEave
+                    })
+            }),
 
         ridge:
             ridgeFront
-                ? {
-                    front: ridgeFront,
-                    back: ridgeBack,
-                    edge: edge(
+                ? Object.freeze({
+                    front:
                         ridgeFront,
-                        ridgeBack
-                    )
-                }
+
+                    back:
+                        ridgeBack,
+
+                    edge:
+                        edge(
+                            ridgeFront,
+                            ridgeBack
+                        )
+                })
                 : null,
 
-        edges: {
-            front: edge(
-                leftFront,
-                rightFront
+        edges:
+            Object.freeze({
+                front:
+                    frontEdge,
+
+                back:
+                    backEdge,
+
+                left:
+                    leftEave,
+
+                right:
+                    rightEave
+            }),
+
+        rake,
+
+        planes:
+            Object.freeze(
+                planes.map(
+                    plane =>
+                        Object.freeze({
+                            id:
+                                plane.id,
+
+                            corners:
+                                Object.freeze([
+                                    ...plane.corners
+                                ])
+                        })
+                )
             ),
 
-            back: edge(
-                leftBack,
-                rightBack
-            )
-        },
-
-        planes: Object.freeze(
-            planes.map(
-                plane =>
-                    Object.freeze({
-                        id: plane.id,
-                        corners:
-                            Object.freeze([
-                                ...plane.corners
-                            ])
-                    })
-            )
-        ),
-
         bounds:
-            calculateBounds(
+            bounds(
                 points
             )
     };
@@ -301,19 +558,25 @@ export function createRoofGeometry(
     envelope,
     walls
 ) {
-    if (!model?.roof) {
+    if (
+        !model?.roof
+    ) {
         throw new TypeError(
             'BuildingModel.roof is required'
         );
     }
 
-    if (!envelope) {
+    if (
+        !envelope
+    ) {
         throw new TypeError(
             'BuildingEnvelope is required'
         );
     }
 
-    if (!walls) {
+    if (
+        !walls
+    ) {
         throw new TypeError(
             'WallGeometry is required'
         );
@@ -326,7 +589,9 @@ export function createRoofGeometry(
     } = model.roof;
 
     if (
-        !ROOF_TYPES.includes(type)
+        !ROOF_TYPES.includes(
+            type
+        )
     ) {
         throw new RangeError(
             `Unsupported roof type: ${type}`
@@ -346,11 +611,35 @@ export function createRoofGeometry(
 
     if (
         !overhangs ||
-        typeof overhangs !== 'object'
+        typeof overhangs !==
+            'object'
     ) {
         throw new TypeError(
             'roof.overhangs is required'
         );
+    }
+
+    const requiredOverhangs = [
+        'front',
+        'back',
+        'left',
+        'right'
+    ];
+
+    for (
+        const side
+        of requiredOverhangs
+    ) {
+        if (
+            !Number.isFinite(
+                overhangs[side]
+            ) ||
+            overhangs[side] < 0
+        ) {
+            throw new RangeError(
+                `roof.overhangs.${side} must be a non-negative number`
+            );
+        }
     }
 
     return Object.freeze(
