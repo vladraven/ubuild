@@ -36,7 +36,6 @@ function createObject(context) {
 
     const { deckMat, steelMat } = resolveMaterials(context);
 
-    // Floor Slab
     const floorGeo = new THREE.BoxGeometry(
         mezzData.floor.width,
         mezzData.floor.thickness,
@@ -53,7 +52,6 @@ function createObject(context) {
     floorMesh.receiveShadow = true;
     root.add(floorMesh);
 
-    // Columns
     const colRadius = mezzData.column.radius;
     for (const col of mezzData.columns) {
         const colGeo = new THREE.CylinderGeometry(colRadius, colRadius, col.height, 16);
@@ -70,14 +68,20 @@ function createObject(context) {
 
 function disposeObject(object) {
     if (!object) return;
-    object.traverse(child => {
-        if (child.isMesh) {
-            child.geometry?.dispose();
+
+    object.traverse((child) => {
+        if (!child.isMesh) return;
+        if (child.geometry) {
+            child.geometry.dispose();
+            child.geometry = null;
         }
     });
-    while (object.children.length > 0) {
-        object.remove(object.children[0]);
+
+    const children = object.children.slice();
+    for (let i = 0; i < children.length; i++) {
+        object.remove(children[i]);
     }
+
     object.removeFromParent();
 }
 

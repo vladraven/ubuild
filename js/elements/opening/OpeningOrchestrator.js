@@ -247,14 +247,20 @@ function createObject(context) {
 
 function disposeObject(object) {
     if (!object) return;
-    object.traverse(child => {
-        if (child.isMesh) {
-            child.geometry?.dispose();
+
+    object.traverse((child) => {
+        if (!child.isMesh) return;
+        if (child.geometry) {
+            child.geometry.dispose();
+            child.geometry = null;
         }
     });
-    while (object.children.length > 0) {
-        object.remove(object.children[0]);
+
+    const children = object.children.slice();
+    for (let i = 0; i < children.length; i++) {
+        object.remove(children[i]);
     }
+
     object.removeFromParent();
 }
 

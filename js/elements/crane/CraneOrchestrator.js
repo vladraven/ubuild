@@ -36,7 +36,6 @@ function createObject(context) {
 
     const { steelMat, bodyMat } = resolveMaterials(context);
 
-    // Runway Rails
     if (craneData.rails.left && craneData.rails.right) {
         const railGeo = new THREE.BoxGeometry(
             craneData.rails.left.width,
@@ -65,7 +64,6 @@ function createObject(context) {
         root.add(rightRailMesh);
     }
 
-    // Bridge Beam
     if (craneData.bridge) {
         const bridgeGeo = new THREE.BoxGeometry(
             craneData.bridge.width,
@@ -83,7 +81,6 @@ function createObject(context) {
         root.add(bridgeMesh);
     }
 
-    // Trolley
     if (craneData.trolley) {
         const trolleyGeo = new THREE.BoxGeometry(
             craneData.trolley.width,
@@ -101,7 +98,6 @@ function createObject(context) {
         root.add(trolleyMesh);
     }
 
-    // Hoist Cable
     if (craneData.cable) {
         const cableGeo = new THREE.CylinderGeometry(
             craneData.cable.radius,
@@ -124,14 +120,20 @@ function createObject(context) {
 
 function disposeObject(object) {
     if (!object) return;
-    object.traverse(child => {
-        if (child.isMesh) {
-            child.geometry?.dispose();
+
+    object.traverse((child) => {
+        if (!child.isMesh) return;
+        if (child.geometry) {
+            child.geometry.dispose();
+            child.geometry = null;
         }
     });
-    while (object.children.length > 0) {
-        object.remove(object.children[0]);
+
+    const children = object.children.slice();
+    for (let i = 0; i < children.length; i++) {
+        object.remove(children[i]);
     }
+
     object.removeFromParent();
 }
 

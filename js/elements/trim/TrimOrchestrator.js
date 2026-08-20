@@ -1,4 +1,3 @@
-// js/elements/trim/TrimOrchestrator.js
 import * as THREE from 'three';
 
 function assertContext(context) {
@@ -53,25 +52,21 @@ function createObject(context) {
     const trimMaterial = resolveMaterial(context, 'trimMetal');
     const eaveMaterial = resolveMaterial(context, 'eaveTrim');
 
-    // Карнизы
     for (const eave of trimsData.eaves) {
         const mesh = createProfileMesh(eave.edge, eaveMaterial, 0.12, 0.06);
         if (mesh) root.add(mesh);
     }
 
-    // Фронтоны
     for (const r of trimsData.rake) {
         const mesh = createProfileMesh(r.edge, trimMaterial, 0.12, 0.06);
         if (mesh) root.add(mesh);
     }
 
-    // Конёк
     for (const rd of trimsData.ridge) {
         const mesh = createProfileMesh(rd.edge, trimMaterial, 0.15, 0.04);
         if (mesh) root.add(mesh);
     }
 
-    // Углы здания
     for (const c of trimsData.corners) {
         const mesh = createProfileMesh(c.edge, trimMaterial, 0.08, 0.08);
         if (mesh) root.add(mesh);
@@ -82,14 +77,20 @@ function createObject(context) {
 
 function disposeObject(object) {
     if (!object) return;
-    object.traverse(child => {
-        if (child.isMesh) {
-            child.geometry?.dispose();
+
+    object.traverse((child) => {
+        if (!child.isMesh) return;
+        if (child.geometry) {
+            child.geometry.dispose();
+            child.geometry = null;
         }
     });
-    while (object.children.length > 0) {
-        object.remove(object.children[0]);
+
+    const children = object.children.slice();
+    for (let i = 0; i < children.length; i++) {
+        object.remove(children[i]);
     }
+
     object.removeFromParent();
 }
 

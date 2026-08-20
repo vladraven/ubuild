@@ -123,19 +123,21 @@ function createObject(context) {
 
 function disposeObject(object) {
     if (!object) return;
-    object.traverse(child => {
-        if (child.isMesh) {
-            child.geometry?.dispose();
+
+    object.traverse((child) => {
+        if (!child.isMesh) return;
+        if (child.geometry) {
+            child.geometry.dispose();
+            child.geometry = null;
         }
     });
-    rootClear(object);
-    object.removeFromParent();
-}
 
-function rootClear(group) {
-    while (group.children.length > 0) {
-        group.remove(group.children[0]);
+    const children = object.children.slice();
+    for (let i = 0; i < children.length; i++) {
+        object.remove(children[i]);
     }
+
+    object.removeFromParent();
 }
 
 export const GuttersOrchestrator = Object.freeze({

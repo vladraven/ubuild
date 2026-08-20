@@ -6,15 +6,11 @@ function assertContext(context) {
     }
 
     if (!context.geometry?.foundation) {
-        throw new TypeError(
-            'Foundation geometry is required'
-        );
+        throw new TypeError('Foundation geometry is required');
     }
 
     if (!context.materials) {
-        throw new TypeError(
-            'Material system is required'
-        );
+        throw new TypeError('Material system is required');
     }
 }
 
@@ -30,9 +26,7 @@ function resolveMaterial(context) {
         return context.materials.concrete;
     }
 
-    throw new Error(
-        'Concrete material is required'
-    );
+    throw new Error('Concrete material is required');
 }
 
 function createMesh(context) {
@@ -51,19 +45,13 @@ function createMesh(context) {
         bounds.length
     );
 
-    const mesh = new THREE.Mesh(
-        geometry,
-        material
-    );
-
+    const mesh = new THREE.Mesh(geometry, material);
     mesh.name = 'foundation';
-
     mesh.position.set(
         bounds.center.x,
         bounds.center.y,
         bounds.center.z
     );
-
     mesh.receiveShadow = true;
     mesh.castShadow = true;
 
@@ -85,7 +73,10 @@ function updateMesh(mesh, context) {
     const bounds = foundation.bounds;
     const material = resolveMaterial(context);
 
-    mesh.geometry.dispose();
+    if (mesh.geometry) {
+        mesh.geometry.dispose();
+        mesh.geometry = null;
+    }
 
     mesh.geometry = new THREE.BoxGeometry(
         bounds.width,
@@ -94,7 +85,6 @@ function updateMesh(mesh, context) {
     );
 
     mesh.material = material;
-
     mesh.position.set(
         bounds.center.x,
         bounds.center.y,
@@ -105,30 +95,26 @@ function updateMesh(mesh, context) {
 }
 
 function disposeMesh(mesh) {
-    if (!mesh) {
-        return;
+    if (!mesh) return;
+
+    if (mesh.geometry) {
+        mesh.geometry.dispose();
+        mesh.geometry = null;
     }
 
-    mesh.geometry?.dispose();
     mesh.removeFromParent();
 }
 
 export const FoundationOrchestrator = Object.freeze({
     id: 'foundation',
-
     create(context) {
         assertContext(context);
         return createMesh(context);
     },
-
     update(mesh, context) {
         assertContext(context);
-        return updateMesh(
-            mesh,
-            context
-        );
+        return updateMesh(mesh, context);
     },
-
     dispose(mesh) {
         disposeMesh(mesh);
     }

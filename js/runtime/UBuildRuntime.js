@@ -135,6 +135,7 @@ function createRuntimeMaterialSystem(
         steel: 'steel',
         structuralSteel: 'steel',
         wallMetal: 'wall',
+        wainscotMetal: 'wainscot',
         roofMetal: 'roof',
         trimMetal: 'trim',
         concrete: 'concrete',
@@ -146,6 +147,7 @@ function createRuntimeMaterialSystem(
 
     const materialTextures = Object.freeze({
         wallMetal: 'wallPanel',
+        wainscotMetal: 'wainscotPanel',
         roofMetal: 'roofPanel',
         trimMetal: 'trim',
         structuralSteel: 'steel',
@@ -404,7 +406,6 @@ export function createUBuildRuntime({
             renderer
         });
 
-        // Orchestrators dispose their own previous objects inside update().
         const nextInstances = registry.updateAll(currentInstances, nextContext);
 
         clearRoot(buildingRoot);

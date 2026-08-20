@@ -2,6 +2,7 @@ const MATERIAL_NAMES = Object.freeze([
     'steel',
     'structuralSteel',
     'wallMetal',
+    'wainscotMetal',
     'roofMetal',
     'trimMetal',
     'concrete',
@@ -25,6 +26,12 @@ const MATERIAL_DEFINITIONS = Object.freeze({
     }),
 
     wallMetal: Object.freeze({
+        type: 'metal',
+        roughness: 0.5,
+        metalness: 0.85
+    }),
+
+    wainscotMetal: Object.freeze({
         type: 'metal',
         roughness: 0.5,
         metalness: 0.85
@@ -75,60 +82,39 @@ const MATERIAL_DEFINITIONS = Object.freeze({
     })
 });
 
-function cloneDefinition(
-    definition
-) {
-    return Object.fromEntries(
-        Object.entries(definition)
-    );
+function cloneDefinition(definition) {
+    return Object.fromEntries(Object.entries(definition));
 }
 
 function assertMaterialName(name) {
     if (!MATERIAL_NAMES.includes(name)) {
-        throw new RangeError(
-            `Unknown material: ${name}`
-        );
+        throw new RangeError(`Unknown material: ${name}`);
     }
 }
 
-function validateDefinition(
-    definition,
-    name
-) {
+function validateDefinition(definition, name) {
     if (!definition || typeof definition !== 'object') {
-        throw new TypeError(
-            `Material definition is invalid: ${name}`
-        );
+        throw new TypeError(`Material definition is invalid: ${name}`);
     }
 
     if (
-        !Number.isFinite(
-            definition.roughness
-        ) ||
+        !Number.isFinite(definition.roughness) ||
         definition.roughness < 0 ||
         definition.roughness > 1
     ) {
-        throw new RangeError(
-            `${name}.roughness must be between 0 and 1`
-        );
+        throw new RangeError(`${name}.roughness must be between 0 and 1`);
     }
 
     if (
-        !Number.isFinite(
-            definition.metalness
-        ) ||
+        !Number.isFinite(definition.metalness) ||
         definition.metalness < 0 ||
         definition.metalness > 1
     ) {
-        throw new RangeError(
-            `${name}.metalness must be between 0 and 1`
-        );
+        throw new RangeError(`${name}.metalness must be between 0 and 1`);
     }
 }
 
-export function createMaterialCatalog(
-    overrides = {}
-) {
+export function createMaterialCatalog(overrides = {}) {
     const definitions = {};
 
     for (const name of MATERIAL_NAMES) {
@@ -137,31 +123,19 @@ export function createMaterialCatalog(
             ...(overrides[name] || {})
         };
 
-        validateDefinition(
-            definition,
-            name
-        );
-
-        definitions[name] = Object.freeze(
-            definition
-        );
+        validateDefinition(definition, name);
+        definitions[name] = Object.freeze(definition);
     }
 
     return Object.freeze(definitions);
 }
 
-export function getMaterialDefinition(
-    catalog,
-    name
-) {
+export function getMaterialDefinition(catalog, name) {
     assertMaterialName(name);
 
     const definition = catalog?.[name];
-
     if (!definition) {
-        throw new Error(
-            `Material definition is missing: ${name}`
-        );
+        throw new Error(`Material definition is missing: ${name}`);
     }
 
     return cloneDefinition(definition);

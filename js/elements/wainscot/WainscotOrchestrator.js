@@ -26,7 +26,7 @@ function resolveMaterial(context) {
 
     if (typeof context.materials.get === 'function') {
         const mat = context.materials.get(
-            'wallMetal',
+            'wainscotMetal',
             context.colors?.wainscot,
             { normalMap }
         );
@@ -34,7 +34,7 @@ function resolveMaterial(context) {
         mat.needsUpdate = true;
         return mat;
     }
-    return context.materials.wallMetal;
+    return context.materials.wainscotMetal || context.materials.wallMetal;
 }
 
 function createWainscotMesh(

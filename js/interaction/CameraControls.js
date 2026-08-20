@@ -25,10 +25,9 @@ export function createCameraControls({camera,domElement,onUpdate}){
     }
     function setInsideView(value,position,newTarget){
         insideView=Boolean(value);
+        if(position)camera.position.copy(position);
+        if(newTarget)target.copy(newTarget);
         if(insideView){
-            if(position)camera.position.copy(position);
-            if(newTarget)target.copy(newTarget);
-            syncFromCamera();
             camera.lookAt(target);
         }else{
             syncFromCamera();
@@ -47,6 +46,26 @@ export function createCameraControls({camera,domElement,onUpdate}){
         const deltaX=e.clientX-prevPointer.x;
         const deltaY=e.clientY-prevPointer.y;
         prevPointer.set(e.clientX,e.clientY);
+        if(insideView&&pointerButton===0){
+            spherical.theta-=deltaX*0.005;
+            spherical.phi-=deltaY*0.005;
+            spherical.phi=Math.max(0.05,Math.min(Math.PI-0.05,spherical.phi));
+            const direction=new THREE.Vector3().setFromSphericalCoords(1,spherical.phi,spherical.theta);
+            camera.lookAt(camera.position.clone().add(direction));
+            if(typeof onUpdate==='function')onUpdate();
+            return;
+        }
+        if(insideView&&pointerButton===2){
+            const panSpeed=0.002;
+            const right=new THREE.Vector3();
+            const up=new THREE.Vector3(0,1,0);
+            camera.getWorldDirection(right);
+            right.cross(up).normalize();
+            camera.position.addScaledVector(right,-deltaX*panSpeed);
+            camera.position.y+=deltaY*panSpeed;
+            if(typeof onUpdate==='function')onUpdate();
+            return;
+        }
         if(pointerButton===0){
             spherical.theta-=deltaX*0.005;
             spherical.phi-=deltaY*0.005;
@@ -67,6 +86,14 @@ export function createCameraControls({camera,domElement,onUpdate}){
     }
     function onWheel(e){
         e.preventDefault();
+        if(insideView){
+            const direction=new THREE.Vector3();
+            camera.getWorldDirection(direction);
+            const distance=e.deltaY>0?-0.25:0.25;
+            camera.position.addScaledVector(direction,distance);
+            if(typeof onUpdate==='function')onUpdate();
+            return;
+        }
         const factor=e.deltaY>0?1.08:0.92;
         spherical.radius=Math.max(0.15,Math.min(1500,spherical.radius*factor));
         updateCameraPosition();
