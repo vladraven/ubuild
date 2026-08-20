@@ -15,7 +15,7 @@ function point(
     });
 }
 
-function edge(
+function segment(
     start,
     end
 ) {
@@ -84,7 +84,7 @@ function assertFinite(
     }
 }
 
-function assertPositive(
+function positive(
     value,
     name
 ) {
@@ -100,338 +100,77 @@ function assertPositive(
             `${name} must be greater than zero`
         );
     }
+
+    return value;
+}
+
+function nonNegative(
+    value,
+    name
+) {
+    assertFinite(
+        value,
+        name
+    );
+
+    if (
+        value < 0
+    ) {
+        throw new RangeError(
+            `${name} must not be negative`
+        );
+    }
+
+    return value;
 }
 
 function resolveConfig(
     model
 ) {
-    return (
+    const config =
         model.gutters ??
         model.gutter ??
-        {}
-    );
+        {};
+
+    return config;
 }
 
-function resolveEnabled(
-    config
-) {
-    if (
-        config.enabled ===
-        undefined
-    ) {
-        return false;
-    }
-
-    return Boolean(
-        config.enabled
-    );
-}
-
-function resolveDiameter(
-    config
-) {
-    const diameter =
-        config.diameter ??
-        config.width ??
-        0.12;
-
-    assertPositive(
-        diameter,
-        'gutters.diameter'
-    );
-
-    return diameter;
-}
-
-function resolveDepth(
-    config
-) {
-    const depth =
-        config.depth ??
-        0.12;
-
-    assertPositive(
-        depth,
-        'gutters.depth'
-    );
-
-    return depth;
-}
-
-function resolveDownspoutDiameter(
-    config,
-    diameter
-) {
-    const value =
-        config.downspoutDiameter ??
-        diameter;
-
-    assertPositive(
-        value,
-        'gutters.downspoutDiameter'
-    );
-
-    return value;
-}
-
-function createSideGutter(
-    side,
-    roof,
-    envelope,
-    diameter,
-    depth
-) {
-    const eave =
-        side === 'L'
-            ? roof.eaves.left
-            : roof.eaves.right;
-
-    const start =
-        eave.front;
-
-    const end =
-        eave.back;
-
-    const offset =
-        side === 'L'
-            ? -depth
-            : depth;
-
-    const gutterStart =
-        point(
-            start.x,
-            start.y -
-                diameter / 2,
-            start.z
-        );
-
-    const gutterEnd =
-        point(
-            end.x,
-            end.y -
-                diameter / 2,
-            end.z
-        );
-
-    const min =
-        point(
-            Math.min(
-                gutterStart.x,
-                gutterEnd.x
-            ) -
-                diameter / 2 +
-                offset,
-
-            Math.min(
-                gutterStart.y,
-                gutterEnd.y
-            ) -
-                diameter / 2,
-
-            Math.min(
-                gutterStart.z,
-                gutterEnd.z
-            )
-        );
-
-    const max =
-        point(
-            Math.max(
-                gutterStart.x,
-                gutterEnd.x
-            ) +
-                diameter / 2 +
-                offset,
-
-            Math.max(
-                gutterStart.y,
-                gutterEnd.y
-            ) +
-                diameter / 2,
-
-            Math.max(
-                gutterStart.z,
-                gutterEnd.z
-            )
-        );
-
-    return Object.freeze({
-        side,
-
-        diameter,
-
-        depth,
-
-        start:
-            gutterStart,
-
-        end:
-            gutterEnd,
-
-        edge:
-            edge(
-                gutterStart,
-                gutterEnd
-            ),
-
-        anchor:
-            point(
-                gutterStart.x,
-                gutterStart.y,
-                gutterStart.z
-            ),
-
-        bounds:
-            bounds(
-                min,
-                max
-            )
-    });
-}
-
-function createDownspout(
-    side,
-    position,
-    diameter,
-    height,
-    index
-) {
-    const bottom =
-        point(
-            position.x,
-            0,
-            position.z
-        );
-
-    const top =
-        point(
-            position.x,
-            position.y,
-            position.z
-        );
-
-    return Object.freeze({
-        id:
-            `${side}-${index}`,
-
-        side,
-
-        diameter,
-
-        height,
-
-        start:
-            top,
-
-        end:
-            bottom,
-
-        edge:
-            edge(
-                top,
-                bottom
-            ),
-
-        anchor:
-            point(
-                top.x,
-                top.y,
-                top.z
-            ),
-
-        bounds:
-            bounds(
-                point(
-                    top.x -
-                        diameter / 2,
-                    0,
-                    top.z -
-                        diameter / 2
-                ),
-
-                point(
-                    top.x +
-                        diameter / 2,
-                    top.y,
-                    top.z +
-                        diameter / 2
-                )
-            )
-    });
-}
-
-function resolveDownspoutPositions(
-    config,
-    side,
-    gutter,
-    envelope
-) {
-    const configured =
-        config.downspouts;
-
-    if (
-        Array.isArray(
-            configured
-        ) &&
-        configured.length
-    ) {
-        return configured
-            .filter(
-                item =>
-                    !item.side ||
-                    item.side === side
-            )
-            .map(
-                item => {
-                    const ratio =
-                        Number.isFinite(
-                            item.ratio
-                        )
-                            ? item.ratio
-                            : null;
-
-                    const z =
-                        ratio !== null
-                            ? envelope.length *
-                                ratio
-                            : (
-                                item.z ??
-                                envelope.length /
-                                    2
-                            );
-
-                    return point(
-                        gutter.start.x,
-                        gutter.start.y,
-                        z
-                    );
-                }
-            );
-    }
-
-    return [
-        point(
-            gutter.start.x,
-            gutter.start.y,
-            envelope.length / 2
-        )
-    ];
-}
-
-function createEmptyGeometry() {
+function createEmpty() {
     return Object.freeze({
         enabled: false,
 
-        diameter: 0,
+        length: 0,
 
-        depth: 0,
-
-        downspoutDiameter: 0,
+        zOffset: 0,
 
         eaves:
             Object.freeze({
-                L: null,
-                R: null
+                left: null,
+                right: null
+            }),
+
+        config:
+            Object.freeze({
+                gutter:
+                    Object.freeze({
+                        lengthOffset: 0,
+                        widthOffset: 0,
+                        offsetX: 0,
+                        offsetY: 0
+                    }),
+
+                pipe:
+                    Object.freeze({
+                        width: 0,
+                        depth: 0
+                    })
+            }),
+
+        profile:
+            Object.freeze({
+                width: 0,
+                height: 0,
+                wallThickness: 0
             }),
 
         downspouts:
@@ -445,6 +184,541 @@ function createEmptyGeometry() {
 
         bounds: null
     });
+}
+
+function resolveGutterConfig(
+    config
+) {
+    const source =
+        config.gutter ??
+        {};
+
+    return Object.freeze({
+        lengthOffset:
+            source.lengthOffset ??
+            0,
+
+        widthOffset:
+            source.widthOffset ??
+            0,
+
+        offsetX:
+            source.offsetX ??
+            0,
+
+        offsetY:
+            source.offsetY ??
+            0
+    });
+}
+
+function resolvePipeConfig(
+    config
+) {
+    const source =
+        config.pipe ??
+        {};
+
+    const width =
+        source.width ??
+        config.downspoutWidth ??
+        0.08;
+
+    const depth =
+        source.depth ??
+        config.downspoutDepth ??
+        0.06;
+
+    return Object.freeze({
+        width:
+            positive(
+                width,
+                'gutters.pipe.width'
+            ),
+
+        depth:
+            positive(
+                depth,
+                'gutters.pipe.depth'
+            )
+    });
+}
+
+function resolveProfile(
+    config
+) {
+    const source =
+        config.profile ??
+        {};
+
+    const width =
+        source.width ??
+        (
+            0.14 +
+            (
+                config.gutter?.widthOffset ??
+                0
+            )
+        );
+
+    const height =
+        source.height ??
+        0.12;
+
+    const wallThickness =
+        source.thickness ??
+        0.01;
+
+    return Object.freeze({
+        width:
+            positive(
+                width,
+                'gutters.profile.width'
+            ),
+
+        height:
+            positive(
+                height,
+                'gutters.profile.height'
+            ),
+
+        wallThickness:
+            positive(
+                wallThickness,
+                'gutters.profile.thickness'
+            )
+    });
+}
+
+function createEave(
+    side,
+    roof,
+    gutterConfig,
+    profile
+) {
+    const source =
+        side === 'L'
+            ? roof.eaves.left
+            : roof.eaves.right;
+
+    const front =
+        point(
+            source.front.x,
+            source.front.y +
+                gutterConfig.offsetY -
+                profile.height / 2,
+            source.front.z
+        );
+
+    const back =
+        point(
+            source.back.x,
+            source.back.y +
+                gutterConfig.offsetY -
+                profile.height / 2,
+            source.back.z
+        );
+
+    const start =
+        point(
+            front.x +
+                (
+                    side === 'L'
+                        ? gutterConfig.offsetX
+                        : -gutterConfig.offsetX
+                ),
+            front.y,
+            front.z
+        );
+
+    const end =
+        point(
+            back.x +
+                (
+                    side === 'L'
+                        ? gutterConfig.offsetX
+                        : -gutterConfig.offsetX
+                ),
+            back.y,
+            back.z
+        );
+
+    return Object.freeze({
+        side,
+
+        front,
+
+        back,
+
+        start,
+
+        end,
+
+        edge:
+            segment(
+                start,
+                end
+            ),
+
+        length:
+            source.edge.length +
+            gutterConfig.lengthOffset,
+
+        anchor:
+            point(
+                start.x,
+                start.y,
+                start.z
+            )
+    });
+}
+
+function resolveDownspoutDefinition(
+    config,
+    side,
+    index,
+    eave,
+    envelope
+) {
+    const configured =
+        Array.isArray(
+            config.downspouts
+        )
+            ? config.downspouts
+                .filter(
+                    item =>
+                        !item.side ||
+                        item.side === side
+                )
+            : [];
+
+    const item =
+        configured[index] ??
+        {};
+
+    const ratio =
+        Number.isFinite(
+            item.ratio
+        )
+            ? item.ratio
+            : null;
+
+    const z =
+        ratio !== null
+            ? envelope.length *
+                ratio
+            : (
+                item.z ??
+                envelope.length / 2
+            );
+
+    const clampedZ =
+        Math.max(
+            0,
+            Math.min(
+                envelope.length,
+                z
+            )
+        );
+
+    const top =
+        point(
+            eave.start.x,
+            eave.start.y,
+            clampedZ
+        );
+
+    const bottom =
+        point(
+            top.x,
+            0,
+            top.z
+        );
+
+    const shoeLength =
+        item.shoeLength ??
+        0;
+
+    const shoe =
+        shoeLength > 0
+            ? segment(
+                bottom,
+                point(
+                    bottom.x,
+                    bottom.y,
+                    bottom.z +
+                        (
+                            side === 'L'
+                                ? shoeLength
+                                : -shoeLength
+                        )
+                )
+            )
+            : null;
+
+    const segments =
+        [
+            segment(
+                top,
+                bottom
+            )
+        ];
+
+    const strapSpacing =
+        item.strapSpacing ??
+        3;
+
+    const straps = [];
+
+    const height =
+        top.y -
+        bottom.y;
+
+    const strapCount =
+        height > 0
+            ? Math.max(
+                1,
+                Math.floor(
+                    height /
+                    strapSpacing
+                )
+            )
+            : 0;
+
+    for (
+        let i = 1;
+        i <= strapCount;
+        i++
+    ) {
+        const ratio =
+            i /
+            (
+                strapCount +
+                1
+            );
+
+        straps.push(
+            Object.freeze({
+                x:
+                    top.x,
+
+                y:
+                    top.y *
+                    (
+                        1 -
+                        ratio
+                    ),
+
+                z:
+                    top.z
+            })
+        );
+    }
+
+    return Object.freeze({
+        id:
+            item.id ??
+            `${side}-${index}`,
+
+        side,
+
+        visible:
+            item.visible !== false,
+
+        top,
+
+        bottom,
+
+        height,
+
+        diameter:
+            item.diameter ??
+            null,
+
+        segments:
+            Object.freeze(
+                segments
+            ),
+
+        shoe,
+
+        shoeLength,
+
+        straps:
+            Object.freeze(
+                straps
+            )
+    });
+}
+
+function createSideDownspouts(
+    config,
+    side,
+    eave,
+    envelope
+) {
+    const configured =
+        Array.isArray(
+            config.downspouts
+        )
+            ? config.downspouts
+                .filter(
+                    item =>
+                        !item.side ||
+                        item.side === side
+                )
+            : [];
+
+    if (
+        configured.length === 0
+    ) {
+        return [
+            resolveDownspoutDefinition(
+                config,
+                side,
+                0,
+                eave,
+                envelope
+            )
+        ];
+    }
+
+    return configured.map(
+        (
+            item,
+            index
+        ) =>
+            resolveDownspoutDefinition(
+                {
+                    ...config,
+
+                    downspouts:
+                        [
+                            item
+                        ]
+                },
+                side,
+                0,
+                eave,
+                envelope
+            )
+    );
+}
+
+function calculateBounds(
+    eaves,
+    downspouts,
+    envelope
+) {
+    const points = [];
+
+    for (
+        const eave
+        of eaves
+    ) {
+        points.push(
+            eave.start,
+            eave.end
+        );
+    }
+
+    for (
+        const downspout
+        of downspouts
+    ) {
+        points.push(
+            downspout.top,
+            downspout.bottom
+        );
+
+        if (
+            downspout.shoe
+        ) {
+            points.push(
+                downspout.shoe.start,
+                downspout.shoe.end
+            );
+        }
+    }
+
+    if (
+        points.length === 0
+    ) {
+        return null;
+    }
+
+    const minX =
+        Math.min(
+            ...points.map(
+                value =>
+                    value.x
+            )
+        );
+
+    const minY =
+        Math.min(
+            ...points.map(
+                value =>
+                    value.y
+            )
+        );
+
+    const minZ =
+        Math.min(
+            ...points.map(
+                value =>
+                    value.z
+            )
+        );
+
+    const maxX =
+        Math.max(
+            ...points.map(
+                value =>
+                    value.x
+            )
+        );
+
+    const maxY =
+        Math.max(
+            ...points.map(
+                value =>
+                    value.y
+            )
+        );
+
+    const maxZ =
+        Math.max(
+            ...points.map(
+                value =>
+                    value.z
+            )
+        );
+
+    return bounds(
+        point(
+            Math.min(
+                minX,
+                -envelope.width / 2
+            ),
+            minY,
+            Math.min(
+                minZ,
+                0
+            )
+        ),
+        point(
+            Math.max(
+                maxX,
+                envelope.width / 2
+            ),
+            maxY,
+            Math.max(
+                maxZ,
+                envelope.length
+            )
+        )
+    );
 }
 
 export function createGuttersGeometry(
@@ -482,178 +756,117 @@ export function createGuttersGeometry(
         );
 
     if (
-        !resolveEnabled(
-            config
-        )
+        config.enabled === false
     ) {
-        return createEmptyGeometry();
+        return createEmpty();
     }
 
-    const diameter =
-        resolveDiameter(
+    const gutterConfig =
+        resolveGutterConfig(
             config
         );
 
-    const depth =
-        resolveDepth(
+    const pipeConfig =
+        resolvePipeConfig(
             config
         );
 
-    const downspoutDiameter =
-        resolveDownspoutDiameter(
-            config,
-            diameter
+    const profile =
+        resolveProfile(
+            config
         );
 
-    const eaves = {};
-
-    const downspouts = [];
-
-    const outlets = [];
-
-    const anchors = [];
-
-    for (
-        const side
-        of SIDES
-    ) {
-        const gutter =
-            createSideGutter(
-                side,
+    const eaves = {
+        left:
+            createEave(
+                'L',
                 roof,
-                envelope,
-                diameter,
-                depth
-            );
+                gutterConfig,
+                profile
+            ),
 
-        eaves[side] =
-            gutter;
+        right:
+            createEave(
+                'R',
+                roof,
+                gutterConfig,
+                profile
+            )
+    };
 
-        anchors.push(
-            gutter.anchor
-        );
-
-        const positions =
-            resolveDownspoutPositions(
-                config,
-                side,
-                gutter,
-                envelope
-            );
-
-        positions.forEach(
-            (
-                position,
-                index
-            ) => {
-                const height =
-                    position.y;
-
-                const downspout =
-                    createDownspout(
-                        side,
-                        position,
-                        downspoutDiameter,
-                        height,
-                        index
-                    );
-
-                downspouts.push(
-                    downspout
-                );
-
-                outlets.push(
-                    Object.freeze({
-                        side,
-
-                        position:
-                            point(
-                                position.x,
-                                position.y,
-                                position.z
-                            ),
-
-                        diameter:
-                            downspoutDiameter
-                    })
-                );
-            }
-        );
-    }
-
-    const allBounds = [
-        ...SIDES.map(
-            side =>
-                eaves[side].bounds
+    const downspouts = [
+        ...createSideDownspouts(
+            config,
+            'L',
+            eaves.left,
+            envelope
         ),
 
-        ...downspouts.map(
-            item =>
-                item.bounds
+        ...createSideDownspouts(
+            config,
+            'R',
+            eaves.right,
+            envelope
         )
     ];
 
-    const min =
-        point(
-            Math.min(
-                ...allBounds.map(
-                    item =>
-                        item.min.x
-                )
-            ),
+    const outlets =
+        downspouts.map(
+            downspout =>
+                Object.freeze({
+                    id:
+                        downspout.id,
 
-            Math.min(
-                ...allBounds.map(
-                    item =>
-                        item.min.y
-                )
-            ),
+                    side:
+                        downspout.side,
 
-            Math.min(
-                ...allBounds.map(
-                    item =>
-                        item.min.z
-                )
-            )
+                    position:
+                        downspout.top
+                })
         );
 
-    const max =
-        point(
-            Math.max(
-                ...allBounds.map(
-                    item =>
-                        item.max.x
-                )
-            ),
+    const anchors = [
+        eaves.left.anchor,
+        eaves.right.anchor
+    ];
 
-            Math.max(
-                ...allBounds.map(
-                    item =>
-                        item.max.y
-                )
-            ),
-
-            Math.max(
-                ...allBounds.map(
-                    item =>
-                        item.max.z
-                )
-            )
+    const length =
+        Math.max(
+            eaves.left.length,
+            eaves.right.length
         );
+
+    const zOffset =
+        config.zOffset ??
+        0;
+
+    nonNegative(
+        Math.abs(zOffset),
+        'gutters.zOffset'
+    );
 
     return Object.freeze({
         enabled: true,
 
-        diameter,
+        length,
 
-        depth,
-
-        downspoutDiameter,
+        zOffset,
 
         eaves:
             Object.freeze(
                 eaves
             ),
+
+        config:
+            Object.freeze({
+                gutter:
+                    gutterConfig,
+
+                pipe:
+                    pipeConfig
+            }),
+
+        profile,
 
         downspouts:
             Object.freeze(
@@ -671,9 +884,15 @@ export function createGuttersGeometry(
             ),
 
         bounds:
-            bounds(
-                min,
-                max
+            calculateBounds(
+                [
+                    eaves.left,
+                    eaves.right
+                ],
+
+                downspouts,
+
+                envelope
             )
     });
 }
