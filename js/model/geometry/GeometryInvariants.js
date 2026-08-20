@@ -14,53 +14,93 @@ function assertClose(
     path,
     tolerance = EPSILON
 ) {
-    assertFinite(actual, `${path}.actual`);
-    assertFinite(expected, `${path}.expected`);
+    assertFinite(
+        actual,
+        `${path}.actual`
+    );
 
-    if (Math.abs(actual - expected) > tolerance) {
+    assertFinite(
+        expected,
+        `${path}.expected`
+    );
+
+    if (
+        Math.abs(actual - expected) >
+        tolerance
+    ) {
         throw new Error(
             `${path}: expected ${expected}, got ${actual}`
         );
     }
 }
 
-function assertPoint(point, path) {
-    if (!point || typeof point !== 'object') {
+function assertPoint(
+    value,
+    path
+) {
+    if (
+        !value ||
+        typeof value !== 'object'
+    ) {
         throw new TypeError(
             `${path} must be a point`
         );
     }
 
-    assertFinite(point.x, `${path}.x`);
-    assertFinite(point.y, `${path}.y`);
-    assertFinite(point.z, `${path}.z`);
+    assertFinite(
+        value.x,
+        `${path}.x`
+    );
+
+    assertFinite(
+        value.y,
+        `${path}.y`
+    );
+
+    assertFinite(
+        value.z,
+        `${path}.z`
+    );
 }
 
-function assertBounds(bounds, path) {
-    if (!bounds || typeof bounds !== 'object') {
+function assertBounds(
+    value,
+    path
+) {
+    if (
+        !value ||
+        typeof value !== 'object'
+    ) {
         throw new TypeError(
             `${path} must be bounds`
         );
     }
 
-    assertPoint(bounds.min, `${path}.min`);
-    assertPoint(bounds.max, `${path}.max`);
+    assertPoint(
+        value.min,
+        `${path}.min`
+    );
+
+    assertPoint(
+        value.max,
+        `${path}.max`
+    );
 
     assertClose(
-        bounds.width,
-        bounds.max.x - bounds.min.x,
+        value.width,
+        value.max.x - value.min.x,
         `${path}.width`
     );
 
     assertClose(
-        bounds.height,
-        bounds.max.y - bounds.min.y,
+        value.height,
+        value.max.y - value.min.y,
         `${path}.height`
     );
 
     assertClose(
-        bounds.length,
-        bounds.max.z - bounds.min.z,
+        value.length,
+        value.max.z - value.min.z,
         `${path}.length`
     );
 }
@@ -91,29 +131,10 @@ function assertEnvelope(
         model.dimensions.height,
         'envelope.height'
     );
-
-    assertClose(
-        envelope.bounds.width,
-        model.dimensions.width,
-        'envelope.bounds.width'
-    );
-
-    assertClose(
-        envelope.bounds.height,
-        model.dimensions.height,
-        'envelope.bounds.height'
-    );
-
-    assertClose(
-        envelope.bounds.length,
-        model.dimensions.length,
-        'envelope.bounds.length'
-    );
 }
 
 function assertWall(
     wall,
-    envelope,
     name
 ) {
     if (!wall) {
@@ -133,9 +154,21 @@ function assertWall(
         );
     }
 
-    if (!Array.isArray(wall.edges)) {
+    if (!wall.corners) {
         throw new Error(
-            `Missing wall edges: ${name}`
+            `Missing wall corners: ${name}`
+        );
+    }
+
+    if (!wall.topEdge) {
+        throw new Error(
+            `Missing wall topEdge: ${name}`
+        );
+    }
+
+    if (!wall.bottomEdge) {
+        throw new Error(
+            `Missing wall bottomEdge: ${name}`
         );
     }
 }
@@ -144,16 +177,15 @@ function assertWalls(
     walls,
     envelope
 ) {
-    for (const name of [
+    for (const side of [
         'front',
         'back',
         'left',
         'right'
     ]) {
         assertWall(
-            walls[name],
-            envelope,
-            name
+            walls[side],
+            side
         );
     }
 
@@ -188,7 +220,7 @@ function assertWalls(
     );
 
     assertClose(
-        walls.back.bounds.min.z,
+        walls.back.bounds.max.z,
         envelope.bounds.max.z,
         'back wall position'
     );
@@ -200,7 +232,7 @@ function assertWalls(
     );
 
     assertClose(
-        walls.right.bounds.min.x,
+        walls.right.bounds.max.x,
         envelope.bounds.max.x,
         'right wall position'
     );
@@ -209,8 +241,7 @@ function assertWalls(
 function assertRoof(
     model,
     roof,
-    envelope,
-    walls
+    envelope
 ) {
     if (!roof) {
         throw new Error(
@@ -218,14 +249,39 @@ function assertRoof(
         );
     }
 
-    if (roof.type !== model.roof.type) {
+    if (
+        roof.type !==
+        model.roof.type
+    ) {
         throw new Error(
             'Roof type does not match BuildingModel'
         );
     }
 
     if (
-        !Number.isFinite(roof.rise) ||
+        !Number.isFinite(
+            roof.pitchRatio
+        )
+    ) {
+        throw new Error(
+            'Roof pitchRatio is required'
+        );
+    }
+
+    if (
+        !Number.isFinite(
+            roof.pitchAngle
+        )
+    ) {
+        throw new Error(
+            'Roof pitchAngle is required'
+        );
+    }
+
+    if (
+        !Number.isFinite(
+            roof.rise
+        ) ||
         roof.rise < 0
     ) {
         throw new Error(
@@ -238,7 +294,21 @@ function assertRoof(
         'roof.bounds'
     );
 
-    for (const side of ['left', 'right']) {
+    if (
+        !Array.isArray(
+            roof.planes
+        ) ||
+        roof.planes.length === 0
+    ) {
+        throw new Error(
+            'Roof planes are required'
+        );
+    }
+
+    for (const side of [
+        'left',
+        'right'
+    ]) {
         if (!roof.eaves?.[side]) {
             throw new Error(
                 `Missing roof eave: ${side}`
@@ -257,7 +327,8 @@ function assertRoof(
     }
 
     if (
-        model.roof.type === 'gabled' &&
+        model.roof.type ===
+        'gabled' &&
         !roof.ridge
     ) {
         throw new Error(
@@ -266,37 +337,14 @@ function assertRoof(
     }
 
     if (
-        model.roof.type !== 'gabled' &&
+        model.roof.type !==
+        'gabled' &&
         roof.ridge !== null
     ) {
         throw new Error(
             'Single-slope roof cannot have ridge geometry'
         );
     }
-
-    assertClose(
-        roof.edges.front.start.z,
-        roof.edges.front.end.z,
-        'roof.frontEdge.z'
-    );
-
-    assertClose(
-        roof.edges.back.start.z,
-        roof.edges.back.end.z,
-        'roof.backEdge.z'
-    );
-
-    assertClose(
-        roof.edges.front.start.z,
-        roof.eaves.left.front.z,
-        'roof front/eave relation'
-    );
-
-    assertClose(
-        roof.edges.back.start.z,
-        roof.eaves.left.back.z,
-        'roof back/eave relation'
-    );
 
     assertClose(
         roof.eaves.left.front.z,
@@ -310,23 +358,19 @@ function assertRoof(
         'right eave orientation'
     );
 
-    if (walls.front && walls.back) {
-        assertClose(
-            roof.edges.front.start.z,
-            walls.front.bounds.min.z +
-                model.roof.overhangs.front,
-            'roof/front wall relation'
-        );
+    assertClose(
+        roof.bounds.min.z,
+        envelope.bounds.min.z -
+            model.roof.overhangs.front,
+        'roof.front overhang'
+    );
 
-        assertClose(
-            roof.edges.back.start.z,
-            walls.back.bounds.max.z +
-                model.roof.overhangs.back,
-            'roof/back wall relation'
-        );
-    }
-
-    void envelope;
+    assertClose(
+        roof.bounds.max.z,
+        envelope.bounds.max.z +
+            model.roof.overhangs.back,
+        'roof.back overhang'
+    );
 }
 
 function assertFoundation(
@@ -384,12 +428,20 @@ function assertFoundation(
 
 function assertOpening(
     opening,
-    walls,
-    model
+    walls
 ) {
     if (!opening) {
         throw new Error(
             'Opening geometry cannot be null'
+        );
+    }
+
+    if (
+        typeof opening.id !==
+        'string'
+    ) {
+        throw new Error(
+            'Opening geometry requires id'
         );
     }
 
@@ -411,7 +463,9 @@ function assertOpening(
     };
 
     const wall =
-        walls[wallMap[opening.side]];
+        walls[
+            wallMap[opening.side]
+        ];
 
     if (!wall) {
         throw new Error(
@@ -419,7 +473,8 @@ function assertOpening(
         );
     }
 
-    const tolerance = EPSILON * 10;
+    const tolerance =
+        EPSILON * 10;
 
     if (
         opening.side === 'F' ||
@@ -427,9 +482,11 @@ function assertOpening(
     ) {
         if (
             opening.bounds.min.x <
-                wall.bounds.min.x - tolerance ||
+                wall.bounds.min.x -
+                    tolerance ||
             opening.bounds.max.x >
-                wall.bounds.max.x + tolerance
+                wall.bounds.max.x +
+                    tolerance
         ) {
             throw new Error(
                 `Opening ${opening.id} exceeds wall width`
@@ -438,9 +495,11 @@ function assertOpening(
     } else {
         if (
             opening.bounds.min.z <
-                wall.bounds.min.z - tolerance ||
+                wall.bounds.min.z -
+                    tolerance ||
             opening.bounds.max.z >
-                wall.bounds.max.z + tolerance
+                wall.bounds.max.z +
+                    tolerance
         ) {
             throw new Error(
                 `Opening ${opening.id} exceeds wall length`
@@ -450,16 +509,83 @@ function assertOpening(
 
     if (
         opening.bounds.min.y <
-            wall.bounds.min.y - tolerance ||
+            wall.bounds.min.y -
+                tolerance ||
         opening.bounds.max.y >
-            wall.bounds.max.y + tolerance
+            wall.bounds.max.y +
+                tolerance
     ) {
         throw new Error(
             `Opening ${opening.id} exceeds wall height`
         );
     }
+}
 
-    void model;
+function assertStructural(
+    geometry
+) {
+    for (const name of [
+        'frames',
+        'girts',
+        'purlins',
+        'endWallColumns'
+    ]) {
+        if (
+            !Array.isArray(
+                geometry[name]
+            )
+        ) {
+            throw new Error(
+                `StructuralGeometry.${name} must be an array`
+            );
+        }
+    }
+
+    for (
+        const frame
+        of geometry.frames
+    ) {
+        if (
+            !frame.leftColumn ||
+            !frame.rightColumn
+        ) {
+            throw new Error(
+                'Structural frame requires columns'
+            );
+        }
+    }
+
+    for (
+        const girt
+        of geometry.girts
+    ) {
+        for (const side of [
+            'front',
+            'back',
+            'left',
+            'right'
+        ]) {
+            if (!girt[side]) {
+                throw new Error(
+                    `Girt is missing ${side} line`
+                );
+            }
+        }
+    }
+
+    for (
+        const purlin
+        of geometry.purlins
+    ) {
+        if (
+            !purlin.plane &&
+            !purlin.planes
+        ) {
+            throw new Error(
+                'Purlin requires plane geometry'
+            );
+        }
+    }
 }
 
 export function validateGeometryInvariants(
@@ -491,8 +617,7 @@ export function validateGeometryInvariants(
     assertRoof(
         model,
         geometry.roof,
-        geometry.envelope,
-        geometry.walls
+        geometry.envelope
     );
 
     assertFoundation(
@@ -501,13 +626,29 @@ export function validateGeometryInvariants(
         geometry.envelope
     );
 
-    for (const opening of geometry.openings) {
-        assertOpening(
-            opening,
-            geometry.walls,
-            model
+    if (
+        !Array.isArray(
+            geometry.openings
+        )
+    ) {
+        throw new TypeError(
+            'BuildingGeometry.openings must be an array'
         );
     }
+
+    for (
+        const opening
+        of geometry.openings
+    ) {
+        assertOpening(
+            opening,
+            geometry.walls
+        );
+    }
+
+    assertStructural(
+        geometry
+    );
 
     return true;
 }
