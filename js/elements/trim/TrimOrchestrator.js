@@ -1,225 +1,109 @@
+// js/elements/trim/TrimOrchestrator.js
 import * as THREE from 'three';
-
-const EPSILON = 1e-9;
 
 function assertContext(context) {
     if (!context || typeof context !== 'object') {
         throw new TypeError('Element context is required');
     }
-
-    if (!context.geometry?.roof) {
-        throw new TypeError(
-            'Roof geometry is required'
-        );
+    if (!context.geometry?.trims) {
+        throw new TypeError('Trims geometry is required');
     }
-
     if (!context.materials) {
-        throw new TypeError(
-            'Material system is required'
-        );
+        throw new TypeError('Material system is required');
     }
 }
 
-function resolveMaterial(context) {
-    if (
-        typeof context.materials.get === 'function'
-    ) {
-        return context.materials.get(
-            'trimMetal',
-            context.colors?.trim
-        );
+function resolveMaterial(context, name = 'trimMetal') {
+    if (typeof context.materials.get === 'function') {
+        return context.materials.get(name, context.colors?.trim);
     }
-
-    if (context.materials.trimMetal) {
-        return context.materials.trimMetal;
-    }
-
-    if (context.materials.steel) {
-        return context.materials.steel;
-    }
-
-    throw new Error(
-        'Trim material is not available'
-    );
+    return context.materials[name] || context.materials.trimMetal || context.materials.steel;
 }
 
-function createProfile(
-    line,
-    material,
-    width = 0.1,
-    depth = 0.05
-) {
-    if (!line?.start || !line?.end) {
-        return null;
-    }
+function createProfileMesh(lineSeg, material, width = 0.1, depth = 0.05) {
+    if (!lineSeg || !lineSeg.start || !lineSeg.end) return null;
 
-    const start =
-        new THREE.Vector3(
-            line.start.x,
-            line.start.y,
-            line.start.z
-        );
+    const start = new THREE.Vector3(lineSeg.start.x, lineSeg.start.y, lineSeg.start.z);
+    const end = new THREE.Vector3(lineSeg.end.x, lineSeg.end.y, lineSeg.end.z);
+    const direction = end.clone().sub(start);
+    const length = direction.length();
 
-    const end =
-        new THREE.Vector3(
-            line.end.x,
-            line.end.y,
-            line.end.z
-        );
+    if (length <= 0.001) return null;
 
-    const direction =
-        end.clone().sub(start);
+    const geometry = new THREE.BoxGeometry(width, depth, length);
+    const mesh = new THREE.Mesh(geometry, material);
 
-    const length =
-        direction.length();
-
-    if (length <= EPSILON) {
-        return null;
-    }
-
-    const geometry =
-        new THREE.BoxGeometry(
-            width,
-            depth,
-            length
-        );
-
-    const mesh =
-        new THREE.Mesh(
-            geometry,
-            material
-        );
-
-    mesh.position.copy(
-        start
-            .clone()
-            .add(end)
-            .multiplyScalar(0.5)
-    );
-
-    mesh.quaternion.setFromUnitVectors(
-        new THREE.Vector3(0, 0, 1),
-        direction.normalize()
-    );
+    mesh.position.copy(start.clone().add(end).multiplyScalar(0.5));
+    mesh.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, 1), direction.normalize());
+    mesh.castShadow = true;
 
     return mesh;
 }
 
-function addLine(
-    group,
-    name,
-    line,
-    material
-) {
-    const mesh =
-        createProfile(
-            line,
-            material
-        );
-
-    if (!mesh) {
-        return;
-    }
-
-    mesh.name = name;
-
-    group.add(mesh);
-}
-
 function createObject(context) {
     assertContext(context);
+    const trimsData = context.geometry.trims;
+    const root = new THREE.Group();
+    root.name = 'trims';
 
-    const root =
-        new THREE.Group();
-
-    root.name = 'trim';
-
-    const material =
-        resolveMaterial(context);
-
-    const roof =
-        context.geometry.roof;
-
-    addLine(
-        root,
-        'front-edge',
-        roof.edges?.front,
-        material
-    );
-
-    addLine(
-        root,
-        'back-edge',
-        roof.edges?.back,
-        material
-    );
-
-    if (roof.ridge) {
-        addLine(
-            root,
-            'ridge',
-            roof.ridge.edge,
-            material
-        );
+    if (!trimsData.enabled) {
+        return root;
     }
 
-    for (
-        const side
-        of ['left', 'right']
-    ) {
-        const eave =
-            roof.eaves?.[side];
+    const trimMaterial = resolveMaterial(context, 'trimMetal');
+    const eaveMaterial = resolveMaterial(context, 'eaveTrim');
 
-        if (!eave) {
-            continue;
-        }
+    // Карнизы
+    for (const eave of trimsData.eaves) {
+        const mesh = createProfileMesh(eave.edge, eaveMaterial, 0.12, 0.06);
+        if (mesh) root.add(mesh);
+    }
 
-        addLine(
-            root,
-            `${side}-eave`,
-            eave.edge,
-            material
-        );
+    // Фронтоны
+    for (const r of trimsData.rake) {
+        const mesh = createProfileMesh(r.edge, trimMaterial, 0.12, 0.06);
+        if (mesh) root.add(mesh);
+    }
+
+    // Конёк
+    for (const rd of trimsData.ridge) {
+        const mesh = createProfileMesh(rd.edge, trimMaterial, 0.15, 0.04);
+        if (mesh) root.add(mesh);
+    }
+
+    // Углы здания
+    for (const c of trimsData.corners) {
+        const mesh = createProfileMesh(c.edge, trimMaterial, 0.08, 0.08);
+        if (mesh) root.add(mesh);
     }
 
     return root;
 }
 
 function disposeObject(object) {
-    if (!object) {
-        return;
+    if (!object) return;
+    object.traverse(child => {
+        if (child.isMesh) {
+            child.geometry?.dispose();
+        }
+    });
+    while (object.children.length > 0) {
+        object.remove(object.children[0]);
     }
-
-    for (
-        const child
-        of [...object.children]
-    ) {
-        disposeObject(child);
-    }
-
-    object.geometry?.dispose();
     object.removeFromParent();
 }
 
-export const TrimOrchestrator =
-    Object.freeze({
-        id: 'trim',
-
-        create(context) {
-            return createObject(context);
-        },
-
-        update(object, context) {
-            if (!object) {
-                return createObject(context);
-            }
-
-            disposeObject(object);
-
-            return createObject(context);
-        },
-
-        dispose(object) {
-            disposeObject(object);
-        }
-    });
+export const TrimOrchestrator = Object.freeze({
+    id: 'trims',
+    create(context) {
+        return createObject(context);
+    },
+    update(object, context) {
+        if (!object) return createObject(context);
+        disposeObject(object);
+        return createObject(context);
+    },
+    dispose(object) {
+        disposeObject(object);
+    }
+});

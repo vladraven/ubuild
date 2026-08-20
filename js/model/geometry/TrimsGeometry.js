@@ -1,629 +1,124 @@
-const SIDES = Object.freeze([
-    'front',
-    'back',
-    'left',
-    'right'
-]);
+// js/model/geometry/TrimsGeometry.js
 
-function point(
-    x,
-    y,
-    z
-) {
-    return Object.freeze({
-        x,
-        y,
-        z
-    });
+function point(x, y, z) {
+    return Object.freeze({ x, y, z });
 }
 
-function segment(
-    start,
-    end
-) {
+function segment(start, end) {
     return Object.freeze({
         start,
         end,
-
-        length:
-            Math.hypot(
-                end.x - start.x,
-                end.y - start.y,
-                end.z - start.z
-            )
-    });
-}
-
-function assertFinite(
-    value,
-    name
-) {
-    if (
-        !Number.isFinite(value)
-    ) {
-        throw new TypeError(
-            `${name} must be finite`
-        );
-    }
-}
-
-function positive(
-    value,
-    name
-) {
-    assertFinite(
-        value,
-        name
-    );
-
-    if (
-        value <= 0
-    ) {
-        throw new RangeError(
-            `${name} must be greater than zero`
-        );
-    }
-
-    return value;
-}
-
-function resolveConfig(
-    model
-) {
-    return (
-        model.trims ??
-        {}
-    );
-}
-
-function resolveProfile(
-    config
-) {
-    const profile =
-        config.profile ??
-        {};
-
-    return Object.freeze({
-        width:
-            positive(
-                profile.width ??
-                    0.12,
-                'trims.profile.width'
-            ),
-
-        depth:
-            positive(
-                profile.depth ??
-                    0.06,
-                'trims.profile.depth'
-            ),
-
-        thickness:
-            positive(
-                profile.thickness ??
-                    0.01,
-                'trims.profile.thickness'
-            )
-    });
-}
-
-function createEmpty() {
-    return Object.freeze({
-        enabled: false,
-
-        profile:
-            Object.freeze({
-                width: 0,
-                depth: 0,
-                thickness: 0
-            }),
-
-        eaves:
-            Object.freeze([]),
-
-        rake:
-            Object.freeze([]),
-
-        ridge:
-            Object.freeze([]),
-
-        roofEdges:
-            Object.freeze([]),
-
-        corners:
-            Object.freeze([]),
-
-        bounds: null
-    });
-}
-
-function createEaveTrim(
-    side,
-    roof,
-    profile
-) {
-    const eave =
-        side === 'left'
-            ? roof.eaves.left
-            : roof.eaves.right;
-
-    const start =
-        point(
-            eave.front.x,
-            eave.front.y,
-            eave.front.z
-        );
-
-    const end =
-        point(
-            eave.back.x,
-            eave.back.y,
-            eave.back.z
-        );
-
-    return Object.freeze({
-        id:
-            `eave-${side}`,
-
-        type:
-            'eave',
-
-        side,
-
-        profile,
-
-        start,
-
-        end,
-
-        segment:
-            segment(
-                start,
-                end
-            ),
-
-        anchors:
-            Object.freeze([
-                start,
-                end
-            ])
-    });
-}
-
-function createRakeTrim(
-    side,
-    roof,
-    profile
-) {
-    const rake =
-        side === 'front'
-            ? roof.rake.front
-            : roof.rake.back;
-
-    if (!rake) {
-        return null;
-    }
-
-    const start =
-        point(
-            rake.start.x,
-            rake.start.y,
-            rake.start.z
-        );
-
-    const end =
-        point(
-            rake.end.x,
-            rake.end.y,
-            rake.end.z
-        );
-
-    return Object.freeze({
-        id:
-            `rake-${side}`,
-
-        type:
-            'rake',
-
-        side,
-
-        profile,
-
-        start,
-
-        end,
-
-        segment:
-            segment(
-                start,
-                end
-            ),
-
-        anchors:
-            Object.freeze([
-                start,
-                end
-            ])
-    });
-}
-
-function createRidgeTrim(
-    roof,
-    profile
-) {
-    if (
-        !roof.ridge
-    ) {
-        return null;
-    }
-
-    const start =
-        point(
-            roof.ridge.start.x,
-            roof.ridge.start.y,
-            roof.ridge.start.z
-        );
-
-    const end =
-        point(
-            roof.ridge.end.x,
-            roof.ridge.end.y,
-            roof.ridge.end.z
-        );
-
-    return Object.freeze({
-        id:
-            'ridge',
-
-        type:
-            'ridge',
-
-        side:
-            null,
-
-        profile,
-
-        start,
-
-        end,
-
-        segment:
-            segment(
-                start,
-                end
-            ),
-
-        anchors:
-            Object.freeze([
-                start,
-                end
-            ])
-    });
-}
-
-function createRoofEdge(
-    id,
-    edge,
-    profile
-) {
-    if (!edge) {
-        return null;
-    }
-
-    const start =
-        point(
-            edge.start.x,
-            edge.start.y,
-            edge.start.z
-        );
-
-    const end =
-        point(
-            edge.end.x,
-            edge.end.y,
-            edge.end.z
-        );
-
-    return Object.freeze({
-        id,
-
-        type:
-            'roof-edge',
-
-        side:
-            null,
-
-        profile,
-
-        start,
-
-        end,
-
-        segment:
-            segment(
-                start,
-                end
-            ),
-
-        anchors:
-            Object.freeze([
-                start,
-                end
-            ])
-    });
-}
-
-function collectPoints(
-    trims
-) {
-    const points = [];
-
-    for (
-        const trim
-        of trims
-    ) {
-        if (!trim) {
-            continue;
-        }
-
-        points.push(
-            trim.start,
-            trim.end
-        );
-    }
-
-    return points;
-}
-
-function calculateBounds(
-    trims
-) {
-    const points =
-        collectPoints(
-            trims
-        );
-
-    if (
-        points.length === 0
-    ) {
-        return null;
-    }
-
-    const min =
-        point(
-            Math.min(
-                ...points.map(
-                    value =>
-                        value.x
-                )
-            ),
-            Math.min(
-                ...points.map(
-                    value =>
-                        value.y
-                )
-            ),
-            Math.min(
-                ...points.map(
-                    value =>
-                        value.z
-                )
-            )
-        );
-
-    const max =
-        point(
-            Math.max(
-                ...points.map(
-                    value =>
-                        value.x
-                )
-            ),
-            Math.max(
-                ...points.map(
-                    value =>
-                        value.y
-                )
-            ),
-            Math.max(
-                ...points.map(
-                    value =>
-                        value.z
-                )
-            )
-        );
-
-    return Object.freeze({
-        min,
-        max,
-
-        width:
-            max.x - min.x,
-
-        height:
-            max.y - min.y,
-
-        length:
-            max.z - min.z,
-
-        center:
-            point(
-                (
-                    min.x +
-                    max.x
-                ) / 2,
-
-                (
-                    min.y +
-                    max.y
-                ) / 2,
-
-                (
-                    min.z +
-                    max.z
-                ) / 2
-            )
-    });
-}
-
-export function createTrimsGeometry(
-    model,
-    envelope,
-    roof
-) {
-    if (!model) {
-        throw new TypeError(
-            'BuildingModel is required'
-        );
-    }
-
-    if (!envelope) {
-        throw new TypeError(
-            'BuildingEnvelope is required'
-        );
-    }
-
-    if (!roof) {
-        throw new TypeError(
-            'RoofGeometry is required'
-        );
-    }
-
-    const config =
-        resolveConfig(
-            model
-        );
-
-    if (
-        config.enabled === false
-    ) {
-        return createEmpty();
-    }
-
-    const profile =
-        resolveProfile(
-            config
-        );
-
-    const eaves = [
-        createEaveTrim(
-            'left',
-            roof,
-            profile
-        ),
-
-        createEaveTrim(
-            'right',
-            roof,
-            profile
+        length: Math.hypot(
+            end.x - start.x,
+            end.y - start.y,
+            end.z - start.z
         )
+    });
+}
+
+export function createTrimsGeometry(model, envelope, roof) {
+    if (!model || !envelope || !roof) {
+        throw new TypeError('BuildingModel, BuildingEnvelope, and RoofGeometry are required');
+    }
+
+    if (model.visibility?.trims === false) {
+        return Object.freeze({
+            enabled: false,
+            eaves: Object.freeze([]),
+            rake: Object.freeze([]),
+            ridge: Object.freeze([]),
+            corners: Object.freeze([]),
+            roofEdges: Object.freeze([])
+        });
+    }
+
+    const ov = model.roof.overhangs;
+    const isGabled = model.roof.type === 'gabled';
+    const isLeftSloped = model.roof.type === 'left-sloped';
+    const isRightSloped = model.roof.type === 'right-sloped';
+
+    const halfW = envelope.width / 2;
+    const length = envelope.length;
+    const height = envelope.height;
+    const rise = roof.rise;
+
+    const leftX = -halfW - ov.left;
+    const rightX = halfW + ov.right;
+    const frontZ = -ov.front;
+    const backZ = length + ov.back;
+
+    const leftY = isRightSloped ? height + rise : height;
+    const rightY = isLeftSloped ? height + rise : height;
+    const ridgeY = height + rise;
+
+    // 1. Eaves Trims (карнизные нащельники)
+    const eaves = [
+        Object.freeze({
+            id: 'eave-left',
+            side: 'L',
+            start: point(leftX, leftY, frontZ),
+            end: point(leftX, leftY, backZ),
+            edge: segment(point(leftX, leftY, frontZ), point(leftX, leftY, backZ))
+        }),
+        Object.freeze({
+            id: 'eave-right',
+            side: 'R',
+            start: point(rightX, rightY, frontZ),
+            end: point(rightX, rightY, backZ),
+            edge: segment(point(rightX, rightY, frontZ), point(rightX, rightY, backZ))
+        })
     ];
 
-    const rake = [
-        createRakeTrim(
-            'front',
-            roof,
-            profile
-        ),
-
-        createRakeTrim(
-            'back',
-            roof,
-            profile
-        )
-    ].filter(
-        Boolean
-    );
-
-    const ridge = [
-        createRidgeTrim(
-            roof,
-            profile
-        )
-    ].filter(
-        Boolean
-    );
-
-    const roofEdges = [
-        createRoofEdge(
-            'left-rake',
-            roof.rake?.left,
-            profile
-        ),
-
-        createRoofEdge(
-            'right-rake',
-            roof.rake?.right,
-            profile
-        ),
-
-        createRoofEdge(
-            'front-edge',
-            roof.edges?.front,
-            profile
-        ),
-
-        createRoofEdge(
-            'back-edge',
-            roof.edges?.back,
-            profile
-        )
-    ].filter(
-        Boolean
-    );
-
-    const corners = [
-        ...eaves,
-        ...rake,
-        ...ridge,
-        ...roofEdges
-    ]
-        .flatMap(
-            trim => [
-                ...trim.anchors
-            ]
+    // 2. Rake Trims (фронтонные нащельники торцов)
+    const rake = [];
+    if (isGabled) {
+        // Передний торец (Front)
+        rake.push(
+            Object.freeze({ id: 'rake-front-left', side: 'F', start: point(leftX, height, frontZ), end: point(0, ridgeY, frontZ), edge: segment(point(leftX, height, frontZ), point(0, ridgeY, frontZ)) }),
+            Object.freeze({ id: 'rake-front-right', side: 'F', start: point(0, ridgeY, frontZ), end: point(rightX, height, frontZ), edge: segment(point(0, ridgeY, frontZ), point(rightX, height, frontZ)) })
         );
+        // Задний торец (Back)
+        rake.push(
+            Object.freeze({ id: 'rake-back-left', side: 'B', start: point(leftX, height, backZ), end: point(0, ridgeY, backZ), edge: segment(point(leftX, height, backZ), point(0, ridgeY, backZ)) }),
+            Object.freeze({ id: 'rake-back-right', side: 'B', start: point(0, ridgeY, backZ), end: point(rightX, height, backZ), edge: segment(point(0, ridgeY, backZ), point(rightX, height, backZ)) })
+        );
+    } else {
+        // Односкатные (Left-sloped / Right-sloped)
+        rake.push(
+            Object.freeze({ id: 'rake-front', side: 'F', start: point(leftX, leftY, frontZ), end: point(rightX, rightY, frontZ), edge: segment(point(leftX, leftY, frontZ), point(rightX, rightY, frontZ)) }),
+            Object.freeze({ id: 'rake-back', side: 'B', start: point(leftX, leftY, backZ), end: point(rightX, rightY, backZ), edge: segment(point(leftX, leftY, backZ), point(rightX, rightY, backZ)) })
+        );
+    }
 
-    const allTrims = [
-        ...eaves,
-        ...rake,
-        ...ridge,
-        ...roofEdges
+    // 3. Ridge Trim (конёк)
+    const ridge = [];
+    if (isGabled && roof.ridge) {
+        ridge.push(Object.freeze({
+            id: 'ridge-trim',
+            side: 'center',
+            start: point(0, ridgeY, frontZ),
+            end: point(0, ridgeY, backZ),
+            edge: segment(point(0, ridgeY, frontZ), point(0, ridgeY, backZ))
+        }));
+    }
+
+    // 4. Corner Trims (угловые нащельники 4-х углов здания)
+    const corners = [
+        Object.freeze({ id: 'corner-FL', edge: segment(point(-halfW, 0, 0), point(-halfW, leftY, 0)) }),
+        Object.freeze({ id: 'corner-FR', edge: segment(point(halfW, 0, 0), point(halfW, rightY, 0)) }),
+        Object.freeze({ id: 'corner-BL', edge: segment(point(-halfW, 0, length), point(-halfW, leftY, length)) }),
+        Object.freeze({ id: 'corner-BR', edge: segment(point(halfW, 0, length), point(halfW, rightY, length)) })
     ];
 
     return Object.freeze({
         enabled: true,
-
-        profile,
-
-        eaves:
-            Object.freeze(
-                eaves
-            ),
-
-        rake:
-            Object.freeze(
-                rake
-            ),
-
-        ridge:
-            Object.freeze(
-                ridge
-            ),
-
-        roofEdges:
-            Object.freeze(
-                roofEdges
-            ),
-
-        corners:
-            Object.freeze(
-                corners
-            ),
-
-        bounds:
-            calculateBounds(
-                allTrims
-            )
+        eaves: Object.freeze(eaves),
+        rake: Object.freeze(rake),
+        ridge: Object.freeze(ridge),
+        corners: Object.freeze(corners),
+        roofEdges: Object.freeze([
+            segment(point(leftX, leftY, frontZ), point(rightX, rightY, frontZ)),
+            segment(point(leftX, leftY, backZ), point(rightX, rightY, backZ))
+        ])
     });
 }
