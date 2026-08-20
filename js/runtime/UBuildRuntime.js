@@ -26,6 +26,12 @@ import { getSolarState } from '../lighting/SolarPosition.js';
 import { createCameraControls } from '../interaction/CameraControls.js';
 import { createOpeningInteraction } from '../interaction/OpeningInteraction.js';
 
+import { createMaterialCatalog } from '../resources/materials/MaterialCatalog.js';
+import { createMaterial, updateMaterialColor, disposeMaterial } from '../resources/materials/MaterialFactory.js';
+import { createColorPalette } from '../resources/colors/ColorPalette.js';
+import { createTextureCatalog } from '../resources/textures/TextureCatalog.js';
+import { createTextureManager } from '../resources/textures/TextureManager.js';
+
 function assertContainer(container) {
     if (!container || typeof container.appendChild !== 'function') {
         throw new TypeError('A valid DOM container element is required');
@@ -69,49 +75,83 @@ function createRenderer(container) {
     return renderer;
 }
 
-function createMaterialSystem() {
-    const materials = new Map([
-        ['wallMetal', new THREE.MeshStandardMaterial({ color: 0x777777, metalness: 0.35, roughness: 0.7 })],
-        ['roofMetal', new THREE.MeshStandardMaterial({ color: 0x555555, metalness: 0.4, roughness: 0.65 })],
-        ['structuralSteel', new THREE.MeshStandardMaterial({ color: 0x444444, metalness: 0.65, roughness: 0.45 })],
-        ['steel', new THREE.MeshStandardMaterial({ color: 0x444444, metalness: 0.65, roughness: 0.45 })],
-        ['concrete', new THREE.MeshStandardMaterial({ color: 0x999999, roughness: 0.9 })],
-        ['trimMetal', new THREE.MeshStandardMaterial({ color: 0x444444, metalness: 0.55, roughness: 0.5 })],
-        ['eaveTrim', new THREE.MeshStandardMaterial({ color: 0x444444, metalness: 0.55, roughness: 0.5 })],
-        ['doorTrim', new THREE.MeshStandardMaterial({ color: 0x444444, metalness: 0.55, roughness: 0.5 })],
-        ['doorFrame', new THREE.MeshStandardMaterial({ color: 0x444444, metalness: 0.55, roughness: 0.5 })],
-        ['frame', new THREE.MeshStandardMaterial({ color: 0x444444, metalness: 0.55, roughness: 0.5 })],
-        ['doorPanel', new THREE.MeshStandardMaterial({ color: 0x888888, metalness: 0.2, roughness: 0.8 })],
-        ['glass', new THREE.MeshStandardMaterial({ color: 0x9ccfff, transparent: true, opacity: 0.45, roughness: 0.1, metalness: 0 })],
-        ['mezzanine', new THREE.MeshStandardMaterial({ color: 0x666666, metalness: 0.4, roughness: 0.6 })],
-        ['interiorWall', new THREE.MeshStandardMaterial({ color: 0xeeeeee, metalness: 0.1, roughness: 0.8 })],
-        ['wall', new THREE.MeshStandardMaterial({ color: 0x777777, metalness: 0.35, roughness: 0.7 })]
-    ]);
+function createRuntimeMaterialSystem(paletteOverrides, catalogOverrides, textureCatalogOverrides) {
+    const catalog = createMaterialCatalog(catalogOverrides);
+    const palette = createColorPalette(paletteOverrides);
+    const textureCatalog = createTextureCatalog(textureCatalogOverrides);
+    const textureManager = createTextureManager({
+        loader: new THREE.TextureLoader(),
+        catalog: textureCatalog
+    });
+
+    const materialsMap = new Map();
+
+    function get(name, colorOverride, textureBundle = null) {
+        const key = `${name}_${colorOverride || ''}`;
+        if (materialsMap.has(key)) {
+            return materialsMap.get(key);
+        }
+
+        const definition = catalog[name] || catalog.steel;
+        const color = colorOverride || palette[name] || palette.wall;
+        const material = createMaterial(definition, color);
+
+        if (textureBundle) {
+            if (textureBundle.colorMap) material.map = textureBundle.colorMap;
+            if (textureBundle.normalMap) material.normalMap = textureBundle.normalMap;
+            if (textureBundle.bumpMap) material.bumpMap = textureBundle.bumpMap;
+            if (textureBundle.roughnessMap) material.roughnessMap = textureBundle.roughnessMap;
+            material.needsUpdate = true;
+        }
+
+        materialsMap.set(key, material);
+        return material;
+    }
+
+    function updatePalette(newPaletteOverrides) {
+        const updatedPalette = createColorPalette(newPaletteOverrides);
+        for (const [key, material] of materialsMap.entries()) {
+            for (const [colorName, hexColor] of Object.entries(updatedPalette)) {
+                if (key.startsWith(colorName)) {
+                    updateMaterialColor(material, hexColor);
+                }
+            }
+        }
+    }
+
+    function dispose() {
+        for (const material of materialsMap.values()) {
+            disposeMaterial(material);
+        }
+        materialsMap.clear();
+        textureManager.clearAll();
+    }
 
     return Object.freeze({
-        get(name) {
-            return materials.get(name) ?? materials.get('steel');
-        },
-        dispose() {
-            for (const mat of materials.values()) {
-                mat.dispose();
-            }
-            materials.clear();
-        }
+        catalog,
+        palette,
+        textureManager,
+        get,
+        updatePalette,
+        dispose
     });
 }
 
-function createColors() {
+function createColorsFromModel(model) {
     return Object.freeze({
-        wall: 0x777777,
-        roof: 0x555555,
-        frame: 0x444444,
-        trim: 0x444444,
-        wainscot: 0x444444,
-        concrete: 0x999999,
-        glass: 0x9ccfff,
-        mezzanine: 0x666666,
-        interiorWall: 0xeeeeee
+        wall: model.colors?.wall || '#FFFFFF',
+        wainscot: model.colors?.wainscot || '#FFFFFF',
+        roof: model.colors?.roof || '#FFFFFF',
+        trim: model.colors?.trim || '#FFFFFF',
+        eaveTrim: model.colors?.eaveTrim || '#FFFFFF',
+        rakeTrim: model.colors?.rakeTrim || '#FFFFFF',
+        frame: model.colors?.frame || '#444444',
+        steel: model.colors?.steel || '#444444',
+        concrete: model.colors?.concrete || '#B8B8B8',
+        glass: model.colors?.glass || '#9FC5E8',
+        ceiling: model.colors?.ceiling || '#FFFFFF',
+        mezzanine: model.colors?.mezzanine || '#FFFFFF',
+        interiorWall: model.colors?.interiorWall || '#EEEEEE'
     });
 }
 
@@ -190,8 +230,8 @@ export function createUBuildRuntime({
     scene.add(environmentSystem.group);
 
     const lightingSystem = createLightingSystem(scene);
-    const materials = createMaterialSystem();
-    const colors = createColors();
+    const colors = createColorsFromModel(buildingModel);
+    const materials = createRuntimeMaterialSystem(colors);
     const registry = createRegistry();
 
     const buildingRoot = new THREE.Group();
@@ -276,11 +316,14 @@ export function createUBuildRuntime({
         buildingModel = createBuildingModel(nextModel);
         buildingGeometry = createBuildingGeometry(buildingModel);
 
+        const updatedColors = createColorsFromModel(buildingModel);
+        materials.updatePalette(updatedColors);
+
         const nextContext = createContext({
             model: buildingModel,
             geometry: buildingGeometry,
             materials,
-            colors,
+            colors: updatedColors,
             scene,
             camera,
             renderer
