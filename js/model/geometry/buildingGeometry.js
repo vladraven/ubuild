@@ -58,6 +58,58 @@ import {
     validateGeometryInvariants
 } from './GeometryInvariants.js';
 
+function createEmptyTrimGeometry() {
+    return Object.freeze({
+        eaves: Object.freeze([]),
+        rake: Object.freeze([]),
+        ridge: Object.freeze([]),
+        roofEdges: Object.freeze([])
+    });
+}
+
+function createEmptyGutterGeometry() {
+    return Object.freeze({
+        eaves: Object.freeze([]),
+        downspouts: Object.freeze([]),
+        outlets: Object.freeze([]),
+        anchors: Object.freeze([])
+    });
+}
+
+function createLogoGeometry(
+    model,
+    envelope
+) {
+    const config =
+        model.logo;
+
+    if (
+        !config ||
+        config.enabled === false
+    ) {
+        return Object.freeze({
+            enabled: false,
+            position: null,
+            rotation: null,
+            bounds: null
+        });
+    }
+
+    return Object.freeze({
+        enabled: true,
+
+        position:
+            config.position ??
+            null,
+
+        rotation:
+            config.rotation ??
+            null,
+
+        bounds: null
+    });
+}
+
 export function createBuildingGeometry(
     model,
     options = {}
@@ -205,6 +257,18 @@ export function createBuildingGeometry(
             panelSystem
         );
 
+    const trims =
+        createEmptyTrimGeometry();
+
+    const gutters =
+        createEmptyGutterGeometry();
+
+    const logo =
+        createLogoGeometry(
+            model,
+            envelope
+        );
+
     const geometry =
         createBuildingGeometryContract({
             ...geometrySource,
@@ -214,17 +278,14 @@ export function createBuildingGeometry(
             wainscot:
                 panels.wainscot,
 
-            trims:
-                options.trims ?? null,
+            trims,
 
             ridge:
                 roof.ridge,
 
-            gutters:
-                options.gutters ?? null,
+            gutters,
 
-            logo:
-                options.logo ?? null
+            logo
         });
 
     validateGeometryInvariants(
