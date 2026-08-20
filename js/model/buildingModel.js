@@ -58,6 +58,33 @@ const OPENING_DEFS = Object.freeze({
     })
 });
 
+const DEFAULT_AWNING_SIDE = Object.freeze({
+    active: false,
+
+    depth: 0,
+
+    drop: 0,
+
+    pitch: 0,
+
+    cutL: 0,
+
+    cutR: 0,
+
+    wallF: false,
+
+    wallL: false,
+
+    wallR: false
+});
+
+const DEFAULT_AWNINGS = Object.freeze({
+    L: DEFAULT_AWNING_SIDE,
+    R: DEFAULT_AWNING_SIDE,
+    F: DEFAULT_AWNING_SIDE,
+    B: DEFAULT_AWNING_SIDE
+});
+
 const DEFAULTS = Object.freeze({
     dimensions: Object.freeze({
         width: 18.288,
@@ -67,14 +94,17 @@ const DEFAULTS = Object.freeze({
 
     roof: Object.freeze({
         type: 'gabled',
-        pitchRatio: 0.1666666667,
 
-        overhangs: Object.freeze({
-            front: 0,
-            back: 0,
-            left: 0,
-            right: 0
-        })
+        pitchRatio:
+            0.1666666667,
+
+        overhangs:
+            Object.freeze({
+                front: 0,
+                back: 0,
+                left: 0,
+                right: 0
+            })
     }),
 
     walls: Object.freeze({
@@ -83,72 +113,114 @@ const DEFAULTS = Object.freeze({
 
     panels: Object.freeze({
         profile: 'awr',
-        wallHeight: 4.8768,
-        wainscotHeight: 0.9144
+
+        wallHeight:
+            4.8768,
+
+        wainscotHeight:
+            0.9144
     }),
 
     foundation: Object.freeze({
         enabled: true,
-        height: 0.3048
+
+        height:
+            0.3048
     }),
 
-    openings: Object.freeze([]),
+    openings:
+        Object.freeze([]),
 
-    awnings: Object.freeze([]),
+    awnings:
+        DEFAULT_AWNINGS,
 
     liner: Object.freeze({
         enabled: false,
+
         height: 0,
+
         thickness: 0
     }),
 
     mezzanine: Object.freeze({
         enabled: false,
+
         coverage: 0,
+
         z: 0,
+
         height: 0,
+
         color: null
     }),
 
     crane: Object.freeze({
         enabled: false,
-        z: 0
+
+        z: 0,
+
+        zPercent: 0
     }),
 
     driveway: Object.freeze({
         enabled: false,
+
         width: 0,
+
         length: 0,
+
         height: 0
     }),
 
     logo: Object.freeze({
         enabled: false,
+
         width: 0,
+
         height: 0,
+
         thickness: 0,
+
         margin: 0
     }),
 
     visibility: Object.freeze({
         walls: true,
+
         roof: true,
+
         foundation: true,
+
         panels: true,
+
         wainscot: true,
+
         frames: true,
+
         girts: true,
+
         purlins: true,
+
         endWallColumns: true,
+
         trims: true,
+
         ridge: true,
+
         gutters: true,
+
         awnings: true,
+
         liner: true,
+
         mezzanine: true,
+
         crane: true,
+
         driveway: true,
+
         logo: true,
+
         labels: true
     })
 });
@@ -182,7 +254,13 @@ const LIMITS = Object.freeze({
     wallThickness: Object.freeze({
         min: 0,
         max: 1
-    })
+    }),
+
+    craneZPercent:
+        Object.freeze({
+            min: 0,
+            max: 1
+        })
 });
 
 function clone(value) {
@@ -190,7 +268,10 @@ function clone(value) {
         return value.map(clone);
     }
 
-    if (value && typeof value === 'object') {
+    if (
+        value &&
+        typeof value === 'object'
+    ) {
         return Object.fromEntries(
             Object.entries(value).map(
                 ([key, item]) => [
@@ -205,25 +286,41 @@ function clone(value) {
 }
 
 function freeze(value) {
-    if (!value || typeof value !== 'object') {
+    if (
+        !value ||
+        typeof value !== 'object'
+    ) {
         return value;
     }
 
-    for (const item of Object.values(value)) {
+    for (
+        const item
+        of Object.values(value)
+    ) {
         freeze(item);
     }
 
     return Object.freeze(value);
 }
 
-function merge(base, override) {
-    const result = clone(base);
+function merge(
+    base,
+    override
+) {
+    const result =
+        clone(base);
 
-    if (!override || typeof override !== 'object') {
+    if (
+        !override ||
+        typeof override !== 'object'
+    ) {
         return result;
     }
 
-    for (const [key, value] of Object.entries(override)) {
+    for (
+        const [key, value]
+        of Object.entries(override)
+    ) {
         if (
             value &&
             typeof value === 'object' &&
@@ -232,22 +329,29 @@ function merge(base, override) {
             typeof result[key] === 'object' &&
             !Array.isArray(result[key])
         ) {
-            result[key] = merge(
-                result[key],
-                value
-            );
+            result[key] =
+                merge(
+                    result[key],
+                    value
+                );
 
             continue;
         }
 
-        result[key] = clone(value);
+        result[key] =
+            clone(value);
     }
 
     return result;
 }
 
-function assertFinite(value, path) {
-    if (!Number.isFinite(value)) {
+function assertFinite(
+    value,
+    path
+) {
+    if (
+        !Number.isFinite(value)
+    ) {
         throw new TypeError(
             `${path} must be a finite number`
         );
@@ -260,16 +364,24 @@ function assertRange(
     max,
     path
 ) {
-    assertFinite(value, path);
+    assertFinite(
+        value,
+        path
+    );
 
-    if (value < min || value > max) {
+    if (
+        value < min ||
+        value > max
+    ) {
         throw new RangeError(
             `${path} must be between ${min} and ${max}`
         );
     }
 }
 
-function validateDimensions(model) {
+function validateDimensions(
+    model
+) {
     assertRange(
         model.dimensions.width,
         LIMITS.width.min,
@@ -292,8 +404,14 @@ function validateDimensions(model) {
     );
 }
 
-function validateRoof(model) {
-    if (!ROOF_TYPES.includes(model.roof.type)) {
+function validateRoof(
+    model
+) {
+    if (
+        !ROOF_TYPES.includes(
+            model.roof.type
+        )
+    ) {
         throw new RangeError(
             `Unsupported roof type: ${model.roof.type}`
         );
@@ -304,20 +422,27 @@ function validateRoof(model) {
         'roof.pitchRatio'
     );
 
-    if (model.roof.pitchRatio <= 0) {
+    if (
+        model.roof.pitchRatio <= 0
+    ) {
         throw new RangeError(
             'roof.pitchRatio must be greater than zero'
         );
     }
 
-    for (const side of [
-        'front',
-        'back',
-        'left',
-        'right'
-    ]) {
+    for (
+        const side
+        of [
+            'front',
+            'back',
+            'left',
+            'right'
+        ]
+    ) {
         assertRange(
-            model.roof.overhangs[side],
+            model.roof.overhangs[
+                side
+            ],
             LIMITS.overhang.min,
             LIMITS.overhang.max,
             `roof.overhangs.${side}`
@@ -325,7 +450,9 @@ function validateRoof(model) {
     }
 }
 
-function validateWalls(model) {
+function validateWalls(
+    model
+) {
     assertRange(
         model.walls.thickness,
         LIMITS.wallThickness.min,
@@ -334,10 +461,14 @@ function validateWalls(model) {
     );
 }
 
-function validatePanels(model) {
+function validatePanels(
+    model
+) {
     if (
-        typeof model.panels.profile !== 'string' ||
-        model.panels.profile.trim() === ''
+        typeof model.panels.profile !==
+            'string' ||
+        model.panels.profile.trim() ===
+            ''
     ) {
         throw new TypeError(
             'panels.profile is required'
@@ -354,7 +485,9 @@ function validatePanels(model) {
         'panels.wainscotHeight'
     );
 
-    if (model.panels.wallHeight <= 0) {
+    if (
+        model.panels.wallHeight <= 0
+    ) {
         throw new RangeError(
             'panels.wallHeight must be greater than zero'
         );
@@ -369,7 +502,9 @@ function validatePanels(model) {
         );
     }
 
-    if (model.panels.wainscotHeight < 0) {
+    if (
+        model.panels.wainscotHeight < 0
+    ) {
         throw new RangeError(
             'panels.wainscotHeight cannot be negative'
         );
@@ -385,7 +520,9 @@ function validatePanels(model) {
     }
 }
 
-function validateFoundation(model) {
+function validateFoundation(
+    model
+) {
     assertRange(
         model.foundation.height,
         LIMITS.foundationHeight.min,
@@ -394,39 +531,136 @@ function validateFoundation(model) {
     );
 }
 
+function validateAwningSide(
+    side,
+    name
+) {
+    if (
+        !side ||
+        typeof side !== 'object'
+    ) {
+        throw new TypeError(
+            `${name} must be an object`
+        );
+    }
+
+    for (
+        const field
+        of [
+            'depth',
+            'drop',
+            'pitch',
+            'cutL',
+            'cutR'
+        ]
+    ) {
+        assertFinite(
+            side[field],
+            `${name}.${field}`
+        );
+
+        if (
+            side[field] < 0
+        ) {
+            throw new RangeError(
+                `${name}.${field} cannot be negative`
+            );
+        }
+    }
+}
+
+function validateAwnings(
+    model
+) {
+    for (
+        const side
+        of SIDES
+    ) {
+        validateAwningSide(
+            model.awnings[side],
+            `awnings.${side}`
+        );
+    }
+}
+
+function validateCrane(
+    model
+) {
+    const crane =
+        model.crane;
+
+    assertRange(
+        crane.z,
+        LIMITS.craneZPercent.min,
+        LIMITS.craneZPercent.max,
+        'crane.z'
+    );
+
+    assertRange(
+        crane.zPercent,
+        LIMITS.craneZPercent.min,
+        LIMITS.craneZPercent.max,
+        'crane.zPercent'
+    );
+
+    if (
+        crane.z !==
+        crane.zPercent
+    ) {
+        throw new RangeError(
+            'crane.z and crane.zPercent must represent the same position'
+        );
+    }
+}
+
 function validateOpening(
     opening,
     index
 ) {
-    if (!opening || typeof opening !== 'object') {
+    if (
+        !opening ||
+        typeof opening !== 'object'
+    ) {
         throw new TypeError(
             `openings[${index}] must be an object`
         );
     }
 
     if (
-        typeof opening.id !== 'string' ||
-        opening.id.trim() === ''
+        typeof opening.id !==
+            'string' ||
+        opening.id.trim() ===
+            ''
     ) {
         throw new TypeError(
             `openings[${index}].id is required`
         );
     }
 
-    if (!OPENING_TYPES.includes(opening.type)) {
+    if (
+        !OPENING_TYPES.includes(
+            opening.type
+        )
+    ) {
         throw new RangeError(
             `Unsupported opening type: ${opening.type}`
         );
     }
 
-    if (!SIDES.includes(opening.side)) {
+    if (
+        !SIDES.includes(
+            opening.side
+        )
+    ) {
         throw new RangeError(
             `Unsupported opening side: ${opening.side}`
         );
     }
 
     const definition =
-        OPENING_DEFS[opening.type];
+        OPENING_DEFS[
+            opening.type
+        ];
 
     const width =
         opening.w ??
@@ -463,59 +697,108 @@ function validateOpening(
         `openings[${index}].yOff`
     );
 
-    if (width <= 0) {
+    if (
+        width <= 0
+    ) {
         throw new RangeError(
             `openings[${index}].width must be greater than zero`
         );
     }
 
-    if (height <= 0) {
+    if (
+        height <= 0
+    ) {
         throw new RangeError(
             `openings[${index}].height must be greater than zero`
         );
     }
 
-    if (yOff < 0) {
+    if (
+        yOff < 0
+    ) {
         throw new RangeError(
             `openings[${index}].yOff cannot be negative`
         );
     }
 }
 
-function validateOpenings(model) {
-    if (!Array.isArray(model.openings)) {
+function validateOpenings(
+    model
+) {
+    if (
+        !Array.isArray(
+            model.openings
+        )
+    ) {
         throw new TypeError(
             'openings must be an array'
         );
     }
 
-    const ids = new Set();
+    const ids =
+        new Set();
 
     model.openings.forEach(
-        (opening, index) => {
+        (
+            opening,
+            index
+        ) => {
             validateOpening(
                 opening,
                 index
             );
 
-            if (ids.has(opening.id)) {
+            if (
+                ids.has(
+                    opening.id
+                )
+            ) {
                 throw new Error(
                     `Duplicate opening id: ${opening.id}`
                 );
             }
 
-            ids.add(opening.id);
+            ids.add(
+                opening.id
+            );
         }
     );
 }
 
-function validate(model) {
-    validateDimensions(model);
-    validateRoof(model);
-    validateWalls(model);
-    validatePanels(model);
-    validateFoundation(model);
-    validateOpenings(model);
+function validate(
+    model
+) {
+    validateDimensions(
+        model
+    );
+
+    validateRoof(
+        model
+    );
+
+    validateWalls(
+        model
+    );
+
+    validatePanels(
+        model
+    );
+
+    validateFoundation(
+        model
+    );
+
+    validateAwnings(
+        model
+    );
+
+    validateCrane(
+        model
+    );
+
+    validateOpenings(
+        model
+    );
 
     return model;
 }
@@ -523,14 +806,39 @@ function validate(model) {
 export function createBuildingModel(
     overrides = {}
 ) {
-    const model = merge(
-        DEFAULTS,
-        overrides
+    const model =
+        merge(
+            DEFAULTS,
+            overrides
+        );
+
+    if (
+        model.crane.zPercent ===
+        undefined &&
+        model.crane.z !==
+            undefined
+    ) {
+        model.crane.zPercent =
+            model.crane.z;
+    }
+
+    if (
+        model.crane.z ===
+        undefined &&
+        model.crane.zPercent !==
+            undefined
+    ) {
+        model.crane.z =
+            model.crane.zPercent;
+    }
+
+    validate(
+        model
     );
 
-    validate(model);
-
-    return freeze(model);
+    return freeze(
+        model
+    );
 }
 
 export function updateBuildingModel(
@@ -567,15 +875,21 @@ export function validateBuildingModel(
 export function cloneBuildingModel(
     model
 ) {
-    return clone(model);
+    return clone(
+        model
+    );
 }
 
 export function getBuildingModelDefaults() {
-    return clone(DEFAULTS);
+    return clone(
+        DEFAULTS
+    );
 }
 
 export function getBuildingModelLimits() {
-    return clone(LIMITS);
+    return clone(
+        LIMITS
+    );
 }
 
 export {
