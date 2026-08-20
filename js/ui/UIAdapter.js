@@ -1,3 +1,4 @@
+import * as THREE from 'three';
 import { serializeModelToURL } from '../integration/URLSerializer.js';
 import { submitToGravityForms } from '../integration/GravityFormsAdapter.js';
 const M_TO_FT=3.28084;
@@ -8,7 +9,6 @@ export function createUIAdapter(runtime){
     let isImperial=true;
     let savedOutsidePosition=null;
     let savedOutsideTarget=null;
-    let insideView=false;
     function toDisplay(meters){
         if(meters===undefined||meters===null)return 0;
         return isImperial?(meters*M_TO_FT).toFixed(1):Number(meters).toFixed(2);
@@ -149,7 +149,8 @@ export function createUIAdapter(runtime){
     }
     function bindOverhangs(){
         for(const side of ['front','back','left','right']){
-            const elements=document.querySelectorAll(`#inputOH${side==='front'?'F':side==='back'?'B':side==='left'?'L':'R'},#overhang-${side},#slider-overhang-${side},#val-overhang-${side}`);
+            const suffix=side==='front'?'F':side==='back'?'B':side==='left'?'L':'R';
+            const elements=document.querySelectorAll(`#inputOH${suffix},#overhang-${side},#slider-overhang-${side},#val-overhang-${side}`);
             elements.forEach(el=>el.addEventListener('input',e=>update({roof:{...runtime.model.roof,overhangs:{...runtime.model.roof.overhangs,[side]:toMeters(e.target.value)}}})));
         }
     }
@@ -181,8 +182,11 @@ export function createUIAdapter(runtime){
     function bindUnits(){
         const toggle=document.querySelector('#unitToggle,#unit-toggle,#unit-switch,[data-unit],.btn-unit-toggle');
         if(!toggle)return;
-        toggle.addEventListener('change',e=>{isImperial=e.target.getAttribute('data-unit')?e.target.getAttribute('data-unit')==='imperial':!e.target.checked;updateInputsFromModel();});
-        toggle.addEventListener('click',e=>{
+        toggle.addEventListener('change',e=>{
+            isImperial=e.target.getAttribute('data-unit')?e.target.getAttribute('data-unit')==='imperial':!e.target.checked;
+            updateInputsFromModel();
+        });
+        toggle.addEventListener('click',()=>{
             if(toggle.type==='checkbox')return;
             const requested=toggle.getAttribute('data-unit');
             isImperial=requested?requested==='imperial':!isImperial;
@@ -200,14 +204,28 @@ export function createUIAdapter(runtime){
     function setSavedDesigns(designs){
         localStorage.setItem(SAVED_DESIGNS_KEY,JSON.stringify(designs));
     }
- 
+    function showMessage(message){
+        let el=document.getElementById('ubuild-ui-message');
+        if(!el){
+            el=document.createElement('div');
+            el.id='ubuild-ui-message';
+            el.style.cssText='position:fixed;right:20px;bottom:20px;z-index:1000000;background:#198754;color:#fff;padding:10px 16px;border-radius:4px;font-size:14px;box-shadow:0 4px 12px rgba(0,0,0,.2);';
+            document.body.appendChild(el);
+        }
+        el.textContent=message;
+        el.style.display='block';
+        clearTimeout(el._timer);
+        el._timer=setTimeout(()=>el.style.display='none',2500);
+    }
     function createDesignSnapshot(name){
         const model=JSON.parse(JSON.stringify(runtime.model));
         let image=null;
         try{
             runtime.render();
             if(runtime.renderer?.domElement)image=runtime.renderer.domElement.toDataURL('image/jpeg',0.85);
-        }catch{}
+        }catch(error){
+            console.warn('Unable to create design preview:',error);
+        }
         return {
             id:`design-${Date.now()}-${Math.random().toString(36).slice(2,8)}`,
             name,
@@ -233,31 +251,21 @@ export function createUIAdapter(runtime){
         setSavedDesigns(designs.slice(0,50));
         showMessage(`Design "${name}" saved.`);
     }
-    function showMessage(message){
-        let el=document.getElementById('ubuild-ui-message');
-        if(!el){
-            el=document.createElement('div');
-            el.id='ubuild-ui-message';
-            el.style.cssText='position:fixed;right:20px;bottom:20px;z-index:1000000;background:#198754;color:#fff;padding:10px 16px;border-radius:4px;font-size:14px;box-shadow:0 4px 12px rgba(0,0,0,.2);';
-            document.body.appendChild(el);
-        }
-        el.textContent=message;
-        el.style.display='block';
-        clearTimeout(el._timer);
-        el._timer=setTimeout(()=>el.style.display='none',2500);
+    function closeOverlay(id){
+        const overlay=document.getElementById(id);
+        if(overlay)overlay.remove();
     }
     function loadDesign(design){
         if(!design?.model)return;
         runtime.update(design.model);
         updateInputsFromModel();
-        if(runtime.autoFrame)runtime.autoFrame();
+        runtime.autoFrame?.();
         closeOverlay('ubuild-gallery-overlay');
         closeOverlay('ubuild-compare-overlay');
     }
     function deleteDesign(id){
-        setSavedDesigns(getSavedDesigns().filter(d=>d.id!==id));
+        setSavedDesigns(getSavedDesigns().filter(design=>design.id!==id));
         renderGallery();
-        renderCompare();
     }
     function createOverlay(id,title){
         let overlay=document.getElementById(id);
@@ -274,10 +282,6 @@ export function createUIAdapter(runtime){
         }
         return overlay;
     }
-    function closeOverlay(id){
-        const overlay=document.getElementById(id);
-        if(overlay)overlay.style.display='none';
-    }
     function renderGallery(){
         const overlay=createOverlay('ubuild-gallery-overlay','Saved Designs');
         const content=overlay.querySelector('[data-overlay-content]');
@@ -292,9 +296,9 @@ export function createUIAdapter(runtime){
                 const card=document.createElement('div');
                 card.style.cssText='background:#fff;color:#111;border-radius:6px;overflow:hidden;';
                 const img=design.image?`<img src="${design.image}" style="width:100%;height:160px;object-fit:cover;">`:'<div style="height:160px;background:#e2e8f0;display:flex;align-items:center;justify-content:center;color:#64748b;">No preview</div>';
-				const d=design.model?.dimensions||{};
-				const r=design.model?.roof||{};
-				card.innerHTML=`${img}<div style="padding:15px;"><div style="font-size:18px;font-weight:700;">${design.name||'Unnamed Design'}</div><div style="margin-top:6px;">${toDisplay(d.width)} × ${toDisplay(d.length)} × ${toDisplay(d.height)} ${isImperial?'ft':'m'}</div><div style="color:#64748b;margin-top:5px;">${r.type||'gabled'} · ${(Number(r.pitchRatio||0)*12).toFixed(1)}:12</div><div style="color:#94a3b8;font-size:12px;margin-top:5px;">${new Date(design.createdAt).toLocaleString()}</div><div style="display:flex;gap:8px;margin-top:12px;"><button type="button" class="btn btn-primary btn-sm" data-load-design="${design.id}">Load</button><button type="button" class="btn btn-danger btn-sm" data-delete-design="${design.id}">Delete</button></div></div>`;
+                const d=design.model?.dimensions||{};
+                const r=design.model?.roof||{};
+                card.innerHTML=`${img}<div style="padding:15px;"><div style="font-size:18px;font-weight:700;">${design.name||'Unnamed Design'}</div><div style="margin-top:6px;">${toDisplay(d.width)} × ${toDisplay(d.length)} × ${toDisplay(d.height)} ${isImperial?'ft':'m'}</div><div style="color:#64748b;margin-top:5px;">${r.type||'gabled'} · ${(Number(r.pitchRatio||0)*12).toFixed(1)}:12</div><div style="color:#94a3b8;font-size:12px;margin-top:5px;">${design.createdAt?new Date(design.createdAt).toLocaleString():''}</div><div style="display:flex;gap:8px;margin-top:12px;"><button type="button" class="btn btn-primary btn-sm" data-load-design="${design.id}">Load</button><button type="button" class="btn btn-danger btn-sm" data-delete-design="${design.id}">Delete</button></div></div>`;
                 card.addEventListener('click',e=>{
                     const load=e.target.closest('[data-load-design]');
                     const del=e.target.closest('[data-delete-design]');
@@ -324,8 +328,9 @@ export function createUIAdapter(runtime){
             card.style.cssText='background:#fff;color:#111;border-radius:6px;padding:15px;';
             const d=design.model?.dimensions||{};
             const r=design.model?.roof||{};
+            const p=design.model?.panels||{};
             const colors=design.model?.colors||{};
-            card.innerHTML=`${design.image?`<img src="${design.image}" style="width:100%;height:260px;object-fit:cover;border-radius:4px;">`:''}<h4 style="margin-top:15px;">Design ${index+1}</h4><table class="table table-sm"><tr><td>Width</td><td>${toDisplay(d.width)} ${isImperial?'ft':'m'}</td></tr><tr><td>Length</td><td>${toDisplay(d.length)} ${isImperial?'ft':'m'}</td></tr><tr><td>Height</td><td>${toDisplay(d.height)} ${isImperial?'ft':'m'}</td></tr><tr><td>Roof</td><td>${r.type||'gabled'}</td></tr><tr><td>Pitch</td><td>${(Number(r.pitchRatio||0)*12).toFixed(1)}:12</td></tr><tr><td>Wall</td><td>${colors.wall||'—'}</td></tr><tr><td>Roof color</td><td>${colors.roof||'—'}</td></tr></table><button type="button" class="btn btn-primary btn-sm" data-load-design="${design.id}">Load Design</button>`;
+            card.innerHTML=`${design.image?`<img src="${design.image}" style="width:100%;height:260px;object-fit:cover;border-radius:4px;">`:''}<h4 style="margin-top:15px;">${design.name||`Design ${index+1}`}</h4><table class="table table-sm"><tr><td>Width</td><td>${toDisplay(d.width)} ${isImperial?'ft':'m'}</td></tr><tr><td>Length</td><td>${toDisplay(d.length)} ${isImperial?'ft':'m'}</td></tr><tr><td>Height</td><td>${toDisplay(d.height)} ${isImperial?'ft':'m'}</td></tr><tr><td>Roof</td><td>${r.type||'gabled'}</td></tr><tr><td>Pitch</td><td>${(Number(r.pitchRatio||0)*12).toFixed(1)}:12</td></tr><tr><td>Roof Profile</td><td>${r.profile||'—'}</td></tr><tr><td>Wall Profile</td><td>${p.profile||'—'}</td></tr><tr><td>Wall Color</td><td>${colors.wall||'—'}</td></tr><tr><td>Roof Color</td><td>${colors.roof||'—'}</td></tr></table><button type="button" class="btn btn-primary btn-sm" data-load-design="${design.id}">Load Design</button>`;
             card.addEventListener('click',e=>{
                 const load=e.target.closest('[data-load-design]');
                 if(load)loadDesign(designs.find(x=>x.id===load.getAttribute('data-load-design')));
@@ -335,95 +340,122 @@ export function createUIAdapter(runtime){
         content.appendChild(grid);
         overlay.style.display='block';
     }
-    function toggleHelp(){
-        const popover=document.getElementById('custom-help-popover');
-        if(!popover)return;
-        popover.classList.toggle('custom-popover-hidden');
-        if(!popover.classList.contains('custom-popover-hidden')){
-            popover.style.display='block';
+function bindInsideView(){
+    const toggle=document.getElementById('viewInsideToggle');
+    if(!toggle)return;
+    toggle.addEventListener('change',()=>{
+        const camera=runtime.camera;
+        const controls=runtime.controls;
+        if(!camera||!controls)return;
+        if(toggle.checked){
+            savedOutsidePosition=camera.position.clone();
+            savedOutsideTarget=controls.target.clone();
+            const height=Number(runtime.model.dimensions?.height||4.88);
+            const length=Number(runtime.model.dimensions?.length||24);
+            const eyeHeight=Math.min(1.7,height*0.4);
+            const depth=Math.max(0.5,Math.min(2,length*0.08));
+            const position=new THREE.Vector3(0,eyeHeight,depth);
+            const target=new THREE.Vector3(0,eyeHeight,depth+Math.max(4,length*0.35));
+            controls.setView(position,target);
         }else{
-            popover.style.display='none';
+            const position=savedOutsidePosition;
+            const target=savedOutsideTarget;
+            if(position&&target)controls.setView(position,target);
+            savedOutsidePosition=null;
+            savedOutsideTarget=null;
         }
-    }
+        runtime.render();
+    });
+}
     function bindTools(){
-        const save=document.querySelector('#btnSaveDesign');
-        if(save)save.addEventListener('click',e=>{e.preventDefault();saveDesign();});
-        const gallery=document.querySelector('#btnGallery');
-        if(gallery)gallery.addEventListener('click',e=>{e.preventDefault();renderGallery();});
-        const share=document.querySelector('#btnShare,#btn-share,#share-config');
+        const save=document.getElementById('btnSaveDesign');
+        if(save)save.addEventListener('click',e=>{
+            e.preventDefault();
+            saveDesign();
+        });
+        const gallery=document.getElementById('btnGallery');
+        if(gallery)gallery.addEventListener('click',e=>{
+            e.preventDefault();
+            renderGallery();
+        });
+        const share=document.getElementById('btnShare');
         if(share)share.addEventListener('click',async e=>{
             e.preventDefault();
-            e.stopPropagation();
+            const config=serializeModelToURL(runtime.model);
+            const url=`${window.location.origin}${window.location.pathname}?config=${config}`;
             try{
-                const config=serializeModelToURL(runtime.model);
-                const url=`${window.location.origin}${window.location.pathname}?config=${config}`;
                 if(navigator.clipboard&&window.isSecureContext){
                     await navigator.clipboard.writeText(url);
                     showMessage('Link copied to clipboard.');
                 }else{
                     const textarea=document.createElement('textarea');
                     textarea.value=url;
-                    textarea.style.cssText='position:fixed;left:-9999px;top:0;';
+                    textarea.style.position='fixed';
+                    textarea.style.opacity='0';
                     document.body.appendChild(textarea);
                     textarea.select();
-                    const copied=document.execCommand('copy');
+                    document.execCommand('copy');
                     textarea.remove();
-                    if(copied)showMessage('Link copied to clipboard.');
-                    else window.prompt('Copy configuration link:',url);
+                    showMessage('Link copied to clipboard.');
                 }
             }catch(error){
-                console.error('Share failed:',error);
-                window.prompt('Copy configuration link:',`${window.location.origin}${window.location.pathname}?config=${serializeModelToURL(runtime.model)}`);
+                window.prompt('Copy configuration link:',url);
             }
         });
-        const help=document.querySelector('#btnHelp');
-        if(help)help.addEventListener('click',e=>{e.preventDefault();toggleHelp();});
-        const closeHelp=document.querySelector('#btnCloseHelp');
-        if(closeHelp)closeHelp.addEventListener('click',e=>{e.preventDefault();const p=document.getElementById('custom-help-popover');if(p){p.classList.add('custom-popover-hidden');p.style.display='none';}});
-        const inside=document.querySelector('#viewInsideToggle');
-        if(inside)inside.addEventListener('change',e=>{
-            const camera=runtime.camera;
-            const controls=runtime.controls;
-            if(!camera||!controls)return;
-            if(e.target.checked){
-                savedOutsidePosition=camera.position.clone();
-                savedOutsideTarget=controls.target.clone();
-                insideView=true;
-                const h=Number(runtime.model.dimensions?.height||4.88);
-                controls.target.set(0,h*0.4,0);
-                camera.position.set(0,1.7,0.1);
-            }else{
-                insideView=false;
-                if(savedOutsidePosition&&savedOutsideTarget){
-                    camera.position.copy(savedOutsidePosition);
-                    controls.target.copy(savedOutsideTarget);
-                }else if(runtime.autoFrame){
-                    runtime.autoFrame();
-                }
-            }
-            controls.update();
-            runtime.render();
+        const help=document.getElementById('btnHelp');
+        if(help)help.addEventListener('click',e=>{
+            e.preventDefault();
+            const popover=document.getElementById('custom-help-popover');
+            if(!popover)return;
+            popover.classList.toggle('custom-popover-hidden');
+            popover.style.display=popover.classList.contains('custom-popover-hidden')?'none':'block';
         });
-        const compare=document.querySelector('#btnCompare');
-        if(compare)compare.addEventListener('click',e=>{e.preventDefault();renderCompare();});
-        const reset=document.querySelector('#btnReset');
+        const closeHelp=document.getElementById('btnCloseHelp');
+        if(closeHelp)closeHelp.addEventListener('click',e=>{
+            e.preventDefault();
+            const popover=document.getElementById('custom-help-popover');
+            if(!popover)return;
+            popover.classList.add('custom-popover-hidden');
+            popover.style.display='none';
+        });
+        const compare=document.getElementById('btnCompare');
+        if(compare)compare.addEventListener('click',e=>{
+            e.preventDefault();
+            renderCompare();
+        });
+        const reset=document.getElementById('btnReset');
         if(reset)reset.addEventListener('click',e=>{
             e.preventDefault();
-            insideView=false;
-            if(inside)inside.checked=false;
-            if(runtime.autoFrame)runtime.autoFrame();
-            else runtime.render();
+            const toggle=document.getElementById('viewInsideToggle');
+            if(toggle)toggle.checked=false;
+            if(savedOutsidePosition&&runtime.camera)runtime.camera.position.copy(savedOutsidePosition);
+            if(savedOutsideTarget&&runtime.controls)runtime.controls.target.copy(savedOutsideTarget);
+            savedOutsidePosition=null;
+            savedOutsideTarget=null;
+            runtime.autoFrame();
         });
+    }
+    function bindInformationNotice(){
+        const information=document.getElementById('information');
+        if(!information)return;
+        const alert=information.querySelector('.alert');
+        if(!alert)return;
+        setTimeout(()=>{
+            alert.style.transition='opacity .5s ease';
+            alert.style.opacity='0';
+            setTimeout(()=>information.remove(),500);
+        },3000);
     }
     function bindActions(){
         bindTools();
+        bindInsideView();
+        bindInformationNotice();
         const quote=document.querySelector('#custom-gform-submit,#btn-quote-submit');
         if(quote)quote.addEventListener('click',e=>{
             e.preventDefault();
             submitToGravityForms({formId:4,snapshotFieldId:15,specFieldId:16,model:runtime.model,geometry:runtime.geometry,renderer:runtime.renderer});
         });
     }
-	
     function init(){
         bindDimension('#inputW,#sliderW,#valW,#input-width,#slider-width,#val-width,#building-width,#width-ft','width');
         bindDimension('#inputL,#sliderL,#valL,#input-length,#slider-length,#val-length,#building-length,#length-ft','length');
