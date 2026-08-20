@@ -17,6 +17,56 @@ function point(
     });
 }
 
+function createPoint2D(
+    x,
+    y
+) {
+    return Object.freeze({
+        x,
+        y
+    });
+}
+
+function createBounds(
+    min,
+    max
+) {
+    return Object.freeze({
+        min,
+        max,
+
+        width:
+            max.x -
+            min.x,
+
+        height:
+            max.y -
+            min.y,
+
+        length:
+            max.z -
+            min.z,
+
+        center:
+            point(
+                (
+                    min.x +
+                    max.x
+                ) / 2,
+
+                (
+                    min.y +
+                    max.y
+                ) / 2,
+
+                (
+                    min.z +
+                    max.z
+                ) / 2
+            )
+    });
+}
+
 function createSideShape(
     width,
     height,
@@ -25,25 +75,25 @@ function createSideShape(
     return Object.freeze({
         points:
             Object.freeze([
-                Object.freeze({
-                    x: 0,
-                    y: 0
-                }),
+                createPoint2D(
+                    0,
+                    0
+                ),
 
-                Object.freeze({
-                    x: width,
-                    y: 0
-                }),
+                createPoint2D(
+                    width,
+                    0
+                ),
 
-                Object.freeze({
-                    x: width,
-                    y: height
-                }),
+                createPoint2D(
+                    width,
+                    height
+                ),
 
-                Object.freeze({
-                    x: 0,
-                    y: height
-                })
+                createPoint2D(
+                    0,
+                    height
+                )
             ]),
 
         holes:
@@ -51,10 +101,17 @@ function createSideShape(
                 holes.map(
                     hole =>
                         Object.freeze({
-                            minX: hole.minX,
-                            minY: hole.minY,
-                            maxX: hole.maxX,
-                            maxY: hole.maxY
+                            minX:
+                                hole.minX,
+
+                            minY:
+                                hole.minY,
+
+                            maxX:
+                                hole.maxX,
+
+                            maxY:
+                                hole.maxY
                         })
                 )
             )
@@ -68,34 +125,54 @@ function normalizeHole(
 ) {
     const minX =
         hole.minX ??
-        hole.x ??
-        0;
+        (
+            hole.x -
+            (
+                hole.width ??
+                hole.w ??
+                0
+            ) / 2
+        );
 
     const minY =
         hole.minY ??
         hole.y ??
         0;
 
+    const holeWidth =
+        hole.width ??
+        hole.w ??
+        (
+            (
+                hole.maxX ??
+                0
+            ) -
+            minX
+        );
+
+    const holeHeight =
+        hole.height ??
+        hole.h ??
+        (
+            (
+                hole.maxY ??
+                0
+            ) -
+            minY
+        );
+
     const maxX =
         hole.maxX ??
         (
             minX +
-            (
-                hole.width ??
-                hole.w ??
-                0
-            )
+            holeWidth
         );
 
     const maxY =
         hole.maxY ??
         (
             minY +
-            (
-                hole.height ??
-                hole.h ??
-                0
-            )
+            holeHeight
         );
 
     if (
@@ -126,7 +203,13 @@ function normalizeHole(
         minX,
         minY,
         maxX,
-        maxY
+        maxY,
+        width:
+            maxX -
+            minX,
+        height:
+            maxY -
+            minY
     });
 }
 
@@ -135,41 +218,126 @@ function createSide(
     width,
     height,
     thickness,
-    holes
+    holes,
+    envelope
 ) {
-    const position =
-        side === 'F'
-            ? point(
+    const halfWidth =
+        envelope.width /
+        2;
+
+    const halfLength =
+        envelope.length /
+        2;
+
+    let position;
+    let rotationY;
+    let bounds;
+
+    if (side === 'F') {
+        position =
+            point(
                 -width / 2,
                 0,
                 0
-            )
-            : side === 'B'
-                ? point(
-                    -width / 2,
+            );
+
+        rotationY = 0;
+
+        bounds =
+            createBounds(
+                point(
+                    -halfWidth,
                     0,
                     0
+                ),
+                point(
+                    halfWidth,
+                    height,
+                    thickness
                 )
-                : side === 'L'
-                    ? point(
-                        0,
-                        0,
-                        -width / 2
-                    )
-                    : point(
-                        0,
-                        0,
-                        -width / 2
-                    );
+            );
+    }
 
-    const rotationY =
-        side === 'F'
-            ? 0
-            : side === 'B'
-                ? Math.PI
-                : side === 'L'
-                    ? Math.PI / 2
-                    : -Math.PI / 2;
+    if (side === 'B') {
+        position =
+            point(
+                width / 2,
+                0,
+                0
+            );
+
+        rotationY =
+            Math.PI;
+
+        bounds =
+            createBounds(
+                point(
+                    -halfWidth,
+                    0,
+                    envelope.length -
+                        thickness
+                ),
+                point(
+                    halfWidth,
+                    height,
+                    envelope.length
+                )
+            );
+    }
+
+    if (side === 'L') {
+        position =
+            point(
+                -halfLength,
+                0,
+                0
+            );
+
+        rotationY =
+            Math.PI / 2;
+
+        bounds =
+            createBounds(
+                point(
+                    -halfWidth -
+                        thickness,
+                    0,
+                    0
+                ),
+                point(
+                    -halfWidth,
+                    height,
+                    envelope.length
+                )
+            );
+    }
+
+    if (side === 'R') {
+        position =
+            point(
+                halfLength,
+                0,
+                0
+            );
+
+        rotationY =
+            -Math.PI / 2;
+
+        bounds =
+            createBounds(
+                point(
+                    halfWidth,
+                    0,
+                    0
+                ),
+                point(
+                    halfWidth +
+                        thickness,
+                    height,
+                    envelope.length
+                )
+            );
+    }
 
     return Object.freeze({
         side,
@@ -196,7 +364,9 @@ function createSide(
                 position.x,
                 position.y,
                 position.z
-            )
+            ),
+
+        bounds
     });
 }
 
@@ -215,7 +385,7 @@ function getSideWidth(
 export function createLinerGeometry(
     model,
     envelope,
-    openings
+    openings = []
 ) {
     if (!model) {
         throw new TypeError(
@@ -250,7 +420,9 @@ export function createLinerGeometry(
                     R: null,
                     F: null,
                     B: null
-                })
+                }),
+
+            bounds: null
         });
     }
 
@@ -266,7 +438,7 @@ export function createLinerGeometry(
 
     const thickness =
         config.thickness ??
-        0.05;
+        0.01;
 
     if (
         !Number.isFinite(height) ||
@@ -288,11 +460,6 @@ export function createLinerGeometry(
         );
     }
 
-    const sourceOpenings =
-        Array.isArray(openings)
-            ? openings
-            : [];
-
     const sides = {};
 
     for (
@@ -306,10 +473,11 @@ export function createLinerGeometry(
             );
 
         const holes =
-            sourceOpenings
+            openings
                 .filter(
                     opening =>
-                        opening?.side ===
+                        opening &&
+                        opening.side ===
                         side
                 )
                 .map(
@@ -327,9 +495,65 @@ export function createLinerGeometry(
                 width,
                 height,
                 thickness,
-                holes
+                holes,
+                envelope
             );
     }
+
+    const allBounds =
+        SIDES
+            .map(
+                side =>
+                    sides[side].bounds
+            );
+
+    const min =
+        point(
+            Math.min(
+                ...allBounds.map(
+                    value =>
+                        value.min.x
+                )
+            ),
+
+            Math.min(
+                ...allBounds.map(
+                    value =>
+                        value.min.y
+                )
+            ),
+
+            Math.min(
+                ...allBounds.map(
+                    value =>
+                        value.min.z
+                )
+            )
+        );
+
+    const max =
+        point(
+            Math.max(
+                ...allBounds.map(
+                    value =>
+                        value.max.x
+                )
+            ),
+
+            Math.max(
+                ...allBounds.map(
+                    value =>
+                        value.max.y
+                )
+            ),
+
+            Math.max(
+                ...allBounds.map(
+                    value =>
+                        value.max.z
+                )
+            )
+        );
 
     return Object.freeze({
         enabled: true,
@@ -341,6 +565,12 @@ export function createLinerGeometry(
         sides:
             Object.freeze(
                 sides
+            ),
+
+        bounds:
+            createBounds(
+                min,
+                max
             )
     });
 }
