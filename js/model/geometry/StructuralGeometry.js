@@ -58,46 +58,40 @@ function createPositions(
 }
 
 function createFrame(
-    model,
     roof,
     z,
     index
 ) {
-    const halfWidth =
-        model.dimensions.width / 2;
+    const leftFront = point(
+        roof.eaves.left.front.x,
+        roof.eaves.left.front.y,
+        z
+    );
 
-    const baseY = 0;
-    const eaveY =
-        model.dimensions.height;
+    const rightFront = point(
+        roof.eaves.right.front.x,
+        roof.eaves.right.front.y,
+        z
+    );
 
-    if (roof.type === 'gabled') {
-        const leftBottom = point(
-            -halfWidth,
-            baseY,
-            z
-        );
+    const leftBase = point(
+        roof.eaves.left.front.x,
+        0,
+        z
+    );
 
-        const leftTop = point(
-            -halfWidth,
-            eaveY,
-            z
-        );
+    const rightBase = point(
+        roof.eaves.right.front.x,
+        0,
+        z
+    );
 
+    if (
+        roof.type === 'gabled'
+    ) {
         const ridge = point(
-            0,
-            eaveY + roof.rise,
-            z
-        );
-
-        const rightTop = point(
-            halfWidth,
-            eaveY,
-            z
-        );
-
-        const rightBottom = point(
-            halfWidth,
-            baseY,
+            roof.ridge.front.x,
+            roof.ridge.front.y,
             z
         );
 
@@ -106,147 +100,113 @@ function createFrame(
             position: z,
 
             leftColumn: line(
-                leftBottom,
-                leftTop
+                leftBase,
+                leftFront
             ),
 
             leftRafter: line(
-                leftTop,
+                leftFront,
                 ridge
             ),
 
             rightRafter: line(
                 ridge,
-                rightTop
+                rightFront
             ),
 
             rightColumn: line(
-                rightTop,
-                rightBottom
+                rightFront,
+                rightBase
             )
         });
     }
-
-    const leftY =
-        roof.type === 'right-sloped'
-            ? eaveY + roof.rise
-            : eaveY;
-
-    const rightY =
-        roof.type === 'left-sloped'
-            ? eaveY + roof.rise
-            : eaveY;
-
-    const leftBottom = point(
-        -halfWidth,
-        baseY,
-        z
-    );
-
-    const leftTop = point(
-        -halfWidth,
-        leftY,
-        z
-    );
-
-    const rightTop = point(
-        halfWidth,
-        rightY,
-        z
-    );
-
-    const rightBottom = point(
-        halfWidth,
-        baseY,
-        z
-    );
 
     return Object.freeze({
         index,
         position: z,
 
         leftColumn: line(
-            leftBottom,
-            leftTop
+            leftBase,
+            leftFront
         ),
 
         rafter: line(
-            leftTop,
-            rightTop
+            leftFront,
+            rightFront
         ),
 
         rightColumn: line(
-            rightTop,
-            rightBottom
+            rightFront,
+            rightBase
         )
     });
 }
 
 function createGirts(
-    model,
     walls,
+    height,
     spacing
 ) {
     const levels = createPositions(
         0,
-        model.dimensions.height,
+        height,
         spacing
     );
 
     return levels.map(
-        (y, index) => ({
+        (y, index) => Object.freeze({
             index,
             elevation: y,
 
             front: line(
                 point(
-                    walls.front.bounds.min.x,
+                    walls.front.corners.bottomLeft.x,
                     y,
-                    walls.front.bounds.min.z
+                    walls.front.corners.bottomLeft.z
                 ),
                 point(
-                    walls.front.bounds.max.x,
+                    walls.front.corners.bottomRight.x,
                     y,
-                    walls.front.bounds.max.z
+                    walls.front.corners.bottomRight.z
                 )
             ),
 
             back: line(
                 point(
-                    walls.back.bounds.min.x,
+                    walls.back.corners.bottomLeft.x,
                     y,
-                    walls.back.bounds.min.z
+                    walls.back.corners.bottomLeft.z
                 ),
                 point(
-                    walls.back.bounds.max.x,
+                    walls.back.corners.bottomRight.x,
                     y,
-                    walls.back.bounds.max.z
+                    walls.back.corners.bottomRight.z
                 )
             ),
 
             left: line(
                 point(
-                    walls.left.bounds.min.x,
+                    walls.left.corners.bottomLeft.x,
                     y,
-                    walls.left.bounds.min.z
+                    walls.left.corners.bottomLeft.z
                 ),
                 point(
-                    walls.left.bounds.max.x,
+                    walls.left.corners.topLeft.x,
                     y,
-                    walls.left.bounds.max.z
+                    walls.left.corners.topLeft.z
                 )
             ),
 
             right: line(
                 point(
-                    walls.right.bounds.min.x,
+                    walls.right.corners.bottomRight.x,
                     y,
-                    walls.right.bounds.min.z
+                    walls.right.corners.bottomRight.z
                 ),
                 point(
-                    walls.right.bounds.max.x,
+                    walls.right.corners.topRight.x,
                     y,
-                    walls.right.bounds.max.z
+                    walls.right.corners.topRight.z
                 )
             )
         })
@@ -254,19 +214,21 @@ function createGirts(
 }
 
 function createPurlins(
-    model,
     roof,
+    length,
     spacing
 ) {
     const positions = createPositions(
         0,
-        model.dimensions.length,
+        length,
         spacing
     );
 
     return positions.map(
         (z, index) => {
-            if (roof.type === 'gabled') {
+            if (
+                roof.type === 'gabled'
+            ) {
                 return Object.freeze({
                     index,
                     position: z,
@@ -356,6 +318,114 @@ function createEndWallColumns(
     ]);
 }
 
+function calculateBounds(
+    structural
+) {
+    const points = [];
+
+    const collectLine = value => {
+        if (!value?.start || !value?.end) {
+            return;
+        }
+
+        points.push(
+            value.start,
+            value.end
+        );
+    };
+
+    for (
+        const frame
+        of structural.frames
+    ) {
+        collectLine(frame.leftColumn);
+        collectLine(frame.rightColumn);
+        collectLine(frame.leftRafter);
+        collectLine(frame.rightRafter);
+        collectLine(frame.rafter);
+    }
+
+    for (
+        const level
+        of structural.girts
+    ) {
+        collectLine(level.front);
+        collectLine(level.back);
+        collectLine(level.left);
+        collectLine(level.right);
+    }
+
+    for (
+        const purlin
+        of structural.purlins
+    ) {
+        if (purlin.planes) {
+            collectLine(purlin.planes.left);
+            collectLine(purlin.planes.right);
+        } else {
+            collectLine(purlin.plane);
+        }
+    }
+
+    for (
+        const wall
+        of structural.endWallColumns
+    ) {
+        collectLine(wall.left);
+        collectLine(wall.right);
+    }
+
+    if (!points.length) {
+        return Object.freeze({
+            min: point(0, 0, 0),
+            max: point(0, 0, 0),
+            center: point(0, 0, 0),
+            width: 0,
+            height: 0,
+            length: 0
+        });
+    }
+
+    const xs = points.map(
+        value => value.x
+    );
+
+    const ys = points.map(
+        value => value.y
+    );
+
+    const zs = points.map(
+        value => value.z
+    );
+
+    const min = point(
+        Math.min(...xs),
+        Math.min(...ys),
+        Math.min(...zs)
+    );
+
+    const max = point(
+        Math.max(...xs),
+        Math.max(...ys),
+        Math.max(...zs)
+    );
+
+    return Object.freeze({
+        min,
+        max,
+
+        center: point(
+            (min.x + max.x) / 2,
+            (min.y + max.y) / 2,
+            (min.z + max.z) / 2
+        ),
+
+        width: max.x - min.x,
+        height: max.y - min.y,
+        length: max.z - min.z
+    });
+}
+
 export function createStructuralGeometry(
     model,
     buildingGeometry,
@@ -373,6 +443,18 @@ export function createStructuralGeometry(
         );
     }
 
+    if (!buildingGeometry.walls) {
+        throw new TypeError(
+            'BuildingGeometry.walls is required'
+        );
+    }
+
+    if (!buildingGeometry.roof) {
+        throw new TypeError(
+            'BuildingGeometry.roof is required'
+        );
+    }
+
     const frameSpacing =
         options.frameSpacing ??
         DEFAULTS.frameSpacing;
@@ -385,10 +467,16 @@ export function createStructuralGeometry(
         options.purlinSpacing ??
         DEFAULTS.purlinSpacing;
 
+    const roof =
+        buildingGeometry.roof;
+
+    const walls =
+        buildingGeometry.walls;
+
     const framePositions =
         createPositions(
-            0,
-            model.dimensions.length,
+            roof.eaves.left.front.z,
+            roof.eaves.left.back.z,
             frameSpacing
         );
 
@@ -396,8 +484,7 @@ export function createStructuralGeometry(
         framePositions.map(
             (z, index) =>
                 createFrame(
-                    model,
-                    buildingGeometry.roof,
+                    roof,
                     z,
                     index
                 )
@@ -405,27 +492,44 @@ export function createStructuralGeometry(
 
     const girts =
         createGirts(
-            model,
-            buildingGeometry.walls,
+            walls,
+            model.dimensions.height,
             girtSpacing
         );
 
     const purlins =
         createPurlins(
-            model,
-            buildingGeometry.roof,
+            roof,
+            model.dimensions.length,
             purlinSpacing
         );
 
     const endWallColumns =
         createEndWallColumns(
-            buildingGeometry.walls
+            walls
         );
 
-    return Object.freeze({
-        frames: Object.freeze(frames),
-        girts: Object.freeze(girts),
-        purlins: Object.freeze(purlins),
+    const structural = {
+        frames: Object.freeze(
+            frames
+        ),
+
+        girts: Object.freeze(
+            girts
+        ),
+
+        purlins: Object.freeze(
+            purlins
+        ),
+
         endWallColumns
+    };
+
+    return Object.freeze({
+        ...structural,
+        bounds:
+            calculateBounds(
+                structural
+            )
     });
 }
