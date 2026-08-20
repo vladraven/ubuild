@@ -5,7 +5,11 @@ const DEFAULTS = Object.freeze({
 });
 
 function point(x, y, z) {
-    return Object.freeze({ x, y, z });
+    return Object.freeze({
+        x,
+        y,
+        z
+    });
 }
 
 function line(start, end) {
@@ -20,8 +24,15 @@ function line(start, end) {
     });
 }
 
-function createPositions(start, end, spacing) {
-    if (!Number.isFinite(spacing) || spacing <= 0) {
+function createPositions(
+    start,
+    end,
+    spacing
+) {
+    if (
+        !Number.isFinite(spacing) ||
+        spacing <= 0
+    ) {
         throw new RangeError(
             'Structural spacing must be greater than zero'
         );
@@ -35,22 +46,31 @@ function createPositions(start, end, spacing) {
         positions.push(current);
     }
 
-    if (positions[positions.length - 1] !== end) {
+    if (
+        Math.abs(
+            positions[positions.length - 1] - end
+        ) > 1e-9
+    ) {
         positions.push(end);
     }
 
     return positions;
 }
 
-function createFrame(model, roof, z, index) {
-    const halfWidth = model.dimensions.width / 2;
+function createFrame(
+    model,
+    roof,
+    z,
+    index
+) {
+    const halfWidth =
+        model.dimensions.width / 2;
+
     const baseY = 0;
-    const eaveY = model.dimensions.height;
+    const eaveY =
+        model.dimensions.height;
 
     if (roof.type === 'gabled') {
-        const ridgeY =
-            eaveY + roof.rise;
-
         const leftBottom = point(
             -halfWidth,
             baseY,
@@ -65,7 +85,7 @@ function createFrame(model, roof, z, index) {
 
         const ridge = point(
             0,
-            ridgeY,
+            eaveY + roof.rise,
             z
         );
 
@@ -162,69 +182,75 @@ function createFrame(model, roof, z, index) {
     });
 }
 
-function createGirts(model, walls, spacing) {
+function createGirts(
+    model,
+    walls,
+    spacing
+) {
     const levels = createPositions(
         0,
         model.dimensions.height,
         spacing
     );
 
-    return levels.map((y, index) => ({
-        index,
-        elevation: y,
+    return levels.map(
+        (y, index) => ({
+            index,
+            elevation: y,
 
-        front: line(
-            point(
-                walls.front.bounds.min.x,
-                y,
-                walls.front.bounds.min.z
+            front: line(
+                point(
+                    walls.front.bounds.min.x,
+                    y,
+                    walls.front.bounds.min.z
+                ),
+                point(
+                    walls.front.bounds.max.x,
+                    y,
+                    walls.front.bounds.max.z
+                )
             ),
-            point(
-                walls.front.bounds.max.x,
-                y,
-                walls.front.bounds.max.z
-            )
-        ),
 
-        back: line(
-            point(
-                walls.back.bounds.min.x,
-                y,
-                walls.back.bounds.min.z
+            back: line(
+                point(
+                    walls.back.bounds.min.x,
+                    y,
+                    walls.back.bounds.min.z
+                ),
+                point(
+                    walls.back.bounds.max.x,
+                    y,
+                    walls.back.bounds.max.z
+                )
             ),
-            point(
-                walls.back.bounds.max.x,
-                y,
-                walls.back.bounds.max.z
-            )
-        ),
 
-        left: line(
-            point(
-                walls.left.bounds.min.x,
-                y,
-                walls.left.bounds.min.z
+            left: line(
+                point(
+                    walls.left.bounds.min.x,
+                    y,
+                    walls.left.bounds.min.z
+                ),
+                point(
+                    walls.left.bounds.max.x,
+                    y,
+                    walls.left.bounds.max.z
+                )
             ),
-            point(
-                walls.left.bounds.max.x,
-                y,
-                walls.left.bounds.max.z
-            )
-        ),
 
-        right: line(
-            point(
-                walls.right.bounds.min.x,
-                y,
-                walls.right.bounds.min.z
-            ),
-            point(
-                walls.right.bounds.max.x,
-                y,
-                walls.right.bounds.max.z
+            right: line(
+                point(
+                    walls.right.bounds.min.x,
+                    y,
+                    walls.right.bounds.min.z
+                ),
+                point(
+                    walls.right.bounds.max.x,
+                    y,
+                    walls.right.bounds.max.z
+                )
             )
-        )
-    }));
+        })
+    );
 }
 
 function createPurlins(
@@ -238,62 +264,62 @@ function createPurlins(
         spacing
     );
 
-    return positions.map((z, index) => {
-        if (roof.type === 'gabled') {
-            const left = line(
-                point(
-                    roof.eaves.left.front.x,
-                    roof.eaves.left.front.y,
-                    z
-                ),
-                point(
-                    roof.ridge.front.x,
-                    roof.ridge.front.y,
-                    z
-                )
-            );
+    return positions.map(
+        (z, index) => {
+            if (roof.type === 'gabled') {
+                return Object.freeze({
+                    index,
+                    position: z,
 
-            const right = line(
-                point(
-                    roof.ridge.front.x,
-                    roof.ridge.front.y,
-                    z
-                ),
-                point(
-                    roof.eaves.right.front.x,
-                    roof.eaves.right.front.y,
-                    z
-                )
-            );
+                    planes: {
+                        left: line(
+                            point(
+                                roof.eaves.left.front.x,
+                                roof.eaves.left.front.y,
+                                z
+                            ),
+                            point(
+                                roof.ridge.front.x,
+                                roof.ridge.front.y,
+                                z
+                            )
+                        ),
+
+                        right: line(
+                            point(
+                                roof.ridge.front.x,
+                                roof.ridge.front.y,
+                                z
+                            ),
+                            point(
+                                roof.eaves.right.front.x,
+                                roof.eaves.right.front.y,
+                                z
+                            )
+                        )
+                    }
+                });
+            }
 
             return Object.freeze({
                 index,
                 position: z,
-                planes: {
-                    left,
-                    right
-                }
+
+                plane: line(
+                    point(
+                        roof.eaves.left.front.x,
+                        roof.eaves.left.front.y,
+                        z
+                    ),
+                    point(
+                        roof.eaves.right.front.x,
+                        roof.eaves.right.front.y,
+                        z
+                    )
+                )
             });
         }
-
-        return Object.freeze({
-            index,
-            position: z,
-
-            plane: line(
-                point(
-                    roof.eaves.left.front.x,
-                    roof.eaves.left.front.y,
-                    z
-                ),
-                point(
-                    roof.eaves.right.front.x,
-                    roof.eaves.right.front.y,
-                    z
-                )
-            )
-        });
-    });
+    );
 }
 
 function createEndWallColumns(
@@ -359,33 +385,37 @@ export function createStructuralGeometry(
         options.purlinSpacing ??
         DEFAULTS.purlinSpacing;
 
-    const framePositions = createPositions(
-        0,
-        model.dimensions.length,
-        frameSpacing
-    );
+    const framePositions =
+        createPositions(
+            0,
+            model.dimensions.length,
+            frameSpacing
+        );
 
-    const frames = framePositions.map(
-        (z, index) =>
-            createFrame(
-                model,
-                buildingGeometry.roof,
-                z,
-                index
-            )
-    );
+    const frames =
+        framePositions.map(
+            (z, index) =>
+                createFrame(
+                    model,
+                    buildingGeometry.roof,
+                    z,
+                    index
+                )
+        );
 
-    const girts = createGirts(
-        model,
-        buildingGeometry.walls,
-        girtSpacing
-    );
+    const girts =
+        createGirts(
+            model,
+            buildingGeometry.walls,
+            girtSpacing
+        );
 
-    const purlins = createPurlins(
-        model,
-        buildingGeometry.roof,
-        purlinSpacing
-    );
+    const purlins =
+        createPurlins(
+            model,
+            buildingGeometry.roof,
+            purlinSpacing
+        );
 
     const endWallColumns =
         createEndWallColumns(
