@@ -13,10 +13,6 @@ import {
 } from '../elements/ElementRegistry.js';
 
 import {
-    createElementOrchestrator
-} from '../elements/ElementOrchestrator.js';
-
-import {
     WallOrchestrator
 } from '../elements/wall/WallOrchestrator.js';
 
@@ -35,18 +31,6 @@ import {
 import {
     OpeningOrchestrator
 } from '../elements/opening/OpeningOrchestrator.js';
-
-import {
-    AwningElement
-} from '../elements/awning/AwningElement.js';
-
-import {
-    TrimOrchestrator
-} from '../elements/trim/TrimOrchestrator.js';
-
-import {
-    WainscotOrchestrator
-} from '../elements/wainscot/WainscotOrchestrator.js';
 
 function assertContainer(
     container
@@ -75,7 +59,8 @@ function createScene() {
 }
 
 function createCamera(
-    container
+    container,
+    geometry
 ) {
     const width =
         Math.max(
@@ -94,19 +79,36 @@ function createCamera(
             45,
             width / height,
             0.1,
-            1000
+            5000
+        );
+
+    const bounds =
+        geometry.bounds;
+
+    const center =
+        bounds.center;
+
+    const size =
+        Math.max(
+            bounds.width,
+            bounds.height,
+            bounds.length,
+            1
         );
 
     camera.position.set(
-        35,
-        25,
-        35
+        center.x +
+            size * 1.4,
+        center.y +
+            size * 0.9,
+        center.z +
+            size * 1.4
     );
 
     camera.lookAt(
-        0,
-        3,
-        10
+        center.x,
+        center.y,
+        center.z
     );
 
     return camera;
@@ -155,10 +157,6 @@ function createLights(
             1.5
         );
 
-    scene.add(
-        ambient
-    );
-
     const directional =
         new THREE.DirectionalLight(
             0xffffff,
@@ -172,188 +170,261 @@ function createLights(
     );
 
     scene.add(
-        directional
-    );
-
-    return {
         ambient,
         directional
-    };
+    );
+
+    return Object.freeze({
+        ambient,
+        directional
+    });
 }
 
-function createFallbackMaterialSystem() {
-    const materials =
-        new Map();
-
-    materials.set(
-        'steel',
+function createMaterialSystem() {
+    const wallMetal =
         new THREE.MeshStandardMaterial({
-            color: 0x666666,
-            metalness: 0.5,
-            roughness: 0.6
-        })
-    );
+            color: 0x777777,
+            metalness: 0.35,
+            roughness: 0.7
+        });
 
-    materials.set(
-        'trimMetal',
+    const roofMetal =
+        new THREE.MeshStandardMaterial({
+            color: 0x555555,
+            metalness: 0.4,
+            roughness: 0.65
+        });
+
+    const structuralSteel =
         new THREE.MeshStandardMaterial({
             color: 0x444444,
-            metalness: 0.6,
+            metalness: 0.65,
+            roughness: 0.45
+        });
+
+    const concrete =
+        new THREE.MeshStandardMaterial({
+            color: 0x999999,
+            roughness: 0.9
+        });
+
+    const trimMetal =
+        new THREE.MeshStandardMaterial({
+            color: 0x444444,
+            metalness: 0.55,
             roughness: 0.5
-        })
-    );
+        });
 
-    materials.set(
-        'doorTrim',
-        materials.get(
-            'trimMetal'
-        )
-    );
-
-    materials.set(
-        'doorFrame',
-        materials.get(
-            'trimMetal'
-        )
-    );
-
-    materials.set(
-        'frame',
-        materials.get(
-            'trimMetal'
-        )
-    );
-
-    materials.set(
-        'doorPanel',
+    const doorPanel =
         new THREE.MeshStandardMaterial({
             color: 0x888888,
             metalness: 0.2,
             roughness: 0.8
-        })
-    );
+        });
 
-    materials.set(
-        'glass',
+    const glass =
         new THREE.MeshStandardMaterial({
             color: 0x9ccfff,
             transparent: true,
             opacity: 0.45,
             roughness: 0.1,
             metalness: 0
-        })
-    );
+        });
 
-    materials.set(
-        'wall',
-        materials.get(
-            'doorPanel'
-        )
-    );
+    const materials =
+        new Map([
+            [
+                'wallMetal',
+                wallMetal
+            ],
+            [
+                'roofMetal',
+                roofMetal
+            ],
+            [
+                'structuralSteel',
+                structuralSteel
+            ],
+            [
+                'steel',
+                structuralSteel
+            ],
+            [
+                'concrete',
+                concrete
+            ],
+            [
+                'trimMetal',
+                trimMetal
+            ],
+            [
+                'doorTrim',
+                trimMetal
+            ],
+            [
+                'doorFrame',
+                trimMetal
+            ],
+            [
+                'frame',
+                trimMetal
+            ],
+            [
+                'doorPanel',
+                doorPanel
+            ],
+            [
+                'glass',
+                glass
+            ],
+            [
+                'wall',
+                wallMetal
+            ]
+        ]);
 
-    return Object.freeze({
+    const api = {
+        concrete,
+
+        steel:
+            structuralSteel,
+
+        wallMetal,
+
+        roofMetal,
+
+        structuralSteel,
+
+        trimMetal,
+
+        doorTrim:
+            trimMetal,
+
+        doorFrame:
+            trimMetal,
+
+        frame:
+            trimMetal,
+
+        doorPanel,
+
+        glass,
+
+        wall:
+            wallMetal,
+
         get(
             name
         ) {
-            if (
-                materials.has(name)
-            ) {
-                return materials.get(
+            return (
+                materials.get(
                     name
-                );
-            }
-
-            return materials.get(
-                'steel'
+                ) ??
+                materials.get(
+                    'steel'
+                )
             );
         }
+    };
+
+    return Object.freeze(
+        api
+    );
+}
+
+function createColors() {
+    return Object.freeze({
+        wall: 0x777777,
+
+        roof: 0x555555,
+
+        frame: 0x444444,
+
+        trim: 0x444444,
+
+        glass: 0x9ccfff
     });
 }
 
-function registerElements() {
+function createRegistry() {
     const registry =
         createElementRegistry();
 
-    const elements = [
-        [
-            'walls',
-            WallOrchestrator
-        ],
+    registry.register(
+        'walls',
+        WallOrchestrator
+    );
 
-        [
-            'roof',
-            RoofOrchestrator
-        ],
+    registry.register(
+        'roof',
+        RoofOrchestrator
+    );
 
-        [
-            'foundation',
-            FoundationOrchestrator
-        ],
+    registry.register(
+        'foundation',
+        FoundationOrchestrator
+    );
 
-        [
-            'structural',
-            StructuralOrchestrator
-        ],
+    registry.register(
+        'structural',
+        StructuralOrchestrator
+    );
 
-        [
-            'openings',
-            OpeningOrchestrator
-        ],
-
-        [
-            'trim',
-            TrimOrchestrator
-        ],
-
-        [
-            'wainscot',
-            WainscotOrchestrator
-        ]
-    ];
-
-    for (
-        const [
-            id,
-            orchestrator
-        ]
-        of elements
-    ) {
-        registry.register(
-            id,
-            orchestrator
-        );
-    }
-
-    if (
-        AwningElement &&
-        typeof AwningElement.create ===
-            'function'
-    ) {
-        registry.register(
-            'awning',
-            AwningElement
-        );
-    }
+    registry.register(
+        'openings',
+        OpeningOrchestrator
+    );
 
     return registry;
 }
 
-function createRootObject(
+function createContext({
+    model,
+    geometry,
+    materials,
+    colors,
     scene,
-    registry,
-    context
+    camera,
+    renderer
+}) {
+    return {
+        model,
+
+        geometry,
+
+        panelGeometry:
+            geometry.panels,
+
+        structuralGeometry: {
+            frames:
+                geometry.frames,
+
+            girts:
+                geometry.girts,
+
+            purlins:
+                geometry.purlins,
+
+            endWallColumns:
+                geometry.endWallColumns
+        },
+
+        materials,
+
+        colors,
+
+        scene,
+
+        camera,
+
+        renderer
+    };
+}
+
+function addInstances(
+    root,
+    instances
 ) {
-    const root =
-        new THREE.Group();
-
-    root.name =
-        'u-build';
-
-    const instances =
-        registry.createAll(
-            context
-        );
-
     for (
         const [
             id,
@@ -362,31 +433,37 @@ function createRootObject(
         of instances
     ) {
         if (
-            instance?.object
+            !instance ||
+            !instance.object
         ) {
-            instance.object.name =
-                id;
-
-            root.add(
-                instance.object
-            );
+            continue;
         }
+
+        instance.object.name =
+            id;
+
+        root.add(
+            instance.object
+        );
     }
+}
 
-    scene.add(
-        root
-    );
-
-    return {
-        root,
-        instances
-    };
+function clearRoot(
+    root
+) {
+    for (
+        const child
+        of [...root.children]
+    ) {
+        root.remove(
+            child
+        );
+    }
 }
 
 export function createUBuildRuntime({
     container,
-    model = {},
-    materials = null
+    model = {}
 } = {}) {
     assertContainer(
         container
@@ -407,7 +484,8 @@ export function createUBuildRuntime({
 
     const camera =
         createCamera(
-            container
+            container,
+            buildingGeometry
         );
 
     const renderer =
@@ -420,38 +498,56 @@ export function createUBuildRuntime({
             scene
         );
 
-    const materialSystem =
-        materials ??
-        createFallbackMaterialSystem();
+    const materials =
+        createMaterialSystem();
+
+    const colors =
+        createColors();
 
     const registry =
-        registerElements();
+        createRegistry();
 
-    const context = {
-        model:
-            buildingModel,
+    const root =
+        new THREE.Group();
 
-        geometry:
-            buildingGeometry,
+    root.name =
+        'u-build';
 
-        materials:
-            materialSystem,
+    scene.add(
+        root
+    );
 
-        scene,
+    const context =
+        createContext({
+            model:
+                buildingModel,
 
-        camera,
+            geometry:
+                buildingGeometry,
 
-        renderer,
+            materials,
 
-        colors: {}
-    };
+            colors,
 
-    const runtime =
-        createRootObject(
             scene,
-            registry,
+
+            camera,
+
+            renderer
+        });
+
+    const instances =
+        registry.createAll(
             context
         );
+
+    addInstances(
+        root,
+        instances
+    );
+
+    let currentInstances =
+        instances;
 
     let disposed =
         false;
@@ -514,51 +610,41 @@ export function createUBuildRuntime({
                 nextBuildingModel
             );
 
-        const nextContext = {
-            ...context,
+        const nextContext =
+            createContext({
+                model:
+                    nextBuildingModel,
 
-            model:
-                nextBuildingModel,
+                geometry:
+                    nextGeometry,
 
-            geometry:
-                nextGeometry
-        };
+                materials,
+
+                colors,
+
+                scene,
+
+                camera,
+
+                renderer
+            });
 
         const nextInstances =
             registry.updateAll(
-                runtime.instances,
+                currentInstances,
                 nextContext
             );
 
-        for (
-            const [
-                id,
-                instance
-            ]
-            of nextInstances
-        ) {
-            const previous =
-                runtime.instances.get(
-                    id
-                );
+        clearRoot(
+            root
+        );
 
-            if (
-                previous?.object &&
-                instance?.object &&
-                previous.object !==
-                    instance.object
-            ) {
-                runtime.root.remove(
-                    previous.object
-                );
+        addInstances(
+            root,
+            nextInstances
+        );
 
-                runtime.root.add(
-                    instance.object
-                );
-            }
-        }
-
-        runtime.instances =
+        currentInstances =
             nextInstances;
 
         context.model =
@@ -566,6 +652,8 @@ export function createUBuildRuntime({
 
         context.geometry =
             nextGeometry;
+
+        render();
 
         return nextBuildingModel;
     }
@@ -592,7 +680,7 @@ export function createUBuildRuntime({
         disposed = true;
 
         registry.disposeAll(
-            runtime.instances
+            currentInstances
         );
 
         renderer.dispose();
@@ -605,7 +693,7 @@ export function createUBuildRuntime({
         );
     }
 
-    const api = {
+    const api = Object.freeze({
         model:
             buildingModel,
 
@@ -618,10 +706,13 @@ export function createUBuildRuntime({
 
         renderer,
 
+        lights,
+
+        materials,
+
         registry,
 
-        root:
-            runtime.root,
+        root,
 
         start,
 
@@ -632,14 +723,12 @@ export function createUBuildRuntime({
         update,
 
         dispose
-    };
+    });
 
     window.addEventListener(
         'resize',
         resize
     );
 
-    return Object.freeze(
-        api
-    );
+    return api;
 }
