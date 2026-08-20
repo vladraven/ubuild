@@ -27,6 +27,14 @@ import {
 } from './StructuralGeometry.js';
 
 import {
+    createPanelSystem
+} from '../panels/PanelSystem.js';
+
+import {
+    createPanelGeometry
+} from '../panels/PanelGeometry.js';
+
+import {
     validateGeometryInvariants
 } from './GeometryInvariants.js';
 
@@ -44,7 +52,9 @@ export function createBuildingGeometry(
     }
 
     const envelope =
-        createBuildingEnvelope(model);
+        createBuildingEnvelope(
+            model
+        );
 
     const walls =
         createWallGeometry(
@@ -89,10 +99,59 @@ export function createBuildingGeometry(
             options.structural
         );
 
+    const geometryWithStructural = {
+        ...baseGeometry,
+        ...structural
+    };
+
+    const panelSystem =
+        createPanelSystem(
+            model,
+            geometryWithStructural
+        );
+
+    const panels =
+        createPanelGeometry(
+            model,
+            geometryWithStructural,
+            panelSystem
+        );
+
     const geometry =
         createBuildingGeometryContract({
-            ...baseGeometry,
-            structural
+            ...geometryWithStructural,
+
+            panels,
+
+            wainscot:
+                panels.wainscot,
+
+            trims:
+                options.trims ?? null,
+
+            ridge:
+                roof.ridge,
+
+            gutters:
+                options.gutters ?? null,
+
+            awnings:
+                options.awnings ?? null,
+
+            liner:
+                options.liner ?? null,
+
+            mezzanine:
+                options.mezzanine ?? null,
+
+            crane:
+                options.crane ?? null,
+
+            driveway:
+                options.driveway ?? null,
+
+            logo:
+                options.logo ?? null
         });
 
     validateGeometryInvariants(
