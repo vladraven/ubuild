@@ -47,6 +47,10 @@ import {
 } from './LinerGeometry.js';
 
 import {
+    createGuttersGeometry
+} from './GuttersGeometry.js';
+
+import {
     createPanelSystem
 } from '../panels/PanelSystem.js';
 
@@ -67,18 +71,8 @@ function createEmptyTrimGeometry() {
     });
 }
 
-function createEmptyGutterGeometry() {
-    return Object.freeze({
-        eaves: Object.freeze([]),
-        downspouts: Object.freeze([]),
-        outlets: Object.freeze([]),
-        anchors: Object.freeze([])
-    });
-}
-
 function createLogoGeometry(
-    model,
-    envelope
+    model
 ) {
     const config =
         model.logo;
@@ -202,6 +196,13 @@ export function createBuildingGeometry(
             openings
         );
 
+    const gutters =
+        createGuttersGeometry(
+            model,
+            envelope,
+            roof
+        );
+
     const geometrySource = {
         model,
 
@@ -241,7 +242,9 @@ export function createBuildingGeometry(
 
         driveway,
 
-        liner
+        liner,
+
+        gutters
     };
 
     const panelSystem =
@@ -260,13 +263,9 @@ export function createBuildingGeometry(
     const trims =
         createEmptyTrimGeometry();
 
-    const gutters =
-        createEmptyGutterGeometry();
-
     const logo =
         createLogoGeometry(
-            model,
-            envelope
+            model
         );
 
     const geometry =
