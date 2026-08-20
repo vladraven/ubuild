@@ -14,31 +14,30 @@ function createBounds(
     width,
     length,
     height,
-    zOffset
+    center
 ) {
     return Object.freeze({
         min:
             point(
-                -width / 2,
-                0,
-                zOffset -
+                center.x -
+                    width / 2,
+                center.y -
+                    height / 2,
+                center.z -
                     length / 2
             ),
 
         max:
             point(
-                width / 2,
-                height,
-                zOffset +
+                center.x +
+                    width / 2,
+                center.y +
+                    height / 2,
+                center.z +
                     length / 2
             ),
 
-        center:
-            point(
-                0,
-                height / 2,
-                zOffset
-            ),
+        center,
 
         width,
         length,
@@ -56,6 +55,20 @@ function validatePositive(
     ) {
         throw new RangeError(
             `${name} must be greater than zero`
+        );
+    }
+}
+
+function validateNonNegative(
+    value,
+    name
+) {
+    if (
+        !Number.isFinite(value) ||
+        value < 0
+    ) {
+        throw new RangeError(
+            `${name} must be non-negative`
         );
     }
 }
@@ -97,6 +110,8 @@ export function createDrivewayGeometry(
                     0
                 ),
 
+            anchor: null,
+
             bounds: null
         });
     }
@@ -120,14 +135,10 @@ export function createDrivewayGeometry(
         'driveway.length'
     );
 
-    if (
-        !Number.isFinite(height) ||
-        height < 0
-    ) {
-        throw new RangeError(
-            'driveway.height must be non-negative'
-        );
-    }
+    validateNonNegative(
+        height,
+        'driveway.height'
+    );
 
     if (
         width >
@@ -138,22 +149,35 @@ export function createDrivewayGeometry(
         );
     }
 
-    const zOffset =
-        config.z ??
-        config.zOffset ??
-        envelope.bounds.min.z -
-            length / 2;
+    const frontZ =
+        envelope.bounds.min.z;
+
+    const x =
+        config.x ??
+        0;
 
     const y =
         config.y ??
-        config.height ??
-        0;
+        height / 2;
+
+    const z =
+        config.z ??
+        config.zOffset ??
+        frontZ -
+            length / 2;
 
     const position =
         point(
-            config.x ?? 0,
+            x,
             y,
-            zOffset
+            z
+        );
+
+    const anchor =
+        point(
+            x,
+            0,
+            z
         );
 
     return Object.freeze({
@@ -165,19 +189,14 @@ export function createDrivewayGeometry(
 
         position,
 
-        anchor:
-            point(
-                position.x,
-                position.y,
-                position.z
-            ),
+        anchor,
 
         bounds:
             createBounds(
                 width,
                 length,
                 height,
-                position.z
+                position
             )
     });
 }
