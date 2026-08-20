@@ -85,42 +85,42 @@ function createRuntimeMaterialSystem(paletteOverrides = {}, catalogOverrides = {
         interiorWall: 'interiorWall',
         mezzanine: 'mezzanine'
     });
-	function get(name, colorOverride = null, textureOverride = null) {
-		const colorName = materialColors[name] || 'steel';
-		const color = colorOverride || palette[colorName] || palette.wall;
-		const key = `${name}_${color}`;
-		if (materialsMap.has(key)) {
-			const material = materialsMap.get(key);
-			if (textureOverride && typeof textureOverride === 'object') {
-				if (textureOverride.colorMap !== undefined) material.map = textureOverride.colorMap;
-				if (textureOverride.normalMap !== undefined) material.normalMap = textureOverride.normalMap;
-				if (textureOverride.bumpMap !== undefined) material.bumpMap = textureOverride.bumpMap;
-				if (textureOverride.roughnessMap !== undefined) material.roughnessMap = textureOverride.roughnessMap;
-				material.needsUpdate = true;
-			}
-			return material;
-		}
-		const definition = catalog[name] || catalog.steel;
-		const material = createMaterial(definition, color);
-		let textureBundle = null;
-		if (typeof textureOverride === 'string') {
-			textureBundle = textureManager.get(textureOverride);
-		} else if (textureOverride && typeof textureOverride === 'object') {
-			textureBundle = textureOverride;
-		} else {
-			const textureName = materialTextures[name];
-			if (textureName) textureBundle = textureManager.get(textureName);
-		}
-		if (textureBundle) {
-			if (textureBundle.colorMap !== undefined) material.map = textureBundle.colorMap;
-			if (textureBundle.normalMap !== undefined) material.normalMap = textureBundle.normalMap;
-			if (textureBundle.bumpMap !== undefined) material.bumpMap = textureBundle.bumpMap;
-			if (textureBundle.roughnessMap !== undefined) material.roughnessMap = textureBundle.roughnessMap;
-			material.needsUpdate = true;
-		}
-		materialsMap.set(key, material);
-		return material;
-	}
+    function get(name, colorOverride = null, textureOverride = null) {
+        const colorName = materialColors[name] || 'steel';
+        const color = colorOverride || palette[colorName] || palette.wall;
+        const key = `${name}_${color}`;
+        if (materialsMap.has(key)) {
+            const material = materialsMap.get(key);
+            if (textureOverride && typeof textureOverride === 'object') {
+                if (textureOverride.colorMap !== undefined) material.map = textureOverride.colorMap;
+                if (textureOverride.normalMap !== undefined) material.normalMap = textureOverride.normalMap;
+                if (textureOverride.bumpMap !== undefined) material.bumpMap = textureOverride.bumpMap;
+                if (textureOverride.roughnessMap !== undefined) material.roughnessMap = textureOverride.roughnessMap;
+                material.needsUpdate = true;
+            }
+            return material;
+        }
+        const definition = catalog[name] || catalog.steel;
+        const material = createMaterial(definition, color);
+        let textureBundle = null;
+        if (typeof textureOverride === 'string') {
+            textureBundle = textureManager.get(textureOverride);
+        } else if (textureOverride && typeof textureOverride === 'object') {
+            textureBundle = textureOverride;
+        } else {
+            const textureName = materialTextures[name];
+            if (textureName) textureBundle = textureManager.get(textureName);
+        }
+        if (textureBundle) {
+            if (textureBundle.colorMap !== undefined) material.map = textureBundle.colorMap;
+            if (textureBundle.normalMap !== undefined) material.normalMap = textureBundle.normalMap;
+            if (textureBundle.bumpMap !== undefined) material.bumpMap = textureBundle.bumpMap;
+            if (textureBundle.roughnessMap !== undefined) material.roughnessMap = textureBundle.roughnessMap;
+            material.needsUpdate = true;
+        }
+        materialsMap.set(key, material);
+        return material;
+    }
     function updatePalette(newPaletteOverrides = {}) {
         const updatedPalette = createColorPalette(newPaletteOverrides);
         for (const [key, material] of materialsMap.entries()) {
