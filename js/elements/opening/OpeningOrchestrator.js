@@ -2,58 +2,35 @@ import * as THREE from 'three';
 
 const TYPES = Object.freeze({
     WINDOW: 'Window',
-
-    WALK_DOOR_SOLID:
-        'Walk Door Solid',
-
-    WALK_DOOR_SOLID_DOUBLE:
-        'Walk Door Solid Double',
-
-    OVERHEAD_PANEL_DOOR:
-        'Overhead Panel Door',
-
-    BI_FOLD_DOOR:
-        'Bi-Fold Door',
-
-    HYDRAULIC_DOOR:
-        'Hydraulic Door'
+    WALK_DOOR_SOLID: 'Walk Door Solid',
+    WALK_DOOR_SOLID_DOUBLE: 'Walk Door Solid Double',
+    OVERHEAD_PANEL_DOOR: 'Overhead Panel Door',
+    BI_FOLD_DOOR: 'Bi-Fold Door',
+    HYDRAULIC_DOOR: 'Hydraulic Door'
 });
 
 const DEFAULTS = Object.freeze({
     frameThickness: 0.05,
-
     depth: 0.2,
-
-    panelGap: 0.02,
-
-    windowDepth: 0.02
+    windowDepth: 0.15,
+    glassDepth: 0.02,
+    panelGap: 0.02
 });
 
-function assertContext(
-    context
-) {
-    if (
-        !context ||
-        typeof context !== 'object'
-    ) {
+function assertContext(context) {
+    if (!context || typeof context !== 'object') {
         throw new TypeError(
             'Element context is required'
         );
     }
 
-    if (
-        !Array.isArray(
-            context.geometry?.openings
-        )
-    ) {
+    if (!Array.isArray(context.geometry?.openings)) {
         throw new TypeError(
             'Opening geometry is required'
         );
     }
 
-    if (
-        !context.materials
-    ) {
+    if (!context.materials) {
         throw new TypeError(
             'Material system is required'
         );
@@ -75,15 +52,11 @@ function resolveMaterial(
         );
     }
 
-    if (
-        context.materials[name]
-    ) {
+    if (context.materials[name]) {
         return context.materials[name];
     }
 
-    if (
-        context.materials.steel
-    ) {
+    if (context.materials.steel) {
         return context.materials.steel;
     }
 
@@ -211,6 +184,25 @@ function createWindow(
     group.name =
         'window';
 
+    const width =
+        opening.dimensions.width;
+
+    const height =
+        opening.dimensions.height;
+
+    const frameThickness =
+        DEFAULTS.frameThickness;
+
+    const frameDepth =
+        DEFAULTS.windowDepth;
+
+    const frameMaterial =
+        resolveMaterial(
+            context,
+            'frame',
+            context.colors?.trim
+        );
+
     const glassMaterial =
         resolveMaterial(
             context,
@@ -218,27 +210,167 @@ function createWindow(
             context.colors?.glass
         );
 
-    const width =
-        opening.dimensions.width;
-
-    const height =
-        opening.dimensions.height;
-
     group.add(
         createBox(
             width,
-            height,
-            DEFAULTS.windowDepth,
-            glassMaterial
+            frameThickness,
+            frameDepth,
+            frameMaterial,
+            0,
+            -height / 2 +
+                frameThickness / 2,
+            0
         )
     );
 
     group.add(
-        createFrame(
+        createBox(
             width,
-            height,
-            context
+            frameThickness,
+            frameDepth,
+            frameMaterial,
+            0,
+            height / 2 -
+                frameThickness / 2,
+            0
         )
+    );
+
+    group.add(
+        createBox(
+            frameThickness,
+            height -
+                frameThickness * 2,
+            frameDepth,
+            frameMaterial,
+            -width / 2 +
+                frameThickness / 2,
+            0,
+            0
+        )
+    );
+
+    group.add(
+        createBox(
+            frameThickness,
+            height -
+                frameThickness * 2,
+            frameDepth,
+            frameMaterial,
+            width / 2 -
+                frameThickness / 2,
+            0,
+            0
+        )
+    );
+
+    group.add(
+        createBox(
+            frameThickness,
+            height -
+                frameThickness * 2,
+            frameDepth -
+                0.02,
+            frameMaterial,
+            0,
+            0,
+            0
+        )
+    );
+
+    group.add(
+        createBox(
+            width -
+                frameThickness * 2,
+            frameThickness,
+            frameDepth -
+                0.02,
+            frameMaterial,
+            0,
+            0,
+            0
+        )
+    );
+
+    const paneWidth =
+        (
+            width -
+            frameThickness * 3
+        ) / 2;
+
+    const paneHeight =
+        (
+            height -
+            frameThickness * 3
+        ) / 2;
+
+    const paneDepth =
+        DEFAULTS.glassDepth;
+
+    group.add(
+        createBox(
+            paneWidth,
+            paneHeight,
+            paneDepth,
+            glassMaterial,
+            -width / 4,
+            -height / 4,
+            0
+        )
+    );
+
+    group.add(
+        createBox(
+            paneWidth,
+            paneHeight,
+            paneDepth,
+            glassMaterial,
+            width / 4,
+            -height / 4,
+            0
+        )
+    );
+
+    group.add(
+        createBox(
+            paneWidth,
+            paneHeight,
+            paneDepth,
+            glassMaterial,
+            -width / 4,
+            height / 4,
+            0
+        )
+    );
+
+    group.add(
+        createBox(
+            paneWidth,
+            paneHeight,
+            paneDepth,
+            glassMaterial,
+            width / 4,
+            height / 4,
+            0
+        )
+    );
+
+    const hit =
+        new THREE.Mesh(
+            new THREE.PlaneGeometry(
+                width,
+                height
+            ),
+            new THREE.MeshBasicMaterial({
+                visible: false
+            })
+        );
+
+    hit.position.z =
+        0.2;
+
+    group.add(
+        hit
     );
 
     return group;
@@ -621,9 +753,7 @@ function createOpening(
     opening,
     context
 ) {
-    switch (
-        opening.type
-    ) {
+    switch (opening.type) {
         case TYPES.WINDOW:
             return createWindow(
                 opening,
@@ -679,33 +809,25 @@ function orientOpening(
         opening.anchor.z
     );
 
-    const side =
-        opening.side;
+    switch (opening.side) {
+        case 'B':
+            object.rotation.y =
+                Math.PI;
+            break;
 
-    if (
-        side === 'B'
-    ) {
-        object.rotation.y =
-            Math.PI;
-    }
+        case 'L':
+            object.rotation.y =
+                Math.PI / 2;
+            break;
 
-    else if (
-        side === 'L'
-    ) {
-        object.rotation.y =
-            Math.PI / 2;
-    }
+        case 'R':
+            object.rotation.y =
+                -Math.PI / 2;
+            break;
 
-    else if (
-        side === 'R'
-    ) {
-        object.rotation.y =
-            -Math.PI / 2;
-    }
-
-    else {
-        object.rotation.y =
-            0;
+        default:
+            object.rotation.y =
+                0;
     }
 }
 
@@ -789,9 +911,7 @@ function disposeObject(
         ) {
             material?.dispose?.();
         }
-    }
-
-    else {
+    } else {
         object.material?.dispose?.();
     }
 
@@ -802,9 +922,7 @@ export const OpeningOrchestrator =
     Object.freeze({
         id: 'openings',
 
-        create(
-            context
-        ) {
+        create(context) {
             return createObject(
                 context
             );
@@ -829,9 +947,7 @@ export const OpeningOrchestrator =
             );
         },
 
-        dispose(
-            object
-        ) {
+        dispose(object) {
             disposeObject(
                 object
             );
