@@ -27,6 +27,10 @@ import {
 } from './StructuralGeometry.js';
 
 import {
+    createAwningGeometry
+} from './AwningGeometry.js';
+
+import {
     createPanelSystem
 } from '../panels/PanelSystem.js';
 
@@ -104,6 +108,12 @@ export function createBuildingGeometry(
         ...structural
     };
 
+    const awnings =
+        createAwningGeometry(
+            model,
+            envelope
+        );
+
     const panelSystem =
         createPanelSystem(
             model,
@@ -135,8 +145,7 @@ export function createBuildingGeometry(
             gutters:
                 options.gutters ?? null,
 
-            awnings:
-                options.awnings ?? null,
+            awnings,
 
             liner:
                 options.liner ?? null,
