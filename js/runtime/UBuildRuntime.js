@@ -1,4 +1,3 @@
-// js/runtime/UBuildRuntime.js
 import * as THREE from 'three';
 
 import { createBuildingModel } from '../model/buildingModel.js';
@@ -12,11 +11,20 @@ import { StructuralOrchestrator } from '../elements/structural/StructuralOrchest
 import { OpeningOrchestrator } from '../elements/opening/OpeningOrchestrator.js';
 import { WainscotOrchestrator } from '../elements/wainscot/WainscotOrchestrator.js';
 import { TrimOrchestrator } from '../elements/trim/TrimOrchestrator.js';
+import { GuttersOrchestrator } from '../elements/gutters/GuttersOrchestrator.js';
+import { RidgeOrchestrator } from '../elements/ridge/RidgeOrchestrator.js';
+import { MezzanineOrchestrator } from '../elements/mezzanine/MezzanineOrchestrator.js';
+import { CraneOrchestrator } from '../elements/crane/CraneOrchestrator.js';
+import { LinerOrchestrator } from '../elements/liner/LinerOrchestrator.js';
+import { DrivewayOrchestrator } from '../elements/driveway/DrivewayOrchestrator.js';
+import { LogoOrchestrator } from '../elements/logo/LogoOrchestrator.js';
 import { AwningElement } from '../elements/awning/AwningElement.js';
 
 import { createEnvironmentSystem } from '../environment/EnvironmentSystem.js';
 import { createLightingSystem } from '../lighting/LightingSystem.js';
 import { getSolarState } from '../lighting/SolarPosition.js';
+import { createCameraControls } from '../interaction/CameraControls.js';
+import { createOpeningInteraction } from '../interaction/OpeningInteraction.js';
 
 function assertContainer(container) {
     if (!container || typeof container.appendChild !== 'function') {
@@ -33,17 +41,13 @@ function createScene() {
 function createCamera(container, geometry) {
     const width = Math.max(container.clientWidth, 1);
     const height = Math.max(container.clientHeight, 1);
-
     const camera = new THREE.PerspectiveCamera(45, width / height, 0.1, 5000);
+
     const bounds = geometry.bounds;
     const center = bounds.center;
     const size = Math.max(bounds.width, bounds.height, bounds.length, 1);
 
-    camera.position.set(
-        center.x + size * 1.4,
-        center.y + size * 0.9,
-        center.z + size * 1.4
-    );
+    camera.position.set(center.x + size * 1.4, center.y + size * 0.9, center.z + size * 1.4);
     camera.lookAt(center.x, center.y, center.z);
     return camera;
 }
@@ -51,7 +55,8 @@ function createCamera(container, geometry) {
 function createRenderer(container) {
     const renderer = new THREE.WebGLRenderer({
         antialias: true,
-        powerPreference: 'high-performance'
+        powerPreference: 'high-performance',
+        preserveDrawingBuffer: true
     });
 
     renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
@@ -72,27 +77,18 @@ function createMaterialSystem() {
         ['steel', new THREE.MeshStandardMaterial({ color: 0x444444, metalness: 0.65, roughness: 0.45 })],
         ['concrete', new THREE.MeshStandardMaterial({ color: 0x999999, roughness: 0.9 })],
         ['trimMetal', new THREE.MeshStandardMaterial({ color: 0x444444, metalness: 0.55, roughness: 0.5 })],
+        ['eaveTrim', new THREE.MeshStandardMaterial({ color: 0x444444, metalness: 0.55, roughness: 0.5 })],
         ['doorTrim', new THREE.MeshStandardMaterial({ color: 0x444444, metalness: 0.55, roughness: 0.5 })],
         ['doorFrame', new THREE.MeshStandardMaterial({ color: 0x444444, metalness: 0.55, roughness: 0.5 })],
         ['frame', new THREE.MeshStandardMaterial({ color: 0x444444, metalness: 0.55, roughness: 0.5 })],
         ['doorPanel', new THREE.MeshStandardMaterial({ color: 0x888888, metalness: 0.2, roughness: 0.8 })],
         ['glass', new THREE.MeshStandardMaterial({ color: 0x9ccfff, transparent: true, opacity: 0.45, roughness: 0.1, metalness: 0 })],
+        ['mezzanine', new THREE.MeshStandardMaterial({ color: 0x666666, metalness: 0.4, roughness: 0.6 })],
+        ['interiorWall', new THREE.MeshStandardMaterial({ color: 0xeeeeee, metalness: 0.1, roughness: 0.8 })],
         ['wall', new THREE.MeshStandardMaterial({ color: 0x777777, metalness: 0.35, roughness: 0.7 })]
     ]);
 
     return Object.freeze({
-        concrete: materials.get('concrete'),
-        steel: materials.get('steel'),
-        wallMetal: materials.get('wallMetal'),
-        roofMetal: materials.get('roofMetal'),
-        structuralSteel: materials.get('structuralSteel'),
-        trimMetal: materials.get('trimMetal'),
-        doorTrim: materials.get('doorTrim'),
-        doorFrame: materials.get('doorFrame'),
-        frame: materials.get('frame'),
-        doorPanel: materials.get('doorPanel'),
-        glass: materials.get('glass'),
-        wall: materials.get('wall'),
         get(name) {
             return materials.get(name) ?? materials.get('steel');
         },
@@ -112,19 +108,29 @@ function createColors() {
         frame: 0x444444,
         trim: 0x444444,
         wainscot: 0x444444,
-        glass: 0x9ccfff
+        concrete: 0x999999,
+        glass: 0x9ccfff,
+        mezzanine: 0x666666,
+        interiorWall: 0xeeeeee
     });
 }
 
 function createRegistry() {
     const registry = createElementRegistry();
-    registry.register('walls', WallOrchestrator);
-    registry.register('roof', RoofOrchestrator);
     registry.register('foundation', FoundationOrchestrator);
     registry.register('structural', StructuralOrchestrator);
-    registry.register('openings', OpeningOrchestrator);
+    registry.register('walls', WallOrchestrator);
+    registry.register('roof', RoofOrchestrator);
     registry.register('wainscot', WainscotOrchestrator);
+    registry.register('openings', OpeningOrchestrator);
     registry.register('trims', TrimOrchestrator);
+    registry.register('ridge', RidgeOrchestrator);
+    registry.register('gutters', GuttersOrchestrator);
+    registry.register('mezzanine', MezzanineOrchestrator);
+    registry.register('crane', CraneOrchestrator);
+    registry.register('liner', LinerOrchestrator);
+    registry.register('driveway', DrivewayOrchestrator);
+    registry.register('logo', LogoOrchestrator);
     registry.register('awnings', AwningElement);
     return registry;
 }
@@ -207,6 +213,27 @@ export function createUBuildRuntime({
 
     let disposed = false;
 
+    const cameraControls = createCameraControls({
+        camera,
+        domElement: renderer.domElement,
+        onUpdate: render
+    });
+
+    const openingInteraction = createOpeningInteraction({
+        camera,
+        domElement: renderer.domElement,
+        buildingRoot,
+        onOpeningChange(change) {
+            const nextOpenings = buildingModel.openings.map(op => {
+                if (op.id === change.id) {
+                    return { ...op, x: change.x, yOff: change.yOff };
+                }
+                return op;
+            });
+            update({ ...buildingModel, openings: nextOpenings });
+        }
+    });
+
     let lightingConfig = {
         date: lighting.date ?? '2026-06-21',
         time: lighting.time ?? '12:00',
@@ -235,6 +262,7 @@ export function createUBuildRuntime({
         camera.aspect = width / height;
         camera.updateProjectionMatrix();
         renderer.setSize(width, height);
+        render();
     }
 
     function render() {
@@ -243,9 +271,7 @@ export function createUBuildRuntime({
     }
 
     function update(nextModel) {
-        if (disposed) {
-            throw new Error('UBuild runtime is disposed');
-        }
+        if (disposed) throw new Error('UBuild runtime is disposed');
 
         buildingModel = createBuildingModel(nextModel);
         buildingGeometry = createBuildingGeometry(buildingModel);
@@ -271,10 +297,13 @@ export function createUBuildRuntime({
         return buildingModel;
     }
 
+    function autoFrame() {
+        cameraControls.frameBounds(buildingGeometry.bounds);
+        render();
+    }
+
     function setDateTimeLocation(config = {}) {
-        if (disposed) {
-            throw new Error('UBuild runtime is disposed');
-        }
+        if (disposed) throw new Error('UBuild runtime is disposed');
 
         if (config.date !== undefined) lightingConfig.date = config.date;
         if (config.time !== undefined) lightingConfig.time = config.time;
@@ -298,12 +327,10 @@ export function createUBuildRuntime({
     }
 
     function start() {
-        if (disposed) {
-            throw new Error('UBuild runtime is disposed');
-        }
+        if (disposed) throw new Error('UBuild runtime is disposed');
         updateLightingAndEnvironment();
         resize();
-        render();
+        autoFrame();
         return api;
     }
 
@@ -311,6 +338,8 @@ export function createUBuildRuntime({
         if (disposed) return;
         disposed = true;
 
+        cameraControls.dispose();
+        openingInteraction.dispose();
         registry.disposeAll(currentInstances);
         lightingSystem.dispose();
         environmentSystem.dispose();
@@ -329,6 +358,8 @@ export function createUBuildRuntime({
         renderer,
         environment: environmentSystem,
         lighting: lightingSystem,
+        controls: cameraControls,
+        interaction: openingInteraction,
         materials,
         registry,
         root: buildingRoot,
@@ -336,6 +367,7 @@ export function createUBuildRuntime({
         render,
         resize,
         update,
+        autoFrame,
         setDateTimeLocation,
         dispose
     });
