@@ -12,8 +12,8 @@ const SIDES = Object.freeze([
 ]);
 
 const OPENING_TYPES = Object.freeze([
-    'window',
-    'door'
+    'Window',
+    'Door'
 ]);
 
 const DEFAULTS = Object.freeze({
@@ -25,8 +25,8 @@ const DEFAULTS = Object.freeze({
 
     roof: Object.freeze({
         type: 'gabled',
-        pitch: 0.1666666667,
-        profile: 'awr',
+        pitchRatio: 0.1666666667,
+
         overhangs: Object.freeze({
             front: 0,
             back: 0,
@@ -36,11 +36,12 @@ const DEFAULTS = Object.freeze({
     }),
 
     walls: Object.freeze({
-        profile: 'awr',
         thickness: 0.15
     }),
 
     panels: Object.freeze({
+        profile: 'awr',
+        wallHeight: 4.8768,
         wainscotHeight: 0.9144
     }),
 
@@ -111,26 +112,35 @@ const DEFAULTS = Object.freeze({
 });
 
 const LIMITS = Object.freeze({
-    width: {
+    width: Object.freeze({
         min: 6.096,
         max: 24.384
-    },
-    length: {
+    }),
+
+    length: Object.freeze({
         min: 12.192,
         max: 45.72
-    },
-    height: {
+    }),
+
+    height: Object.freeze({
         min: 3.048,
         max: 7.3152
-    },
-    overhang: {
+    }),
+
+    overhang: Object.freeze({
         min: 0,
         max: 1.524
-    },
-    foundationHeight: {
+    }),
+
+    foundationHeight: Object.freeze({
         min: 0,
         max: 0.6096
-    }
+    }),
+
+    wallThickness: Object.freeze({
+        min: 0,
+        max: 1
+    })
 });
 
 function clone(value) {
@@ -139,13 +149,14 @@ function clone(value) {
     }
 
     if (value && typeof value === 'object') {
-        const result = {};
-
-        for (const [key, item] of Object.entries(value)) {
-            result[key] = clone(item);
-        }
-
-        return result;
+        return Object.fromEntries(
+            Object.entries(value).map(
+                ([key, item]) => [
+                    key,
+                    clone(item)
+                ]
+            )
+        );
     }
 
     return value;
@@ -179,7 +190,11 @@ function merge(base, override) {
             typeof result[key] === 'object' &&
             !Array.isArray(result[key])
         ) {
-            result[key] = merge(result[key], value);
+            result[key] = merge(
+                result[key],
+                value
+            );
+
             continue;
         }
 
@@ -191,11 +206,18 @@ function merge(base, override) {
 
 function assertFinite(value, path) {
     if (!Number.isFinite(value)) {
-        throw new TypeError(`${path} must be a finite number`);
+        throw new TypeError(
+            `${path} must be a finite number`
+        );
     }
 }
 
-function assertRange(value, min, max, path) {
+function assertRange(
+    value,
+    min,
+    max,
+    path
+) {
     assertFinite(value, path);
 
     if (value < min || value > max) {
@@ -236,22 +258,84 @@ function validateRoof(model) {
     }
 
     assertFinite(
-        model.roof.pitch,
-        'roof.pitch'
+        model.roof.pitchRatio,
+        'roof.pitchRatio'
     );
 
-    if (model.roof.pitch <= 0) {
+    if (model.roof.pitchRatio <= 0) {
         throw new RangeError(
-            'roof.pitch must be greater than zero'
+            'roof.pitchRatio must be greater than zero'
         );
     }
 
-    for (const side of ['front', 'back', 'left', 'right']) {
+    for (const side of [
+        'front',
+        'back',
+        'left',
+        'right'
+    ]) {
         assertRange(
             model.roof.overhangs[side],
             LIMITS.overhang.min,
             LIMITS.overhang.max,
             `roof.overhangs.${side}`
+        );
+    }
+}
+
+function validateWalls(model) {
+    assertRange(
+        model.walls.thickness,
+        LIMITS.wallThickness.min,
+        LIMITS.wallThickness.max,
+        'walls.thickness'
+    );
+}
+
+function validatePanels(model) {
+    if (
+        typeof model.panels.profile !== 'string' ||
+        model.panels.profile.trim() === ''
+    ) {
+        throw new TypeError(
+            'panels.profile is required'
+        );
+    }
+
+    assertFinite(
+        model.panels.wallHeight,
+        'panels.wallHeight'
+    );
+
+    assertFinite(
+        model.panels.wainscotHeight,
+        'panels.wainscotHeight'
+    );
+
+    if (model.panels.wallHeight <= 0) {
+        throw new RangeError(
+            'panels.wallHeight must be greater than zero'
+        );
+    }
+
+    if (model.panels.wallHeight > model.dimensions.height) {
+        throw new RangeError(
+            'panels.wallHeight cannot exceed building height'
+        );
+    }
+
+    if (model.panels.wainscotHeight < 0) {
+        throw new RangeError(
+            'panels.wainscotHeight cannot be negative'
+        );
+    }
+
+    if (
+        model.panels.wainscotHeight >
+        model.panels.wallHeight
+    ) {
+        throw new RangeError(
+            'panels.wainscotHeight cannot exceed panel wall height'
         );
     }
 }
@@ -265,14 +349,20 @@ function validateFoundation(model) {
     );
 }
 
-function validateOpening(opening, index) {
+function validateOpening(
+    opening,
+    index
+) {
     if (!opening || typeof opening !== 'object') {
         throw new TypeError(
             `openings[${index}] must be an object`
         );
     }
 
-    if (!opening.id) {
+    if (
+        typeof opening.id !== 'string' ||
+        opening.id.trim() === ''
+    ) {
         throw new TypeError(
             `openings[${index}].id is required`
         );
@@ -291,22 +381,39 @@ function validateOpening(opening, index) {
     }
 
     for (const field of [
+        'x',
+        'yOff',
         'width',
-        'height',
-        'position',
-        'verticalOffset'
+        'height'
     ]) {
-        if (
-            Object.prototype.hasOwnProperty.call(
-                opening,
-                field
-            )
-        ) {
-            assertFinite(
-                opening[field],
-                `openings[${index}].${field}`
-            );
-        }
+        assertFinite(
+            opening[field],
+            `openings[${index}].${field}`
+        );
+    }
+
+    if (opening.width <= 0) {
+        throw new RangeError(
+            `openings[${index}].width must be greater than zero`
+        );
+    }
+
+    if (opening.height <= 0) {
+        throw new RangeError(
+            `openings[${index}].height must be greater than zero`
+        );
+    }
+
+    if (opening.x < 0) {
+        throw new RangeError(
+            `openings[${index}].x cannot be negative`
+        );
+    }
+
+    if (opening.yOff < 0) {
+        throw new RangeError(
+            `openings[${index}].yOff cannot be negative`
+        );
     }
 }
 
@@ -319,45 +426,42 @@ function validateOpenings(model) {
 
     const ids = new Set();
 
-    model.openings.forEach((opening, index) => {
-        validateOpening(opening, index);
-
-        if (ids.has(opening.id)) {
-            throw new Error(
-                `Duplicate opening id: ${opening.id}`
+    model.openings.forEach(
+        (opening, index) => {
+            validateOpening(
+                opening,
+                index
             );
-        }
 
-        ids.add(opening.id);
-    });
+            if (ids.has(opening.id)) {
+                throw new Error(
+                    `Duplicate opening id: ${opening.id}`
+                );
+            }
+
+            ids.add(opening.id);
+        }
+    );
 }
 
 function validate(model) {
     validateDimensions(model);
     validateRoof(model);
+    validateWalls(model);
+    validatePanels(model);
     validateFoundation(model);
     validateOpenings(model);
-
-    if (model.panels.wainscotHeight < 0) {
-        throw new RangeError(
-            'panels.wainscotHeight cannot be negative'
-        );
-    }
-
-    if (
-        model.panels.wainscotHeight >
-        model.dimensions.height
-    ) {
-        throw new RangeError(
-            'panels.wainscotHeight cannot exceed building height'
-        );
-    }
 
     return model;
 }
 
-export function createBuildingModel(overrides = {}) {
-    const model = merge(DEFAULTS, overrides);
+export function createBuildingModel(
+    overrides = {}
+) {
+    const model = merge(
+        DEFAULTS,
+        overrides
+    );
 
     validate(model);
 
@@ -368,23 +472,36 @@ export function updateBuildingModel(
     current,
     changes = {}
 ) {
-    if (!current || typeof current !== 'object') {
+    if (
+        !current ||
+        typeof current !== 'object'
+    ) {
         throw new TypeError(
             'current building model is required'
         );
     }
 
     return createBuildingModel(
-        merge(current, changes)
+        merge(
+            current,
+            changes
+        )
     );
 }
 
-export function validateBuildingModel(model) {
-    validate(clone(model));
+export function validateBuildingModel(
+    model
+) {
+    validate(
+        clone(model)
+    );
+
     return true;
 }
 
-export function cloneBuildingModel(model) {
+export function cloneBuildingModel(
+    model
+) {
     return clone(model);
 }
 

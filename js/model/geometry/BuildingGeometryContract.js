@@ -3,25 +3,40 @@ const REQUIRED_SECTIONS = Object.freeze([
     'walls',
     'roof',
     'foundation',
-    'openings'
+    'openings',
+    'structural'
 ]);
 
 function assertObject(value, name) {
     if (!value || typeof value !== 'object') {
-        throw new TypeError(`${name} must be an object`);
+        throw new TypeError(
+            `${name} must be an object`
+        );
     }
 }
 
-function assertSection(data, name) {
-    assertObject(data[name], `BuildingGeometry.${name}`);
+function assertSection(
+    data,
+    name
+) {
+    assertObject(
+        data[name],
+        `BuildingGeometry.${name}`
+    );
 }
 
 function freezeDeep(value) {
-    if (!value || typeof value !== 'object') {
+    if (
+        !value ||
+        typeof value !== 'object'
+    ) {
         return value;
     }
 
-    for (const child of Object.values(value)) {
+    for (
+        const child
+        of Object.values(value)
+    ) {
         freezeDeep(child);
     }
 
@@ -29,10 +44,19 @@ function freezeDeep(value) {
 }
 
 function validateGeometry(data) {
-    assertObject(data, 'BuildingGeometry');
+    assertObject(
+        data,
+        'BuildingGeometry'
+    );
 
-    for (const section of REQUIRED_SECTIONS) {
-        assertSection(data, section);
+    for (
+        const section
+        of REQUIRED_SECTIONS
+    ) {
+        assertSection(
+            data,
+            section
+        );
     }
 
     if (!data.model) {
@@ -44,28 +68,46 @@ function validateGeometry(data) {
     return data;
 }
 
-export function createBuildingGeometryContract(data) {
+export function createBuildingGeometryContract(
+    data
+) {
     validateGeometry(data);
 
     return freezeDeep({
-        coordinateSystem: Object.freeze({
+        coordinateSystem: {
             x: 'width',
             y: 'height',
             z: 'length'
-        }),
+        },
 
         model: data.model,
-        envelope: data.envelope,
-        walls: data.walls,
-        roof: data.roof,
-        foundation: data.foundation,
-        openings: data.openings
+
+        envelope:
+            data.envelope,
+
+        walls:
+            data.walls,
+
+        roof:
+            data.roof,
+
+        foundation:
+            data.foundation,
+
+        openings:
+            data.openings,
+
+        structural:
+            data.structural
     });
 }
 
 export function validateBuildingGeometry(
     geometry
 ) {
-    validateGeometry(geometry);
+    validateGeometry(
+        geometry
+    );
+
     return true;
 }

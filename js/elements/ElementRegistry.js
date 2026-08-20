@@ -15,7 +15,8 @@ function assertOrchestrator(
 ) {
     if (
         !orchestrator ||
-        typeof orchestrator.create !== 'function'
+        typeof orchestrator.create !== 'function' ||
+        typeof orchestrator.update !== 'function'
     ) {
         throw new TypeError(
             `Invalid element orchestrator: ${id}`
@@ -31,6 +32,7 @@ export function createElementRegistry() {
         orchestrator
     ) {
         assertId(id);
+
         assertOrchestrator(
             orchestrator,
             id
@@ -79,15 +81,21 @@ export function createElementRegistry() {
     }
 
     function ids() {
-        return [...elements.keys()];
+        return [
+            ...elements.keys()
+        ];
     }
 
     function values() {
-        return [...elements.values()];
+        return [
+            ...elements.values()
+        ];
     }
 
     function entries() {
-        return [...elements.entries()];
+        return [
+            ...elements.entries()
+        ];
     }
 
     function createAll(context) {
@@ -148,7 +156,7 @@ export function createElementRegistry() {
             }
 
             orchestrator.dispose(
-                instance.object
+                instance
             );
         }
     }
