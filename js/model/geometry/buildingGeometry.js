@@ -31,6 +31,10 @@ import {
 } from './AwningGeometry.js';
 
 import {
+    createMezzanineGeometry
+} from './MezzanineGeometry.js';
+
+import {
     createPanelSystem
 } from '../panels/PanelSystem.js';
 
@@ -87,26 +91,18 @@ export function createBuildingGeometry(
             roof
         );
 
-    const baseGeometry = {
-        model,
-        envelope,
-        walls,
-        roof,
-        foundation,
-        openings
-    };
-
     const structural =
         createStructuralGeometry(
             model,
-            baseGeometry,
+            {
+                envelope,
+                walls,
+                roof,
+                foundation,
+                openings
+            },
             options.structural
         );
-
-    const geometryWithStructural = {
-        ...baseGeometry,
-        ...structural
-    };
 
     const awnings =
         createAwningGeometry(
@@ -114,22 +110,53 @@ export function createBuildingGeometry(
             envelope
         );
 
+    const mezzanine =
+        createMezzanineGeometry(
+            model,
+            envelope,
+            walls,
+            roof
+        );
+
+    const geometrySource = {
+        model,
+
+        bounds:
+            envelope.bounds,
+
+        envelope,
+
+        walls,
+
+        roof,
+
+        foundation,
+
+        openings,
+
+        ...structural,
+
+        awnings,
+
+        mezzanine
+    };
+
     const panelSystem =
         createPanelSystem(
             model,
-            geometryWithStructural
+            geometrySource
         );
 
     const panels =
         createPanelGeometry(
             model,
-            geometryWithStructural,
+            geometrySource,
             panelSystem
         );
 
     const geometry =
         createBuildingGeometryContract({
-            ...geometryWithStructural,
+            ...geometrySource,
 
             panels,
 
@@ -145,13 +172,8 @@ export function createBuildingGeometry(
             gutters:
                 options.gutters ?? null,
 
-            awnings,
-
             liner:
                 options.liner ?? null,
-
-            mezzanine:
-                options.mezzanine ?? null,
 
             crane:
                 options.crane ?? null,
