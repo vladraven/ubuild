@@ -43,6 +43,10 @@ import {
 } from './DrivewayGeometry.js';
 
 import {
+    createLinerGeometry
+} from './LinerGeometry.js';
+
+import {
     createPanelSystem
 } from '../panels/PanelSystem.js';
 
@@ -95,8 +99,7 @@ export function createBuildingGeometry(
         createOpeningGeometry(
             model,
             envelope,
-            walls,
-            roof
+            walls
         );
 
     const structural =
@@ -140,6 +143,13 @@ export function createBuildingGeometry(
             envelope
         );
 
+    const liner =
+        createLinerGeometry(
+            model,
+            envelope,
+            openings
+        );
+
     const geometrySource = {
         model,
 
@@ -177,7 +187,9 @@ export function createBuildingGeometry(
 
         crane,
 
-        driveway
+        driveway,
+
+        liner
     };
 
     const panelSystem =
@@ -210,9 +222,6 @@ export function createBuildingGeometry(
 
             gutters:
                 options.gutters ?? null,
-
-            liner:
-                options.liner ?? null,
 
             logo:
                 options.logo ?? null
