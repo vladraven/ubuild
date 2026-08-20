@@ -13,8 +13,50 @@ const SIDES = Object.freeze([
 
 const OPENING_TYPES = Object.freeze([
     'Window',
-    'Door'
+    'Walk Door Solid',
+    'Walk Door Solid Double',
+    'Overhead Panel Door',
+    'Bi-Fold Door',
+    'Hydraulic Door'
 ]);
+
+const OPENING_DEFS = Object.freeze({
+    'Window': Object.freeze({
+        width: 1.0,
+        height: 1.0,
+        yOff: 1.0
+    }),
+
+    'Walk Door Solid': Object.freeze({
+        width: 1.0,
+        height: 2.1,
+        yOff: 0
+    }),
+
+    'Walk Door Solid Double': Object.freeze({
+        width: 2.0,
+        height: 2.1,
+        yOff: 0
+    }),
+
+    'Overhead Panel Door': Object.freeze({
+        width: 3.0,
+        height: 3.0,
+        yOff: 0
+    }),
+
+    'Bi-Fold Door': Object.freeze({
+        width: 4.0,
+        height: 3.0,
+        yOff: 0
+    }),
+
+    'Hydraulic Door': Object.freeze({
+        width: 4.0,
+        height: 3.0,
+        yOff: 0
+    })
+});
 
 const DEFAULTS = Object.freeze({
     dimensions: Object.freeze({
@@ -318,7 +360,10 @@ function validatePanels(model) {
         );
     }
 
-    if (model.panels.wallHeight > model.dimensions.height) {
+    if (
+        model.panels.wallHeight >
+        model.dimensions.height
+    ) {
         throw new RangeError(
             'panels.wallHeight cannot exceed building height'
         );
@@ -380,37 +425,57 @@ function validateOpening(
         );
     }
 
-    for (const field of [
-        'x',
-        'yOff',
-        'width',
-        'height'
-    ]) {
-        assertFinite(
-            opening[field],
-            `openings[${index}].${field}`
-        );
-    }
+    const definition =
+        OPENING_DEFS[opening.type];
 
-    if (opening.width <= 0) {
+    const width =
+        opening.w ??
+        opening.width ??
+        definition.width;
+
+    const height =
+        opening.h ??
+        opening.height ??
+        definition.height;
+
+    const yOff =
+        opening.yOff ??
+        opening.verticalOffset ??
+        definition.yOff;
+
+    assertFinite(
+        opening.x,
+        `openings[${index}].x`
+    );
+
+    assertFinite(
+        width,
+        `openings[${index}].width`
+    );
+
+    assertFinite(
+        height,
+        `openings[${index}].height`
+    );
+
+    assertFinite(
+        yOff,
+        `openings[${index}].yOff`
+    );
+
+    if (width <= 0) {
         throw new RangeError(
             `openings[${index}].width must be greater than zero`
         );
     }
 
-    if (opening.height <= 0) {
+    if (height <= 0) {
         throw new RangeError(
             `openings[${index}].height must be greater than zero`
         );
     }
 
-    if (opening.x < 0) {
-        throw new RangeError(
-            `openings[${index}].x cannot be negative`
-        );
-    }
-
-    if (opening.yOff < 0) {
+    if (yOff < 0) {
         throw new RangeError(
             `openings[${index}].yOff cannot be negative`
         );
@@ -516,5 +581,6 @@ export function getBuildingModelLimits() {
 export {
     ROOF_TYPES,
     SIDES,
-    OPENING_TYPES
+    OPENING_TYPES,
+    OPENING_DEFS
 };

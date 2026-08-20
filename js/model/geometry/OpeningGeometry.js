@@ -5,17 +5,75 @@ const SIDE_TO_WALL = Object.freeze({
     R: 'right'
 });
 
+const OPENING_TYPES = Object.freeze([
+    'Window',
+    'Walk Door Solid',
+    'Walk Door Solid Double',
+    'Overhead Panel Door',
+    'Bi-Fold Door',
+    'Hydraulic Door'
+]);
+
+const OPENING_DEFS = Object.freeze({
+    Window: Object.freeze({
+        width: 1,
+        height: 1,
+        yOff: 1
+    }),
+
+    'Walk Door Solid': Object.freeze({
+        width: 1,
+        height: 2.1,
+        yOff: 0
+    }),
+
+    'Walk Door Solid Double': Object.freeze({
+        width: 2,
+        height: 2.1,
+        yOff: 0
+    }),
+
+    'Overhead Panel Door': Object.freeze({
+        width: 3,
+        height: 3,
+        yOff: 0
+    }),
+
+    'Bi-Fold Door': Object.freeze({
+        width: 4,
+        height: 3,
+        yOff: 0
+    }),
+
+    'Hydraulic Door': Object.freeze({
+        width: 4,
+        height: 3,
+        yOff: 0
+    })
+});
+
 function point(x, y, z) {
-    return Object.freeze({ x, y, z });
+    return Object.freeze({
+        x,
+        y,
+        z
+    });
 }
 
 function bounds(min, max) {
     return Object.freeze({
         min,
         max,
-        width: max.x - min.x,
-        height: max.y - min.y,
-        length: max.z - min.z,
+
+        width:
+            max.x - min.x,
+
+        height:
+            max.y - min.y,
+
+        length:
+            max.z - min.z,
+
         center: point(
             (min.x + max.x) / 2,
             (min.y + max.y) / 2,
@@ -24,52 +82,132 @@ function bounds(min, max) {
     });
 }
 
-function normalizeOpening(opening) {
-    if (!opening || typeof opening !== 'object') {
-        throw new TypeError(
-            'Opening must be an object'
-        );
-    }
+function getDefinition(
+    opening
+) {
+    const definition =
+        OPENING_DEFS[
+            opening.type
+        ];
 
-    if (!opening.id) {
-        throw new TypeError(
-            'Opening id is required'
-        );
-    }
-
-    if (!['window', 'door'].includes(opening.type)) {
+    if (!definition) {
         throw new RangeError(
             `Unsupported opening type: ${opening.type}`
         );
     }
 
-    if (!Object.prototype.hasOwnProperty.call(
-        SIDE_TO_WALL,
-        opening.side
-    )) {
+    return definition;
+}
+
+function normalizeOpening(
+    opening
+) {
+    if (
+        !opening ||
+        typeof opening !== 'object'
+    ) {
+        throw new TypeError(
+            'Opening must be an object'
+        );
+    }
+
+    if (
+        typeof opening.id !== 'string' ||
+        opening.id.trim() === ''
+    ) {
+        throw new TypeError(
+            'Opening id is required'
+        );
+    }
+
+    if (
+        !OPENING_TYPES.includes(
+            opening.type
+        )
+    ) {
+        throw new RangeError(
+            `Unsupported opening type: ${opening.type}`
+        );
+    }
+
+    if (
+        !Object.prototype.hasOwnProperty.call(
+            SIDE_TO_WALL,
+            opening.side
+        )
+    ) {
         throw new RangeError(
             `Unsupported opening side: ${opening.side}`
         );
     }
 
-    for (const field of [
-        'width',
-        'height',
-        'position',
-        'verticalOffset'
-    ]) {
-        if (
-            !Number.isFinite(opening[field]) ||
-            opening[field] <= 0 &&
-            field !== 'verticalOffset'
-        ) {
-            throw new RangeError(
-                `Invalid opening.${field}`
-            );
-        }
+    const definition =
+        getDefinition(opening);
+
+    const width =
+        opening.w ??
+        opening.width ??
+        definition.width;
+
+    const height =
+        opening.h ??
+        opening.height ??
+        definition.height;
+
+    const verticalOffset =
+        opening.yOff ??
+        opening.verticalOffset ??
+        definition.yOff;
+
+    const position =
+        opening.position ??
+        opening.x;
+
+    if (!Number.isFinite(position)) {
+        throw new RangeError(
+            `Invalid opening.position: ${opening.id}`
+        );
     }
 
-    return opening;
+    if (
+        !Number.isFinite(width) ||
+        width <= 0
+    ) {
+        throw new RangeError(
+            `Invalid opening.width: ${opening.id}`
+        );
+    }
+
+    if (
+        !Number.isFinite(height) ||
+        height <= 0
+    ) {
+        throw new RangeError(
+            `Invalid opening.height: ${opening.id}`
+        );
+    }
+
+    if (
+        !Number.isFinite(
+            verticalOffset
+        ) ||
+        verticalOffset < 0
+    ) {
+        throw new RangeError(
+            `Invalid opening.yOff: ${opening.id}`
+        );
+    }
+
+    return Object.freeze({
+        ...opening,
+
+        width,
+        height,
+
+        position,
+
+        verticalOffset
+    });
 }
 
 function createFrontBackOpening(
@@ -77,17 +215,27 @@ function createFrontBackOpening(
     wall,
     isBack
 ) {
-    const centerX = opening.position;
-    const minY = opening.verticalOffset;
-    const maxY = minY + opening.height;
+    const centerX =
+        opening.position;
+
+    const minY =
+        opening.verticalOffset;
+
+    const maxY =
+        minY + opening.height;
 
     const minX =
-        centerX - opening.width / 2;
+        centerX -
+        opening.width / 2;
 
     const maxX =
-        centerX + opening.width / 2;
+        centerX +
+        opening.width / 2;
 
-    const z = wall.bounds.min.z;
+    const z =
+        isBack
+            ? wall.bounds.max.z
+            : wall.bounds.min.z;
 
     return {
         id: opening.id,
@@ -96,25 +244,43 @@ function createFrontBackOpening(
 
         anchor: point(
             centerX,
-            minY + opening.height / 2,
+            minY +
+                opening.height / 2,
             z
         ),
 
         bounds: bounds(
-            point(minX, minY, z),
-            point(maxX, maxY, z)
+            point(
+                minX,
+                minY,
+                z
+            ),
+            point(
+                maxX,
+                maxY,
+                z
+            )
         ),
 
-        dimensions: Object.freeze({
-            width: opening.width,
-            height: opening.height
-        }),
+        dimensions:
+            Object.freeze({
+                width:
+                    opening.width,
+
+                height:
+                    opening.height
+            }),
 
         normal: point(
             0,
             0,
             isBack ? -1 : 1
-        )
+        ),
+
+        parameters:
+            Object.freeze({
+                ...opening
+            })
     };
 }
 
@@ -123,17 +289,27 @@ function createLeftRightOpening(
     wall,
     isRight
 ) {
-    const centerZ = opening.position;
-    const minY = opening.verticalOffset;
-    const maxY = minY + opening.height;
+    const centerZ =
+        opening.position;
+
+    const minY =
+        opening.verticalOffset;
+
+    const maxY =
+        minY + opening.height;
 
     const minZ =
-        centerZ - opening.width / 2;
+        centerZ -
+        opening.width / 2;
 
     const maxZ =
-        centerZ + opening.width / 2;
+        centerZ +
+        opening.width / 2;
 
-    const x = wall.bounds.min.x;
+    const x =
+        isRight
+            ? wall.bounds.max.x
+            : wall.bounds.min.x;
 
     return {
         id: opening.id,
@@ -142,25 +318,43 @@ function createLeftRightOpening(
 
         anchor: point(
             x,
-            minY + opening.height / 2,
+            minY +
+                opening.height / 2,
             centerZ
         ),
 
         bounds: bounds(
-            point(x, minY, minZ),
-            point(x, maxY, maxZ)
+            point(
+                x,
+                minY,
+                minZ
+            ),
+            point(
+                x,
+                maxY,
+                maxZ
+            )
         ),
 
-        dimensions: Object.freeze({
-            width: opening.width,
-            height: opening.height
-        }),
+        dimensions:
+            Object.freeze({
+                width:
+                    opening.width,
+
+                height:
+                    opening.height
+            }),
 
         normal: point(
             isRight ? -1 : 1,
             0,
             0
-        )
+        ),
+
+        parameters:
+            Object.freeze({
+                ...opening
+            })
     };
 }
 
@@ -169,9 +363,12 @@ function createOpening(
     walls
 ) {
     const wallName =
-        SIDE_TO_WALL[opening.side];
+        SIDE_TO_WALL[
+            opening.side
+        ];
 
-    const wall = walls[wallName];
+    const wall =
+        walls[wallName];
 
     if (!wall) {
         throw new Error(
@@ -216,7 +413,10 @@ function validateOpeningBounds(
         opening.position +
         opening.width / 2;
 
-    if (start < 0 || end > wallSpan) {
+    if (
+        start < 0 ||
+        end > wallSpan
+    ) {
         throw new RangeError(
             `Opening ${opening.id} exceeds wall boundaries`
         );
@@ -234,13 +434,29 @@ function validateOpeningBounds(
     }
 }
 
-function validateCollisions(openings) {
-    for (let i = 0; i < openings.length; i++) {
-        for (let j = i + 1; j < openings.length; j++) {
-            const a = openings[i];
-            const b = openings[j];
+function validateCollisions(
+    openings
+) {
+    for (
+        let i = 0;
+        i < openings.length;
+        i++
+    ) {
+        for (
+            let j = i + 1;
+            j < openings.length;
+            j++
+        ) {
+            const a =
+                openings[i];
 
-            if (a.side !== b.side) {
+            const b =
+                openings[j];
+
+            if (
+                a.side !==
+                b.side
+            ) {
                 continue;
             }
 
@@ -266,9 +482,11 @@ function validateCollisions(openings) {
 
             const verticalOverlap =
                 a.verticalOffset <
-                    b.verticalOffset + b.height &&
+                    b.verticalOffset +
+                        b.height &&
                 b.verticalOffset <
-                    a.verticalOffset + a.height;
+                    a.verticalOffset +
+                        a.height;
 
             if (
                 horizontalOverlap &&
@@ -313,36 +531,55 @@ export function createOpeningGeometry(
     }
 
     const sourceOpenings =
-        Array.isArray(model.openings)
+        Array.isArray(
+            model.openings
+        )
             ? model.openings
             : [];
 
     const normalized =
-        sourceOpenings.map(normalizeOpening);
+        sourceOpenings.map(
+            normalizeOpening
+        );
 
-    const geometries = normalized.map(
-        opening => {
-            const wall =
-                walls[
-                    SIDE_TO_WALL[opening.side]
-                ];
+    const geometries =
+        normalized.map(
+            opening => {
+                const wall =
+                    walls[
+                        SIDE_TO_WALL[
+                            opening.side
+                        ]
+                    ];
 
-            validateOpeningBounds(
-                opening,
-                model,
-                wall
-            );
+                validateOpeningBounds(
+                    opening,
+                    model,
+                    wall
+                );
 
-            return createOpening(
-                opening,
-                walls
-            );
-        }
+                return createOpening(
+                    opening,
+                    walls
+                );
+            }
+        );
+
+    validateCollisions(
+        normalized
     );
-
-    validateCollisions(normalized);
 
     return Object.freeze(
-        geometries
+        geometries.map(
+            geometry =>
+                Object.freeze(
+                    geometry
+                )
+        )
     );
 }
+
+export {
+    OPENING_TYPES,
+    OPENING_DEFS
+};
