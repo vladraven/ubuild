@@ -1,273 +1,159 @@
-//template-handler
-document.addEventListener('DOMContentLoaded', function () {
-    const selects = document.querySelectorAll('.gform_wrapper select');
-    selects.forEach(select => {
-        select.classList.add('form-select', 'rounded-0');
-    });
-
-    // ИСПРАВЛЕННЫЙ БЛОК: Плавное скрытие алерта
-    const informationWrapper = document.getElementById("information");
-    if (informationWrapper) {
-        const alertBox = informationWrapper.querySelector('.alert');
-        if (alertBox) {
-            setTimeout(() => {
-                alertBox.style.transition = "opacity 1.5s ease-out";
-                alertBox.classList.remove('show'); // Снимаем класс Bootstrap
-                alertBox.style.opacity = "0";
-
-                setTimeout(() => {
-                    informationWrapper.remove(); // Полностью удаляем элемент из DOM
-                }, 1500);
-            }, 5000);
-        }
-    }
-
-    const inputs = document.querySelectorAll('.gform_wrapper input[type="text"], .gform_wrapper input[type="email"], .gform_wrapper input[type="tel"], .gform_wrapper input[type="number"], .gform_wrapper input[type="url"], .gform_wrapper textarea');
-    inputs.forEach(input => {
-        input.classList.add('form-control', 'rounded-0');
-    });
-
-    const headers = document.querySelectorAll('.custom-accordion-header');
-    headers.forEach(header => {
-        header.addEventListener('click', function () {
-            const item = this.parentElement;
-            item.classList.toggle('active');
-        });
-    });
-
-    const nativeFileInput = document.getElementById('input_4_15');
-    const customDropzone = document.getElementById('custom-dropzone');
-    const btnCustomBrowse = document.getElementById('btn-custom-browse');
-    const selectedFileName = document.getElementById('selected-file-name');
-    const dropzoneText = document.getElementById('dropzone-text');
-    const customSubmitBtn = document.getElementById('custom-gform-submit');
-
-    if (btnCustomBrowse && nativeFileInput) {
-        btnCustomBrowse.addEventListener('click', (e) => {
-            e.stopPropagation();
-            nativeFileInput.click();
-        });
-    }
-    if (customDropzone && nativeFileInput) {
-        customDropzone.addEventListener('click', () => {
-            nativeFileInput.click();
-        });
-    }
-
-    if (nativeFileInput) {
-        nativeFileInput.addEventListener('change', function () {
-            if (this.files && this.files.length > 0) {
-                const fileName = this.files[0].name;
-                if (selectedFileName) {
-                    selectedFileName.innerText = `Selected: ${fileName}`;
-                    selectedFileName.style.display = 'block';
-                }
-                if (dropzoneText) dropzoneText.innerText = "File Attached Successfully";
-            }
-        });
-    }
-
-    if (customDropzone && nativeFileInput) {
-        customDropzone.addEventListener('dragover', (e) => {
-            e.preventDefault();
-            customDropzone.style.backgroundColor = '#f1f5f9';
-        });
-
-        customDropzone.addEventListener('dragleave', () => {
-            customDropzone.style.backgroundColor = '#ffffff';
-        });
-
-        customDropzone.addEventListener('drop', (e) => {
-            e.preventDefault();
-            customDropzone.style.backgroundColor = '#ffffff';
-            
-            if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
-                nativeFileInput.files = e.dataTransfer.files;
-                const fileName = e.dataTransfer.files[0].name;
-                if (selectedFileName) {
-                    selectedFileName.innerText = `Selected: ${fileName}`;
-                    selectedFileName.style.display = 'block';
-                }
-                if (dropzoneText) dropzoneText.innerText = "File Attached Successfully";
-                
-                if (typeof gformValidateFileSize === 'function') {
-                    gformValidateFileSize(nativeFileInput, 268435456);
-                }
-            }
-        });
-    }
-
-    if (customSubmitBtn) {
-        customSubmitBtn.addEventListener('click', function(e) {
-            e.preventDefault();
-            const formElement = document.getElementById('gform_4');
-            if (formElement) {
-                if (typeof jQuery !== 'undefined') {
-                    jQuery(formElement).trigger('submit');
-                } else {
-                    formElement.submit();
-                }
-            }
-        });
-    }
-
-    runCustomFormFixes();
+document.addEventListener('DOMContentLoaded',()=>{
+    const formWrapper=document.querySelector('.gform_wrapper');
+    if(!formWrapper)return;
+    applyFormClasses(formWrapper);
+    bindDropzone();
+    bindSubmit();
+    bindAccordion();
+    runFormFixes();
+    startObserver();
 });
-
-function runCustomFormFixes() {
+function applyClasses(element,className){
+    if(!element.classList.contains(className))element.classList.add(className,'rounded-0');
+}
+function applyFormClasses(root){
+    root.querySelectorAll('select').forEach(element=>applyClasses(element,'form-select'));
+    root.querySelectorAll('input[type="text"],input[type="email"],input[type="tel"],input[type="number"],input[type="url"],textarea').forEach(element=>applyClasses(element,'form-control'));
+}
+function bindDropzone(){
+    const input=document.getElementById('input_4_15');
+    const zone=document.getElementById('custom-dropzone');
+    const browse=document.getElementById('btn-custom-browse');
+    const name=document.getElementById('selected-file-name');
+    const text=document.getElementById('dropzone-text');
+    if(!input)return;
+    const update=file=>{
+        if(!file)return;
+        if(name){
+            name.textContent=`Selected: ${file.name}`;
+            name.style.display='block';
+        }
+        if(text)text.textContent='File Attached Successfully';
+    };
+    if(browse)browse.addEventListener('click',event=>{
+        event.stopPropagation();
+        input.click();
+    });
+    if(zone)zone.addEventListener('click',()=>input.click());
+    input.addEventListener('change',()=>update(input.files?.[0]));
+    if(zone){
+        zone.addEventListener('dragover',event=>{
+            event.preventDefault();
+            zone.style.backgroundColor='#f1f5f9';
+        });
+        zone.addEventListener('dragleave',()=>zone.style.backgroundColor='#ffffff');
+        zone.addEventListener('drop',event=>{
+            event.preventDefault();
+            zone.style.backgroundColor='#ffffff';
+            if(!event.dataTransfer.files?.length)return;
+            input.files=event.dataTransfer.files;
+            update(input.files[0]);
+            if(typeof gformValidateFileSize==='function')gformValidateFileSize(input,268435456);
+        });
+    }
+}
+function bindSubmit(){
+    const button=document.getElementById('custom-gform-submit');
+    if(!button)return;
+    button.addEventListener('click',event=>{
+        event.preventDefault();
+        const form=document.getElementById('gform_4');
+        if(!form)return;
+        if(typeof jQuery!=='undefined')jQuery(form).trigger('submit');
+        else form.submit();
+    });
+}
+function bindAccordion(){
+    document.querySelectorAll('.custom-accordion-header').forEach(header=>header.addEventListener('click',()=>header.parentElement.classList.toggle('active')));
+}
+function runFormFixes(){
     restrictDateDropdown();
     addRequiredAsterisk();
     removeAsterisksFromLegends();
     wrapLabelText();
     populateUTMFields();
 }
-
-const observer = new MutationObserver((mutations) => {
-    let shouldUpdate = false;
-    
-    mutations.forEach((mutation) => {
-        mutation.addedNodes.forEach((node) => {
-            if (node.nodeType === 1) {
-                if (node.classList.contains('required-asterisk') || node.classList.contains('label-text-wrapper')) return;
-                
-                shouldUpdate = true;
-
-                const selects = node.querySelectorAll ? node.querySelectorAll('select') : [];
-                const inputs = node.querySelectorAll ? node.querySelectorAll('input[type="text"], input[type="number"], input[type="email"], input[type="tel"], textarea') : [];
-                
-                if (node.tagName === 'SELECT') applyClasses(node, 'form-select');
-                if (['INPUT', 'TEXTAREA'].includes(node.tagName) && !['checkbox', 'radio', 'hidden'].includes(node.type)) applyClasses(node, 'form-control');
-
-                selects.forEach(s => applyClasses(s, 'form-select'));
-                inputs.forEach(i => applyClasses(i, 'form-control'));
-            }
-        });
+function startObserver(){
+    const wrapper=document.querySelector('.gform_wrapper');
+    if(!wrapper||wrapper.__ubuildObserver)return;
+    const observer=new MutationObserver(mutations=>{
+        let changed=false;
+        mutations.forEach(mutation=>mutation.addedNodes.forEach(node=>{
+            if(node.nodeType!==1||node.classList?.contains('required-asterisk')||node.classList?.contains('label-text-wrapper'))return;
+            changed=true;
+            if(node.matches?.('select'))applyClasses(node,'form-select');
+            if(node.matches?.('input:not([type="hidden"]):not([type="checkbox"]):not([type="radio"]),textarea'))applyClasses(node,'form-control');
+            node.querySelectorAll?.('select').forEach(element=>applyClasses(element,'form-select'));
+            node.querySelectorAll?.('input[type="text"],input[type="number"],input[type="email"],input[type="tel"],textarea').forEach(element=>applyClasses(element,'form-control'));
+        }));
+        if(changed)runFormFixes();
     });
-
-    if (shouldUpdate) {
-        observer.disconnect();
-        runCustomFormFixes();
-        startObserver();
-    }
-});
-
-function applyClasses(el, className) {
-    if (!el.classList.contains(className)) {
-        el.classList.add(className, 'rounded-0');
-    }
+    observer.observe(wrapper,{childList:true,subtree:true});
+    wrapper.__ubuildObserver=observer;
 }
-
-function startObserver() {
-    const formWrapper = document.querySelector('.gform_wrapper');
-    if (formWrapper) {
-        observer.observe(formWrapper, { childList: true, subtree: true });
-    }
-}
-
-const formWrapper = document.querySelector('.gform_wrapper');
-if (formWrapper) {
-    startObserver();
-    formWrapper.querySelectorAll('select').forEach(s => applyClasses(s, 'form-select'));
-    formWrapper.querySelectorAll('input:not([type="hidden"]):not([type="checkbox"]):not([type="radio"]), textarea').forEach(i => applyClasses(i, 'form-control'));
-}
-
-function restrictDateDropdown() {
-    const yearSelect = document.getElementById('input_4_16_3');
-    if (!yearSelect) return;
-
-    const currentYear = new Date().getFullYear();
-    const maxYear = currentYear + 5;
-    const options = Array.from(yearSelect.options);
-    
-    options.forEach(option => {
-        const year = parseInt(option.value);
-        if (option.value === "") return;
-
-        if (year < currentYear || year > maxYear) {
-            option.remove();
-        }
+function restrictDateDropdown(){
+    const select=document.getElementById('input_4_16_3');
+    if(!select)return;
+    const currentYear=new Date().getFullYear();
+    const maxYear=currentYear+5;
+    Array.from(select.options).forEach(option=>{
+        if(option.value==='')return;
+        const year=parseInt(option.value,10);
+        if(year<currentYear||year>maxYear)option.remove();
     });
-
-    if (!yearSelect.value) {
-        yearSelect.value = currentYear;
-    }
+    if(!select.value)select.value=String(currentYear);
 }
-
-function addRequiredAsterisk() {
-    const targetInputs = ['input_4_1_3', 'input_4_5_1', 'input_4_1_6', 'input_4_5_3', 'input_4_5_4', 'input_4_5_5', 'input_4_5_6'];
-
-    targetInputs.forEach(inputId => {
-        const label = document.querySelector(`label[for="${inputId}"]`);
-        if (label && !label.querySelector('.required-asterisk')) {
-            const originalText = label.innerHTML;
-            label.innerHTML = `${originalText} <span class="required-asterisk" style="color: red; margin-left: 2px;">*</span>`;
+function addRequiredAsterisk(){
+    const ids=['input_4_1_3','input_4_5_1','input_4_1_6','input_4_5_3','input_4_5_4','input_4_5_5','input_4_5_6'];
+    ids.forEach(id=>{
+        const label=document.querySelector(`label[for="${id}"]`);
+        if(label&&!label.querySelector('.required-asterisk')){
+            const marker=document.createElement('span');
+            marker.className='required-asterisk';
+            marker.textContent='*';
+            marker.style.cssText='color:red;margin-left:2px;';
+            label.appendChild(marker);
         }
     });
 }
-
-function removeAsterisksFromLegends() {
-    const legends = document.querySelectorAll('.gform_wrapper legend');
-    const asteriskRegex = /\s*\*\s*/g;
-
-    legends.forEach(legend => {
-        if (asteriskRegex.test(legend.innerHTML)) {
-            legend.innerHTML = legend.innerHTML.replace(asteriskRegex, '');
-        }
+function removeAsterisksFromLegends(){
+    document.querySelectorAll('.gform_wrapper legend').forEach(legend=>{
+        const text=legend.textContent||'';
+        if(/\s*\*\s*/.test(text))legend.textContent=text.replace(/\s*\*\s*/g,'');
     });
 }
-
-function wrapLabelText() {
-    const targetText = "Desired Project Start Date";
-    const labels = document.querySelectorAll('legend');
-
-    labels.forEach(label => {
-        if (label.querySelector('.label-text-wrapper')) return;
-
-        label.childNodes.forEach(node => {
-            if (node.nodeType === Node.TEXT_NODE && node.textContent.includes(targetText)) {
-                const text = node.textContent;
-                const span = document.createElement('span');
-                span.className = 'd-block small specs';
-                span.textContent = targetText;
-
-                const parts = text.split(targetText);
-                const beforeText = document.createTextNode(parts[0]);
-                const afterText = document.createTextNode(parts[1]);
-
-                label.replaceChild(beforeText, node);
-                label.insertBefore(span, beforeText.nextSibling);
-                label.insertBefore(afterText, span.nextSibling);
-            }
+function wrapLabelText(){
+    const target='Desired Project Start Date';
+    document.querySelectorAll('.gform_wrapper legend').forEach(label=>{
+        if(label.querySelector('.label-text-wrapper')||!label.textContent.includes(target))return;
+        const nodes=Array.from(label.childNodes);
+        nodes.forEach(node=>{
+            if(node.nodeType!==Node.TEXT_NODE||!node.textContent.includes(target))return;
+            const parts=node.textContent.split(target);
+            const fragment=document.createDocumentFragment();
+            if(parts[0])fragment.appendChild(document.createTextNode(parts[0]));
+            const span=document.createElement('span');
+            span.className='label-text-wrapper d-block small specs';
+            span.textContent=target;
+            fragment.appendChild(span);
+            if(parts[1])fragment.appendChild(document.createTextNode(parts[1]));
+            node.replaceWith(fragment);
         });
     });
 }
-
-function populateUTMFields() {
-    const urlParams = new URLSearchParams(window.location.search);
-    const utmMap = {
-        'utm_campaign': 'input_4_17',
-        'utm_source': 'input_4_18',
-        'utm_medium': 'input_4_19',
-        'utm_content': 'input_4_20'
-    };
-
-    for (const [utmParam, inputId] of Object.entries(utmMap)) {
-        if (urlParams.has(utmParam)) {
-            const inputEl = document.getElementById(inputId);
-            if (inputEl) {
-                inputEl.value = urlParams.get(utmParam);
-            }
-        }
-    }
+function populateUTMFields(){
+    const params=new URLSearchParams(window.location.search);
+    const map={utm_campaign:'input_4_17',utm_source:'input_4_18',utm_medium:'input_4_19',utm_content:'input_4_20'};
+    Object.entries(map).forEach(([parameter,id])=>{
+        if(!params.has(parameter))return;
+        const input=document.getElementById(id);
+        if(input)input.value=params.get(parameter);
+    });
 }
-
-if (typeof jQuery !== 'undefined') {
-    jQuery(document).on('gform_confirmation_loaded', function(event, formId) {
-        if (formId == 4) { 
-            const sidebar = document.getElementById('summary-sidebar');
-            if (sidebar) {
-                sidebar.style.display = 'none';
-            }
-        }
+if(typeof jQuery!=='undefined'){
+    jQuery(document).on('gform_confirmation_loaded',(event,formId)=>{
+        if(Number(formId)!==4)return;
+        const sidebar=document.getElementById('summary-sidebar');
+        if(sidebar)sidebar.style.display='none';
     });
 }
