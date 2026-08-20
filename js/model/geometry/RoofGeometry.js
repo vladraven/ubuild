@@ -5,7 +5,11 @@ const ROOF_TYPES = Object.freeze([
 ]);
 
 function point(x, y, z) {
-    return Object.freeze({ x, y, z });
+    return Object.freeze({
+        x,
+        y,
+        z
+    });
 }
 
 function edge(start, end) {
@@ -20,247 +24,213 @@ function edge(start, end) {
     });
 }
 
-function bounds(points) {
-    const xs = points.map(point => point.x);
-    const ys = points.map(point => point.y);
-    const zs = points.map(point => point.z);
+function calculateBounds(points) {
+    const xs = points.map(
+        value => value.x
+    );
+
+    const ys = points.map(
+        value => value.y
+    );
+
+    const zs = points.map(
+        value => value.z
+    );
+
+    const min = point(
+        Math.min(...xs),
+        Math.min(...ys),
+        Math.min(...zs)
+    );
+
+    const max = point(
+        Math.max(...xs),
+        Math.max(...ys),
+        Math.max(...zs)
+    );
 
     return Object.freeze({
-        min: point(
-            Math.min(...xs),
-            Math.min(...ys),
-            Math.min(...zs)
+        min,
+        max,
+
+        center: point(
+            (min.x + max.x) / 2,
+            (min.y + max.y) / 2,
+            (min.z + max.z) / 2
         ),
-        max: point(
-            Math.max(...xs),
-            Math.max(...ys),
-            Math.max(...zs)
-        )
+
+        width: max.x - min.x,
+        height: max.y - min.y,
+        length: max.z - min.z
     });
 }
 
-function calculateRise(width, pitch) {
-    return width * pitch / 2;
+function calculateRise(
+    width,
+    pitchRatio
+) {
+    return width * pitchRatio;
 }
 
-function createGabledRoof(
-    envelope,
-    overhangs,
-    pitch
+function createRoof(
+    model,
+    envelope
 ) {
-    const halfWidth = envelope.width / 2;
-    const rise = calculateRise(
-        envelope.width,
-        pitch
-    );
+    const {
+        type,
+        pitchRatio,
+        overhangs
+    } = model.roof;
+
+    const width =
+        envelope.width;
+
+    const length =
+        envelope.length;
+
+    const height =
+        envelope.height;
+
+    const halfWidth =
+        width / 2;
 
     const leftX =
-        -halfWidth - overhangs.left;
+        -halfWidth -
+        overhangs.left;
 
     const rightX =
-        halfWidth + overhangs.right;
+        halfWidth +
+        overhangs.right;
 
     const frontZ =
         -overhangs.front;
 
     const backZ =
-        envelope.length + overhangs.back;
+        length +
+        overhangs.back;
 
-    const eaveY = envelope.height;
+    const rise =
+        calculateRise(
+            width,
+            pitchRatio
+        );
 
-    const ridgeY =
-        envelope.height + rise;
+    const leftY =
+        type === 'right-sloped'
+            ? height + rise
+            : height;
 
-    const leftFront = point(
-        leftX,
-        eaveY,
-        frontZ
-    );
+    const rightY =
+        type === 'left-sloped'
+            ? height + rise
+            : height;
 
-    const leftBack = point(
-        leftX,
-        eaveY,
-        backZ
-    );
+    const leftFront =
+        point(
+            leftX,
+            leftY,
+            frontZ
+        );
 
-    const rightFront = point(
-        rightX,
-        eaveY,
-        frontZ
-    );
+    const leftBack =
+        point(
+            leftX,
+            leftY,
+            backZ
+        );
 
-    const rightBack = point(
-        rightX,
-        eaveY,
-        backZ
-    );
+    const rightFront =
+        point(
+            rightX,
+            rightY,
+            frontZ
+        );
 
-    const ridgeFront = point(
-        0,
-        ridgeY,
-        frontZ
-    );
+    const rightBack =
+        point(
+            rightX,
+            rightY,
+            backZ
+        );
 
-    const ridgeBack = point(
-        0,
-        ridgeY,
-        backZ
-    );
-
-    return {
-        type: 'gabled',
-
-        rise,
-
-        pitch: {
-            ratio: pitch,
-            angle: Math.atan(pitch)
-        },
-
-        eaves: {
-            left: {
-                front: leftFront,
-                back: leftBack,
-                edge: edge(
-                    leftFront,
-                    leftBack
-                )
-            },
-
-            right: {
-                front: rightFront,
-                back: rightBack,
-                edge: edge(
-                    rightFront,
-                    rightBack
-                )
-            }
-        },
-
-        ridge: {
-            front: ridgeFront,
-            back: ridgeBack,
-            edge: edge(
-                ridgeFront,
-                ridgeBack
+    const ridgeFront =
+        type === 'gabled'
+            ? point(
+                0,
+                height + rise,
+                frontZ
             )
-        },
+            : null;
 
-        edges: {
-            front: edge(
-                leftFront,
-                rightFront
-            ),
-
-            back: edge(
-                leftBack,
-                rightBack
+    const ridgeBack =
+        type === 'gabled'
+            ? point(
+                0,
+                height + rise,
+                backZ
             )
-        },
+            : null;
 
-        planes: [
-            {
-                id: 'left',
-                corners: [
-                    leftFront,
-                    ridgeFront,
-                    ridgeBack,
-                    leftBack
-                ]
-            },
+    const planes =
+        type === 'gabled'
+            ? [
+                {
+                    id: 'left',
+                    corners: [
+                        leftFront,
+                        ridgeFront,
+                        ridgeBack,
+                        leftBack
+                    ]
+                },
 
-            {
-                id: 'right',
-                corners: [
-                    ridgeFront,
-                    rightFront,
-                    rightBack,
-                    ridgeBack
-                ]
-            }
-        ],
+                {
+                    id: 'right',
+                    corners: [
+                        ridgeFront,
+                        rightFront,
+                        rightBack,
+                        ridgeBack
+                    ]
+                }
+            ]
+            : [
+                {
+                    id: type,
+                    corners: [
+                        leftFront,
+                        rightFront,
+                        rightBack,
+                        leftBack
+                    ]
+                }
+            ];
 
-        bounds: bounds([
-            leftFront,
-            leftBack,
-            rightFront,
-            rightBack,
+    const points = [
+        leftFront,
+        leftBack,
+        rightFront,
+        rightBack
+    ];
+
+    if (ridgeFront) {
+        points.push(
             ridgeFront,
             ridgeBack
-        ])
-    };
-}
-
-function createSingleSlopeRoof(
-    envelope,
-    overhangs,
-    pitch,
-    type
-) {
-    const halfWidth = envelope.width / 2;
-
-    const rise = calculateRise(
-        envelope.width,
-        pitch
-    );
-
-    const leftX =
-        -halfWidth - overhangs.left;
-
-    const rightX =
-        halfWidth + overhangs.right;
-
-    const frontZ =
-        -overhangs.front;
-
-    const backZ =
-        envelope.length + overhangs.back;
-
-    let leftY = envelope.height;
-    let rightY =
-        envelope.height + rise;
-
-    if (type === 'right-sloped') {
-        leftY =
-            envelope.height + rise;
-
-        rightY =
-            envelope.height;
+        );
     }
-
-    const leftFront = point(
-        leftX,
-        leftY,
-        frontZ
-    );
-
-    const leftBack = point(
-        leftX,
-        leftY,
-        backZ
-    );
-
-    const rightFront = point(
-        rightX,
-        rightY,
-        frontZ
-    );
-
-    const rightBack = point(
-        rightX,
-        rightY,
-        backZ
-    );
 
     return {
         type,
 
-        rise,
+        pitchRatio,
 
-        pitch: {
-            ratio: pitch,
-            angle: Math.atan(pitch)
-        },
+        pitchAngle:
+            Math.atan(
+                pitchRatio
+            ),
+
+        rise,
 
         eaves: {
             left: {
@@ -282,7 +252,17 @@ function createSingleSlopeRoof(
             }
         },
 
-        ridge: null,
+        ridge:
+            ridgeFront
+                ? {
+                    front: ridgeFront,
+                    back: ridgeBack,
+                    edge: edge(
+                        ridgeFront,
+                        ridgeBack
+                    )
+                }
+                : null,
 
         edges: {
             front: edge(
@@ -296,24 +276,23 @@ function createSingleSlopeRoof(
             )
         },
 
-        planes: [
-            {
-                id: type,
-                corners: [
-                    leftFront,
-                    rightFront,
-                    rightBack,
-                    leftBack
-                ]
-            }
-        ],
+        planes: Object.freeze(
+            planes.map(
+                plane =>
+                    Object.freeze({
+                        id: plane.id,
+                        corners:
+                            Object.freeze([
+                                ...plane.corners
+                            ])
+                    })
+            )
+        ),
 
-        bounds: bounds([
-            leftFront,
-            leftBack,
-            rightFront,
-            rightBack
-        ])
+        bounds:
+            calculateBounds(
+                points
+            )
     };
 }
 
@@ -342,40 +321,46 @@ export function createRoofGeometry(
 
     const {
         type,
-        pitch,
+        pitchRatio,
         overhangs
     } = model.roof;
 
-    if (!ROOF_TYPES.includes(type)) {
+    if (
+        !ROOF_TYPES.includes(type)
+    ) {
         throw new RangeError(
             `Unsupported roof type: ${type}`
         );
     }
 
-    if (!Number.isFinite(pitch) || pitch <= 0) {
+    if (
+        !Number.isFinite(
+            pitchRatio
+        ) ||
+        pitchRatio <= 0
+    ) {
         throw new RangeError(
-            'roof.pitch must be greater than zero'
+            'roof.pitchRatio must be greater than zero'
         );
     }
 
     if (
-        type === 'gabled'
+        !overhangs ||
+        typeof overhangs !== 'object'
     ) {
-        return Object.freeze(
-            createGabledRoof(
-                envelope,
-                overhangs,
-                pitch
-            )
+        throw new TypeError(
+            'roof.overhangs is required'
         );
     }
 
     return Object.freeze(
-        createSingleSlopeRoof(
-            envelope,
-            overhangs,
-            pitch,
-            type
+        createRoof(
+            model,
+            envelope
         )
     );
 }
+
+export {
+    ROOF_TYPES
+};
