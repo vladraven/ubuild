@@ -32,6 +32,8 @@ Directory structure:
     │   │   │   └── MezzanineOrchestrator.js
     │   │   ├── opening/
     │   │   │   └── OpeningOrchestrator.js
+    │   │   ├── referenceModels/
+    │   │   │   └── ReferenceModelsOrchestrator.js
     │   │   ├── ridge/
     │   │   │   └── RidgeOrchestrator.js
     │   │   ├── roof/
@@ -80,6 +82,8 @@ Directory structure:
     │   │   └── panels/
     │   │       ├── PanelGeometry.js
     │   │       └── PanelSystem.js
+    │   ├── panels/
+    │   │   └── PanelProfiles.js
     │   ├── resources/
     │   │   ├── ResourceRegistry.js
     │   │   ├── colors/
@@ -90,8 +94,13 @@ Directory structure:
     │   │   └── textures/
     │   │       ├── TextureCatalog.js
     │   │       └── TextureManager.js
-    │   └── runtime/
-    │       └── UBuildRuntime.js
+    │   ├── runtime/
+    │   │   └── UBuildRuntime.js
+    │   ├── testing/
+    │   │   └── RegressionSuite.js
+    │   └── ui/
+    │       ├── UIAdapter.js
+    │       └── UIModals.js
     └── legacy/
         ├── readme.md
         ├── reqiurements.md
@@ -1843,200 +1852,67 @@ UI позволяет отдельно включать и отключать в
 ================================================
 FILE: js/app-new.js
 ================================================
-import {
-    createUBuildRuntime
-} from './runtime/UBuildRuntime.js';
+import { createUBuildRuntime } from './runtime/UBuildRuntime.js';
+import { createUIAdapter } from './ui/UIAdapter.js';
+import { setupUIModals } from './ui/UIModals.js';
+import { deserializeModelFromURL } from './integration/URLSerializer.js';
 
 function getContainer() {
-    const container =
-        document.getElementById(
-            'canvas-container'
-        );
-
+    const container = document.getElementById('canvas-container');
     if (!container) {
-        throw new Error(
-            'U-Build canvas container not found'
-        );
+        throw new Error('U-Build canvas container not found');
     }
-
     return container;
 }
 
 function getInitialModel() {
-    if (
-        window.ConfiguratorData &&
-        typeof window.ConfiguratorData ===
-            'object'
-    ) {
+    const urlConfig = deserializeModelFromURL();
+    if (urlConfig) {
+        return urlConfig;
+    }
+    if (window.ConfiguratorData && typeof window.ConfiguratorData === 'object') {
         return window.ConfiguratorData;
     }
-
     return {};
-}
-
-function exposeRuntime(
-    runtime
-) {
-    window.UBuildRuntime =
-        runtime;
-
-    window.UBuild =
-        Object.freeze({
-            runtime,
-
-            get model() {
-                return runtime.model;
-            },
-
-            get geometry() {
-                return runtime.geometry;
-            },
-
-            update(model) {
-                return runtime.update(
-                    model
-                );
-            },
-
-            render() {
-                return runtime.render();
-            },
-
-            resize() {
-                return runtime.resize();
-            },
-
-            dispose() {
-                return runtime.dispose();
-            }
-        });
-}
-
-function showError(
-    error
-) {
-    console.error(
-        'U-Build initialization failed:',
-        error
-    );
-
-    const container =
-        document.getElementById(
-            'canvas-container'
-        );
-
-    if (!container) {
-        return;
-    }
-
-    container.dataset.ubuildError =
-        'true';
-
-    const existing =
-        document.getElementById(
-            'ubuild-runtime-error'
-        );
-
-    if (existing) {
-        existing.remove();
-    }
-
-    const errorElement =
-        document.createElement(
-            'div'
-        );
-
-    errorElement.id =
-        'ubuild-runtime-error';
-
-    errorElement.style.position =
-        'absolute';
-
-    errorElement.style.left =
-        '20px';
-
-    errorElement.style.right =
-        '20px';
-
-    errorElement.style.top =
-        '20px';
-
-    errorElement.style.zIndex =
-        '10000';
-
-    errorElement.style.padding =
-        '16px';
-
-    errorElement.style.background =
-        '#7f1d1d';
-
-    errorElement.style.color =
-        '#ffffff';
-
-    errorElement.style.borderRadius =
-        '6px';
-
-    errorElement.style.fontFamily =
-        'monospace';
-
-    errorElement.style.whiteSpace =
-        'pre-wrap';
-
-    errorElement.textContent =
-        error instanceof Error
-            ? error.message
-            : String(error);
-
-    container.appendChild(
-        errorElement
-    );
-}
-
-function start() {
-    const container =
-        getContainer();
-
-    const model =
-        getInitialModel();
-
-    const runtime =
-        createUBuildRuntime({
-            container,
-            model
-        });
-
-    exposeRuntime(
-        runtime
-    );
-
-    runtime.start();
-
-    return runtime;
 }
 
 function bootstrap() {
     try {
-        return start();
-    } catch (error) {
-        showError(
-            error
-        );
+        const container = getContainer();
+        const initialModel = getInitialModel();
 
+        const runtime = createUBuildRuntime({
+            container,
+            model: initialModel
+        });
+
+        const uiAdapter = createUIAdapter(runtime);
+        uiAdapter.init();
+
+        const modals = setupUIModals(runtime);
+        modals.refreshOpeningsList();
+
+        window.UBuildRuntime = runtime;
+        window.UBuild = Object.freeze({
+            runtime,
+            get model() { return runtime.model; },
+            get geometry() { return runtime.geometry; },
+            update: (model) => runtime.update(model),
+            render: () => runtime.render(),
+            resize: () => runtime.resize(),
+            dispose: () => runtime.dispose()
+        });
+
+        runtime.start();
+        return runtime;
+    } catch (error) {
+        console.error('U-Build initialization failed:', error);
         return null;
     }
 }
 
-if (
-    document.readyState ===
-    'loading'
-) {
-    document.addEventListener(
-        'DOMContentLoaded',
-        bootstrap,
-        {
-            once: true
-        }
-    );
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', bootstrap, { once: true });
 } else {
     bootstrap();
 }
@@ -4568,6 +4444,125 @@ export const OpeningOrchestrator =
 
 
 ================================================
+FILE: js/elements/referenceModels/ReferenceModelsOrchestrator.js
+================================================
+// js/elements/referenceModels/ReferenceModelsOrchestrator.js
+import * as THREE from 'three';
+
+const MODEL_TARGET_SIZES = Object.freeze({
+    'ergoninane-fast-74.glb': { length: 4.8 },
+    'forza1903-low-poly-2490.glb': { height: 2.2 },
+    'plane.glb': { maxDim: 11.0 },
+    'scania.glb': { height: 3.8 }
+});
+
+export function createReferenceModelsOrchestrator() {
+    const group = new THREE.Group();
+    group.name = 'reference-models';
+
+    const loadedModels = new Map();
+    let nextSpawnOffset = 0;
+
+    function adjustModelScaleAndPosition(model, fileName, buildingBounds) {
+        model.updateMatrixWorld(true);
+        const bbox = new THREE.Box3().setFromObject(model);
+        const rawSize = new THREE.Vector3();
+        bbox.getSize(rawSize);
+
+        let scaleFactor = 1.0;
+        const targetSpec = MODEL_TARGET_SIZES[fileName];
+
+        if (targetSpec) {
+            if (targetSpec.length && rawSize.z > 0) {
+                scaleFactor = targetSpec.length / Math.max(rawSize.x, rawSize.z);
+            } else if (targetSpec.height && rawSize.y > 0) {
+                scaleFactor = targetSpec.height / rawSize.y;
+            } else if (targetSpec.maxDim) {
+                const maxD = Math.max(rawSize.x, rawSize.y, rawSize.z);
+                if (maxD > 0) scaleFactor = targetSpec.maxDim / maxD;
+            }
+        }
+
+        model.scale.set(scaleFactor, scaleFactor, scaleFactor);
+        model.updateMatrixWorld(true);
+        bbox.setFromObject(model);
+
+        const spawnZ = (buildingBounds?.max?.z || 15) + (rawSize.z * scaleFactor) / 2 + 2.0;
+        const spawnX = -10.0 + nextSpawnOffset;
+
+        model.position.set(spawnX, -bbox.min.y, spawnZ);
+        nextSpawnOffset += Math.max(rawSize.x * scaleFactor, 4.0) + 2.0;
+
+        model.traverse(child => {
+            if (child.isMesh) {
+                child.castShadow = true;
+                child.receiveShadow = true;
+            }
+        });
+    }
+
+    function toggleModel(fileName, enabled, gltfLoader, themeUri, buildingBounds, onLoaded) {
+        if (!enabled) {
+            const existing = loadedModels.get(fileName);
+            if (existing) {
+                group.remove(existing);
+            }
+            return;
+        }
+
+        if (loadedModels.has(fileName)) {
+            group.add(loadedModels.get(fileName));
+            if (typeof onLoaded === 'function') onLoaded();
+            return;
+        }
+
+        if (!gltfLoader) return;
+
+        const path = `${themeUri}/3d-models/${fileName}`;
+        gltfLoader.load(
+            path,
+            (gltf) => {
+                const model = gltf.scene;
+                adjustModelScaleAndPosition(model, fileName, buildingBounds);
+                loadedModels.set(fileName, model);
+                group.add(model);
+                if (typeof onLoaded === 'function') onLoaded();
+            },
+            undefined,
+            (err) => {
+                console.error(`Error loading reference model: ${fileName}`, err);
+            }
+        );
+    }
+
+    function dispose() {
+        loadedModels.forEach(model => {
+            model.traverse(child => {
+                if (child.isMesh) {
+                    child.geometry?.dispose();
+                    if (Array.isArray(child.material)) {
+                        child.material.forEach(m => m.dispose());
+                    } else {
+                        child.material?.dispose();
+                    }
+                }
+            });
+        });
+        loadedModels.clear();
+        group.clear();
+        group.removeFromParent();
+    }
+
+    return Object.freeze({
+        id: 'referenceModels',
+        group,
+        toggleModel,
+        dispose
+    });
+}
+
+
+================================================
 FILE: js/elements/ridge/RidgeOrchestrator.js
 ================================================
 import * as THREE from 'three';
@@ -4926,213 +4921,115 @@ export const RoofOrchestrator = Object.freeze({
 ================================================
 FILE: js/elements/structural/StructuralOrchestrator.js
 ================================================
+// js/elements/structural/StructuralOrchestrator.js
 import * as THREE from 'three';
 
 function assertContext(context) {
     if (!context || typeof context !== 'object') {
         throw new TypeError('Element context is required');
     }
-
     if (!context.structuralGeometry) {
-        throw new TypeError(
-            'Structural geometry is required'
-        );
+        throw new TypeError('Structural geometry is required');
     }
-
     if (!context.materials) {
-        throw new TypeError(
-            'Material system is required'
-        );
+        throw new TypeError('Material system is required');
     }
 }
 
 function resolveMaterial(context) {
-    if (
-        typeof context.materials.get === 'function'
-    ) {
-        return context.materials.get(
-            'structuralSteel',
-            context.colors?.frame
-        );
+    if (typeof context.materials.get === 'function') {
+        return context.materials.get('structuralSteel', context.colors?.frame);
     }
-
-    if (context.materials.structuralSteel) {
-        return context.materials.structuralSteel;
-    }
-
-    if (context.materials.steel) {
-        return context.materials.steel;
-    }
-
-    throw new Error(
-        'Structural steel material is not available'
-    );
+    return context.materials.structuralSteel || context.materials.steel;
 }
 
-function createBeam(
-    line,
-    material,
-    thickness = 0.1
-) {
+function createBeam(lineSeg, material, thickness = 0.1) {
     const direction = new THREE.Vector3(
-        line.end.x - line.start.x,
-        line.end.y - line.start.y,
-        line.end.z - line.start.z
+        lineSeg.end.x - lineSeg.start.x,
+        lineSeg.end.y - lineSeg.start.y,
+        lineSeg.end.z - lineSeg.start.z
     );
 
     const length = direction.length();
+    if (length <= 0.001) return null;
 
-    if (length <= 0) {
-        return null;
-    }
+    const geometry = new THREE.BoxGeometry(thickness, thickness, length);
+    const mesh = new THREE.Mesh(geometry, material);
 
-    const geometry =
-        new THREE.BoxGeometry(
-            thickness,
-            thickness,
-            length
-        );
-
-    const mesh =
-        new THREE.Mesh(
-            geometry,
-            material
-        );
-
-    const start =
-        new THREE.Vector3(
-            line.start.x,
-            line.start.y,
-            line.start.z
-        );
-
-    const end =
-        new THREE.Vector3(
-            line.end.x,
-            line.end.y,
-            line.end.z
-        );
-
-    const center =
-        start.clone().add(end).multiplyScalar(0.5);
+    const start = new THREE.Vector3(lineSeg.start.x, lineSeg.start.y, lineSeg.start.z);
+    const end = new THREE.Vector3(lineSeg.end.x, lineSeg.end.y, lineSeg.end.z);
+    const center = start.clone().add(end).multiplyScalar(0.5);
 
     mesh.position.copy(center);
-
     mesh.quaternion.setFromUnitVectors(
         new THREE.Vector3(0, 0, 1),
         direction.normalize()
     );
 
+    mesh.castShadow = true;
     return mesh;
 }
 
 function createObject(context) {
     assertContext(context);
-
-    const root =
-        new THREE.Group();
-
+    const root = new THREE.Group();
     root.name = 'structural';
 
-    const material =
-        resolveMaterial(context);
+    const material = resolveMaterial(context);
+    const vis = context.model?.visibility || {};
 
-    for (
-        const frame
-        of context.structuralGeometry.frames
-    ) {
-        const group =
-            new THREE.Group();
+    // 1. Main Frames
+    if (vis.frames !== false) {
+        for (const frame of context.structuralGeometry.frames) {
+            const group = new THREE.Group();
+            group.name = `frame-${frame.index}`;
 
-        group.name =
-            `frame-${frame.index}`;
-
-        for (
-            const key
-            of [
-                'leftColumn',
-                'leftRafter',
-                'rightRafter',
-                'rightColumn',
-                'rafter'
-            ]
-        ) {
-            if (!frame[key]) {
-                continue;
-            }
-
-            const beam =
-                createBeam(
-                    frame[key],
-                    material
-                );
-
-            if (beam) {
-                group.add(beam);
-            }
-        }
-
-        root.add(group);
-    }
-
-    for (
-        const girt
-        of context.structuralGeometry.girts
-    ) {
-        for (
-            const side
-            of [
-                'front',
-                'back',
-                'left',
-                'right'
-            ]
-        ) {
-            const beam =
-                createBeam(
-                    girt[side],
-                    material
-                );
-
-            if (beam) {
-                root.add(beam);
-            }
-        }
-    }
-
-    for (
-        const purlin
-        of context.structuralGeometry.purlins
-    ) {
-        if (purlin.planes) {
-            for (
-                const line
-                of Object.values(
-                    purlin.planes
-                )
-            ) {
-                const beam =
-                    createBeam(
-                        line,
-                        material
-                    );
-
-                if (beam) {
-                    root.add(beam);
+            for (const key of ['leftColumn', 'leftRafter', 'rightRafter', 'rightColumn', 'rafter']) {
+                if (frame[key]) {
+                    const beam = createBeam(frame[key], material);
+                    if (beam) group.add(beam);
                 }
             }
-
-            continue;
+            root.add(group);
         }
+    }
 
-        const beam =
-            createBeam(
-                purlin.plane,
-                material
-            );
+    // 2. Girts (с сегментацией вокруг проёмов)
+    if (vis.girts !== false) {
+        for (const girt of context.structuralGeometry.girts) {
+            const sideKeys = ['frontSegments', 'backSegments', 'leftSegments', 'rightSegments'];
+            sideKeys.forEach(sideKey => {
+                const segs = girt[sideKey] || [];
+                segs.forEach(seg => {
+                    const beam = createBeam(seg, material);
+                    if (beam) root.add(beam);
+                });
+            });
+        }
+    }
 
-        if (beam) {
-            root.add(beam);
+    // 3. Purlins
+    if (vis.purlins !== false) {
+        for (const purlin of context.structuralGeometry.purlins) {
+            if (purlin.planes) {
+                for (const l of Object.values(purlin.planes)) {
+                    const beam = createBeam(l, material);
+                    if (beam) root.add(beam);
+                }
+            } else if (purlin.plane) {
+                const beam = createBeam(purlin.plane, material);
+                if (beam) root.add(beam);
+            }
+        }
+    }
+
+    // 4. End-Wall Columns
+    if (vis.endWallColumns !== false) {
+        for (const col of context.structuralGeometry.endWallColumns) {
+            const leftCol = createBeam(col.left, material);
+            const rightCol = createBeam(col.right, material);
+            if (leftCol) root.add(leftCol);
+            if (rightCol) root.add(rightCol);
         }
     }
 
@@ -5140,779 +5037,441 @@ function createObject(context) {
 }
 
 function disposeObject(object) {
-    if (!object) {
-        return;
+    if (!object) return;
+    object.traverse(child => {
+        if (child.isMesh) {
+            child.geometry?.dispose();
+        }
+    });
+    while (object.children.length > 0) {
+        object.remove(object.children[0]);
     }
-
-    for (
-        const child
-        of [...object.children]
-    ) {
-        disposeObject(child);
-    }
-
-    object.geometry?.dispose();
     object.removeFromParent();
 }
 
-export const StructuralOrchestrator =
-    Object.freeze({
-        id: 'structural',
-
-        create(context) {
-            return createObject(context);
-        },
-
-        update(object, context) {
-            if (!object) {
-                return createObject(context);
-            }
-
-            disposeObject(object);
-
-            return createObject(context);
-        },
-
-        dispose(object) {
-            disposeObject(object);
-        }
-    });
+export const StructuralOrchestrator = Object.freeze({
+    id: 'structural',
+    create(context) {
+        return createObject(context);
+    },
+    update(object, context) {
+        if (!object) return createObject(context);
+        disposeObject(object);
+        return createObject(context);
+    },
+    dispose(object) {
+        disposeObject(object);
+    }
+});
 
 
 ================================================
 FILE: js/elements/trim/TrimOrchestrator.js
 ================================================
+// js/elements/trim/TrimOrchestrator.js
 import * as THREE from 'three';
-
-const EPSILON = 1e-9;
 
 function assertContext(context) {
     if (!context || typeof context !== 'object') {
         throw new TypeError('Element context is required');
     }
-
-    if (!context.geometry?.roof) {
-        throw new TypeError(
-            'Roof geometry is required'
-        );
+    if (!context.geometry?.trims) {
+        throw new TypeError('Trims geometry is required');
     }
-
     if (!context.materials) {
-        throw new TypeError(
-            'Material system is required'
-        );
+        throw new TypeError('Material system is required');
     }
 }
 
-function resolveMaterial(context) {
-    if (
-        typeof context.materials.get === 'function'
-    ) {
-        return context.materials.get(
-            'trimMetal',
-            context.colors?.trim
-        );
+function resolveMaterial(context, name = 'trimMetal') {
+    if (typeof context.materials.get === 'function') {
+        return context.materials.get(name, context.colors?.trim);
     }
-
-    if (context.materials.trimMetal) {
-        return context.materials.trimMetal;
-    }
-
-    if (context.materials.steel) {
-        return context.materials.steel;
-    }
-
-    throw new Error(
-        'Trim material is not available'
-    );
+    return context.materials[name] || context.materials.trimMetal || context.materials.steel;
 }
 
-function createProfile(
-    line,
-    material,
-    width = 0.1,
-    depth = 0.05
-) {
-    if (!line?.start || !line?.end) {
-        return null;
-    }
+function createProfileMesh(lineSeg, material, width = 0.1, depth = 0.05) {
+    if (!lineSeg || !lineSeg.start || !lineSeg.end) return null;
 
-    const start =
-        new THREE.Vector3(
-            line.start.x,
-            line.start.y,
-            line.start.z
-        );
+    const start = new THREE.Vector3(lineSeg.start.x, lineSeg.start.y, lineSeg.start.z);
+    const end = new THREE.Vector3(lineSeg.end.x, lineSeg.end.y, lineSeg.end.z);
+    const direction = end.clone().sub(start);
+    const length = direction.length();
 
-    const end =
-        new THREE.Vector3(
-            line.end.x,
-            line.end.y,
-            line.end.z
-        );
+    if (length <= 0.001) return null;
 
-    const direction =
-        end.clone().sub(start);
+    const geometry = new THREE.BoxGeometry(width, depth, length);
+    const mesh = new THREE.Mesh(geometry, material);
 
-    const length =
-        direction.length();
-
-    if (length <= EPSILON) {
-        return null;
-    }
-
-    const geometry =
-        new THREE.BoxGeometry(
-            width,
-            depth,
-            length
-        );
-
-    const mesh =
-        new THREE.Mesh(
-            geometry,
-            material
-        );
-
-    mesh.position.copy(
-        start
-            .clone()
-            .add(end)
-            .multiplyScalar(0.5)
-    );
-
-    mesh.quaternion.setFromUnitVectors(
-        new THREE.Vector3(0, 0, 1),
-        direction.normalize()
-    );
+    mesh.position.copy(start.clone().add(end).multiplyScalar(0.5));
+    mesh.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, 1), direction.normalize());
+    mesh.castShadow = true;
 
     return mesh;
 }
 
-function addLine(
-    group,
-    name,
-    line,
-    material
-) {
-    const mesh =
-        createProfile(
-            line,
-            material
-        );
-
-    if (!mesh) {
-        return;
-    }
-
-    mesh.name = name;
-
-    group.add(mesh);
-}
-
 function createObject(context) {
     assertContext(context);
+    const trimsData = context.geometry.trims;
+    const root = new THREE.Group();
+    root.name = 'trims';
 
-    const root =
-        new THREE.Group();
-
-    root.name = 'trim';
-
-    const material =
-        resolveMaterial(context);
-
-    const roof =
-        context.geometry.roof;
-
-    addLine(
-        root,
-        'front-edge',
-        roof.edges?.front,
-        material
-    );
-
-    addLine(
-        root,
-        'back-edge',
-        roof.edges?.back,
-        material
-    );
-
-    if (roof.ridge) {
-        addLine(
-            root,
-            'ridge',
-            roof.ridge.edge,
-            material
-        );
+    if (!trimsData.enabled) {
+        return root;
     }
 
-    for (
-        const side
-        of ['left', 'right']
-    ) {
-        const eave =
-            roof.eaves?.[side];
+    const trimMaterial = resolveMaterial(context, 'trimMetal');
+    const eaveMaterial = resolveMaterial(context, 'eaveTrim');
 
-        if (!eave) {
-            continue;
-        }
+    // Карнизы
+    for (const eave of trimsData.eaves) {
+        const mesh = createProfileMesh(eave.edge, eaveMaterial, 0.12, 0.06);
+        if (mesh) root.add(mesh);
+    }
 
-        addLine(
-            root,
-            `${side}-eave`,
-            eave.edge,
-            material
-        );
+    // Фронтоны
+    for (const r of trimsData.rake) {
+        const mesh = createProfileMesh(r.edge, trimMaterial, 0.12, 0.06);
+        if (mesh) root.add(mesh);
+    }
+
+    // Конёк
+    for (const rd of trimsData.ridge) {
+        const mesh = createProfileMesh(rd.edge, trimMaterial, 0.15, 0.04);
+        if (mesh) root.add(mesh);
+    }
+
+    // Углы здания
+    for (const c of trimsData.corners) {
+        const mesh = createProfileMesh(c.edge, trimMaterial, 0.08, 0.08);
+        if (mesh) root.add(mesh);
     }
 
     return root;
 }
 
 function disposeObject(object) {
-    if (!object) {
-        return;
+    if (!object) return;
+    object.traverse(child => {
+        if (child.isMesh) {
+            child.geometry?.dispose();
+        }
+    });
+    while (object.children.length > 0) {
+        object.remove(object.children[0]);
     }
-
-    for (
-        const child
-        of [...object.children]
-    ) {
-        disposeObject(child);
-    }
-
-    object.geometry?.dispose();
     object.removeFromParent();
 }
 
-export const TrimOrchestrator =
-    Object.freeze({
-        id: 'trim',
-
-        create(context) {
-            return createObject(context);
-        },
-
-        update(object, context) {
-            if (!object) {
-                return createObject(context);
-            }
-
-            disposeObject(object);
-
-            return createObject(context);
-        },
-
-        dispose(object) {
-            disposeObject(object);
-        }
-    });
+export const TrimOrchestrator = Object.freeze({
+    id: 'trims',
+    create(context) {
+        return createObject(context);
+    },
+    update(object, context) {
+        if (!object) return createObject(context);
+        disposeObject(object);
+        return createObject(context);
+    },
+    dispose(object) {
+        disposeObject(object);
+    }
+});
 
 
 ================================================
 FILE: js/elements/wainscot/WainscotOrchestrator.js
 ================================================
+// js/elements/wainscot/WainscotOrchestrator.js
 import * as THREE from 'three';
 
-const SIDES = Object.freeze([
-    'front',
-    'back',
-    'left',
-    'right'
-]);
+const SIDE_MAP = Object.freeze({
+    front: 'F',
+    back: 'B',
+    left: 'L',
+    right: 'R'
+});
 
 function assertContext(context) {
     if (!context || typeof context !== 'object') {
         throw new TypeError('Element context is required');
     }
-
     if (!context.geometry?.walls) {
-        throw new TypeError(
-            'Wall geometry is required'
-        );
+        throw new TypeError('Wall geometry is required');
     }
-
-    if (!context.panelGeometry?.wainscot) {
-        throw new TypeError(
-            'Wainscot panel geometry is required'
-        );
-    }
-
     if (!context.materials) {
-        throw new TypeError(
-            'Material system is required'
-        );
-    }
-
-    if (!context.colors) {
-        throw new TypeError(
-            'Color system is required'
-        );
+        throw new TypeError('Material system is required');
     }
 }
 
 function resolveMaterial(context) {
-    if (
-        typeof context.materials.get === 'function'
-    ) {
-        return context.materials.get(
-            'wallMetal',
-            context.colors.wainscot,
-            context.textures?.wainscotPanel
-        );
+    if (typeof context.materials.get === 'function') {
+        return context.materials.get('wallMetal', context.colors?.wainscot);
     }
-
-    if (context.materials.wallMetal) {
-        return context.materials.wallMetal;
-    }
-
-    throw new Error(
-        'Wainscot material is not available'
-    );
+    return context.materials.wallMetal;
 }
 
-function createPanelGeometry(panel) {
-    const bounds = panel.bounds;
+function createWainscotMesh(wallKey, wsHeight, openings, material, envelope, wallThickness) {
+    const sideCode = SIDE_MAP[wallKey];
+    const isEndWall = sideCode === 'F' || sideCode === 'B';
+    const span = isEndWall ? envelope.width : envelope.length;
+    const halfSpan = span / 2;
 
-    const width = Math.max(
-        bounds.max.x - bounds.min.x,
-        0.001
-    );
+    const shape = new THREE.Shape();
+    if (isEndWall) {
+        shape.moveTo(-halfSpan, 0);
+        shape.lineTo(halfSpan, 0);
+        shape.lineTo(halfSpan, wsHeight);
+        shape.lineTo(-halfSpan, wsHeight);
+        shape.closePath();
+    } else {
+        shape.moveTo(0, 0);
+        shape.lineTo(span, 0);
+        shape.lineTo(span, wsHeight);
+        shape.lineTo(0, wsHeight);
+        shape.closePath();
+    }
 
-    const height = Math.max(
-        bounds.max.y - bounds.min.y,
-        0.001
-    );
+    // Двери и проёмы, пересекающие цоколь снизу (yOff < wsHeight)
+    const relevantOpenings = openings.filter(op => op.side === sideCode && op.bounds.min.y < wsHeight);
 
-    const length = Math.max(
-        bounds.max.z - bounds.min.z,
-        0.001
-    );
+    relevantOpenings.forEach(op => {
+        const opX = op.x;
+        const opW = op.dimensions.width;
+        const opH = Math.min(wsHeight, op.dimensions.height);
+        const opY = op.bounds.min.y;
 
-    return new THREE.BoxGeometry(
-        width,
-        height,
-        length
-    );
-}
+        const holeMinX = opX - opW / 2;
+        const holeMaxX = opX + opW / 2;
 
-function createPanel(
-    panel,
-    material
-) {
-    const mesh = new THREE.Mesh(
-        createPanelGeometry(panel),
-        material
-    );
+        const holePath = new THREE.Path();
+        holePath.moveTo(holeMinX, opY);
+        holePath.lineTo(holeMaxX, opY);
+        holePath.lineTo(holeMaxX, opY + opH);
+        holePath.lineTo(holeMinX, opY + opH);
+        holePath.closePath();
+        shape.holes.push(holePath);
+    });
 
-    const bounds = panel.bounds;
+    const wsThickness = wallThickness + 0.005;
+    const geometry = new THREE.ExtrudeGeometry(shape, {
+        depth: wsThickness,
+        bevelEnabled: false
+    });
 
-    mesh.position.set(
-        (bounds.min.x + bounds.max.x) / 2,
-        (bounds.min.y + bounds.max.y) / 2,
-        (bounds.min.z + bounds.max.z) / 2
-    );
+    const mesh = new THREE.Mesh(geometry, material);
+    mesh.name = `wainscot-mesh-${sideCode}`;
 
-    mesh.userData.element =
-        'wainscot';
+    if (sideCode === 'F') {
+        mesh.position.set(0, 0, -wsThickness);
+    } else if (sideCode === 'B') {
+        mesh.position.set(0, 0, envelope.length);
+    } else if (sideCode === 'L') {
+        mesh.position.set(-envelope.width / 2, 0, 0);
+        mesh.rotation.y = Math.PI / 2;
+    } else if (sideCode === 'R') {
+        mesh.position.set(envelope.width / 2 + wsThickness, 0, 0);
+        mesh.rotation.y = Math.PI / 2;
+    }
 
-    mesh.userData.panelIndex =
-        panel.index;
-
+    mesh.castShadow = true;
+    mesh.receiveShadow = true;
     return mesh;
-}
-
-function createSide(
-    side,
-    panels,
-    material
-) {
-    const group =
-        new THREE.Group();
-
-    group.name =
-        `wainscot-${side}`;
-
-    for (const panel of panels) {
-        group.add(
-            createPanel(
-                panel,
-                material
-            )
-        );
-    }
-
-    return group;
 }
 
 function createObject(context) {
     assertContext(context);
-
-    const root =
-        new THREE.Group();
-
+    const root = new THREE.Group();
     root.name = 'wainscot';
 
-    const material =
-        resolveMaterial(context);
+    const wsHeight = context.model?.panels?.wainscotHeight || 0;
+    if (wsHeight <= 0 || context.model?.visibility?.wainscot === false) {
+        return root;
+    }
 
-    for (const side of SIDES) {
-        const panels =
-            context.panelGeometry
-                .wainscot[side];
+    const material = resolveMaterial(context);
+    const openings = context.geometry.openings || [];
+    const envelope = context.geometry.envelope;
+    const wallThickness = context.model.walls.thickness;
 
-        if (!Array.isArray(panels)) {
-            continue;
-        }
-
-        root.add(
-            createSide(
-                side,
-                panels,
-                material
-            )
-        );
+    for (const wallKey of ['front', 'back', 'left', 'right']) {
+        root.add(createWainscotMesh(wallKey, wsHeight, openings, material, envelope, wallThickness));
     }
 
     return root;
 }
 
 function disposeObject(object) {
-    if (!object) {
-        return;
+    if (!object) return;
+    object.traverse(child => {
+        if (child.isMesh) {
+            child.geometry?.dispose();
+        }
+    });
+    while (object.children.length > 0) {
+        object.remove(object.children[0]);
     }
-
-    for (
-        const child
-        of [...object.children]
-    ) {
-        disposeObject(child);
-    }
-
-    object.geometry?.dispose();
     object.removeFromParent();
 }
 
-function updateObject(
-    object,
-    context
-) {
-    assertContext(context);
-
-    if (!object) {
+export const WainscotOrchestrator = Object.freeze({
+    id: 'wainscot',
+    create(context) {
         return createObject(context);
+    },
+    update(object, context) {
+        if (!object) return createObject(context);
+        disposeObject(object);
+        return createObject(context);
+    },
+    dispose(object) {
+        disposeObject(object);
     }
-
-    for (
-        const child
-        of [...object.children]
-    ) {
-        disposeObject(child);
-    }
-
-    object.clear();
-
-    const material =
-        resolveMaterial(context);
-
-    for (const side of SIDES) {
-        const panels =
-            context.panelGeometry
-                .wainscot[side];
-
-        if (!Array.isArray(panels)) {
-            continue;
-        }
-
-        object.add(
-            createSide(
-                side,
-                panels,
-                material
-            )
-        );
-    }
-
-    return object;
-}
-
-export const WainscotOrchestrator =
-    Object.freeze({
-        id: 'wainscot',
-
-        create(context) {
-            return createObject(context);
-        },
-
-        update(object, context) {
-            return updateObject(
-                object,
-                context
-            );
-        },
-
-        dispose(object) {
-            disposeObject(object);
-        }
-    });
+});
 
 
 ================================================
 FILE: js/elements/wall/WallOrchestrator.js
 ================================================
+// js/elements/wall/WallOrchestrator.js
 import * as THREE from 'three';
+
+const SIDE_MAP = Object.freeze({
+    front: 'F',
+    back: 'B',
+    left: 'L',
+    right: 'R'
+});
 
 function assertContext(context) {
     if (!context || typeof context !== 'object') {
         throw new TypeError('Element context is required');
     }
-
     if (!context.geometry?.walls) {
-        throw new TypeError(
-            'Wall geometry is required'
-        );
+        throw new TypeError('Wall geometry is required');
     }
-
-    if (!context.panelGeometry?.walls) {
-        throw new TypeError(
-            'Wall panel geometry is required'
-        );
-    }
-
     if (!context.materials) {
-        throw new TypeError(
-            'Material system is required'
-        );
-    }
-
-    if (!context.colors) {
-        throw new TypeError(
-            'Color system is required'
-        );
+        throw new TypeError('Material system is required');
     }
 }
 
-function getWallMaterial(
-    context,
-    side
-) {
-    if (
-        typeof context.materials.get === 'function'
-    ) {
-        return context.materials.get(
-            'wallMetal',
-            context.colors.wall,
-            context.textures?.wallPanel
-        );
+function getWallMaterial(context) {
+    if (typeof context.materials.get === 'function') {
+        return context.materials.get('wallMetal', context.colors?.wall);
     }
-
-    if (context.materials.wallMetal) {
-        return context.materials.wallMetal;
-    }
-
-    if (context.materials.wall) {
-        return context.materials.wall;
-    }
-
-    throw new Error(
-        `Wall material is not available for ${side}`
-    );
+    return context.materials.wallMetal || context.materials.wall;
 }
 
-function createPanelGeometry(
-    panel
-) {
-    const bounds = panel.bounds;
+function createWallMeshWithHoles(wallData, openings, wallKey, material, envelope) {
+    const shape = new THREE.Shape();
+    const sideCode = SIDE_MAP[wallKey];
+    const isEndWall = sideCode === 'F' || sideCode === 'B';
+    const halfSpan = (isEndWall ? envelope.width : envelope.length) / 2;
 
-    const width = Math.max(
-        bounds.max.x - bounds.min.x,
-        0
-    );
+    wallData.shapePoints.forEach((p, idx) => {
+        if (idx === 0) shape.moveTo(p.x, p.y);
+        else shape.lineTo(p.x, p.y);
+    });
 
-    const height = Math.max(
-        bounds.max.y - bounds.min.y,
-        0
-    );
+    const relevantOpenings = openings.filter(op => op.side === sideCode);
 
-    const length = Math.max(
-        bounds.max.z - bounds.min.z,
-        0
-    );
+    relevantOpenings.forEach(op => {
+        const opX = op.x;
+        const opW = op.dimensions.width;
+        const opH = op.dimensions.height;
+        const opY = op.bounds.min.y;
 
-    return new THREE.BoxGeometry(
-        width || 0.001,
-        height || 0.001,
-        length || 0.001
-    );
-}
+        let holeMinX, holeMaxX;
 
-function createPanelMesh(
-    panel,
-    material
-) {
-    const mesh = new THREE.Mesh(
-        createPanelGeometry(panel),
-        material
-    );
+        if (isEndWall) {
+            holeMinX = opX - opW / 2;
+            holeMaxX = opX + opW / 2;
+        } else {
+            // Для боковых стен (L/R) начало Shape в x=0 (Z=0)
+            holeMinX = opX - opW / 2;
+            holeMaxX = opX + opW / 2;
+        }
 
-    const bounds = panel.bounds;
+        const holePath = new THREE.Path();
+        holePath.moveTo(holeMinX, opY);
+        holePath.lineTo(holeMaxX, opY);
+        holePath.lineTo(holeMaxX, opY + opH);
+        holePath.lineTo(holeMinX, opY + opH);
+        holePath.closePath();
+        shape.holes.push(holePath);
+    });
 
-    mesh.position.set(
-        (bounds.min.x + bounds.max.x) / 2,
-        (bounds.min.y + bounds.max.y) / 2,
-        (bounds.min.z + bounds.max.z) / 2
-    );
+    const geometry = new THREE.ExtrudeGeometry(shape, {
+        depth: wallData.thickness,
+        bevelEnabled: false
+    });
 
-    mesh.userData.element = 'wall';
-    mesh.userData.panelIndex = panel.index;
+    const mesh = new THREE.Mesh(geometry, material);
+    mesh.name = `wall-mesh-${sideCode}`;
 
+    if (sideCode === 'F') {
+        mesh.position.set(0, 0, -wallData.thickness);
+    } else if (sideCode === 'B') {
+        mesh.position.set(0, 0, envelope.length);
+    } else if (sideCode === 'L') {
+        mesh.position.set(-envelope.width / 2, 0, 0);
+        mesh.rotation.y = Math.PI / 2;
+    } else if (sideCode === 'R') {
+        mesh.position.set(envelope.width / 2 + wallData.thickness, 0, 0);
+        mesh.rotation.y = Math.PI / 2;
+    }
+
+    mesh.castShadow = true;
+    mesh.receiveShadow = true;
     return mesh;
-}
-
-function createWallGroup(
-    side,
-    panels,
-    material
-) {
-    const group = new THREE.Group();
-
-    group.name = `wall-${side}`;
-
-    for (const panel of panels) {
-        group.add(
-            createPanelMesh(
-                panel,
-                material
-            )
-        );
-    }
-
-    return group;
 }
 
 function createObject(context) {
     assertContext(context);
 
     const root = new THREE.Group();
-
     root.name = 'walls';
 
-    for (const side of [
-        'front',
-        'back',
-        'left',
-        'right'
-    ]) {
-        const panels =
-            context.panelGeometry.walls[side];
+    if (context.model?.visibility?.walls === false) {
+        return root;
+    }
 
-        if (!Array.isArray(panels)) {
-            continue;
+    const material = getWallMaterial(context);
+    const openings = context.geometry.openings || [];
+    const envelope = context.geometry.envelope;
+
+    for (const [wallKey, wallData] of Object.entries(context.geometry.walls)) {
+        if (wallData && wallData.shapePoints) {
+            root.add(createWallMeshWithHoles(wallData, openings, wallKey, material, envelope));
         }
-
-        const material =
-            getWallMaterial(
-                context,
-                side
-            );
-
-        root.add(
-            createWallGroup(
-                side,
-                panels,
-                material
-            )
-        );
     }
 
     return root;
 }
 
-function updateObject(
-    object,
-    context
-) {
-    assertContext(context);
-
-    if (!object) {
-        return createObject(context);
-    }
-
-    disposeChildren(object);
-
-    for (const side of [
-        'front',
-        'back',
-        'left',
-        'right'
-    ]) {
-        const panels =
-            context.panelGeometry.walls[side];
-
-        if (!Array.isArray(panels)) {
-            continue;
+function disposeObject(object) {
+    if (!object) return;
+    object.traverse(child => {
+        if (child.isMesh) {
+            child.geometry?.dispose();
         }
-
-        object.add(
-            createWallGroup(
-                side,
-                panels,
-                getWallMaterial(
-                    context,
-                    side
-                )
-            )
-        );
+    });
+    while (object.children.length > 0) {
+        object.remove(object.children[0]);
     }
-
-    return object;
-}
-
-function disposeChildren(
-    group
-) {
-    while (group.children.length) {
-        const child =
-            group.children.pop();
-
-        disposeObject(child);
-    }
-}
-
-function disposeObject(
-    object
-) {
-    if (!object) {
-        return;
-    }
-
-    if (object.children) {
-        for (
-            const child
-            of [...object.children]
-        ) {
-            disposeObject(child);
-        }
-    }
-
-    object.geometry?.dispose();
     object.removeFromParent();
 }
 
 export const WallOrchestrator = Object.freeze({
     id: 'walls',
-
     create(context) {
         return createObject(context);
     },
-
     update(object, context) {
-        return updateObject(
-            object,
-            context
-        );
+        if (!object) return createObject(context);
+        disposeObject(object);
+        return createObject(context);
     },
-
     dispose(object) {
         disposeObject(object);
     }
@@ -12273,6 +11832,8 @@ export {
 ================================================
 FILE: js/model/geometry/RoofGeometry.js
 ================================================
+// js/model/geometry/RoofGeometry.js
+
 const ROOF_TYPES = Object.freeze([
     'gabled',
     'left-sloped',
@@ -12300,17 +11861,9 @@ function edge(start, end) {
 }
 
 function calculateBounds(points) {
-    const xs = points.map(
-        value => value.x
-    );
-
-    const ys = points.map(
-        value => value.y
-    );
-
-    const zs = points.map(
-        value => value.z
-    );
+    const xs = points.map(value => value.x);
+    const ys = points.map(value => value.y);
+    const zs = points.map(value => value.z);
 
     const min = point(
         Math.min(...xs),
@@ -12327,159 +11880,89 @@ function calculateBounds(points) {
     return Object.freeze({
         min,
         max,
-
         center: point(
             (min.x + max.x) / 2,
             (min.y + max.y) / 2,
             (min.z + max.z) / 2
         ),
-
         width: max.x - min.x,
         height: max.y - min.y,
         length: max.z - min.z
     });
 }
 
-function calculateRise(
-    width,
-    pitchRatio
-) {
-    return width * pitchRatio;
+function calculateRise(width, pitchRatio, type) {
+    const run = type === 'gabled' ? width / 2 : width;
+    return run * pitchRatio;
 }
 
-function createRoof(
-    model,
-    envelope
-) {
+function createRoof(model, envelope) {
     const {
         type,
         pitchRatio,
         overhangs
     } = model.roof;
 
-    const width =
-        envelope.width;
+    const width = envelope.width;
+    const length = envelope.length;
+    const height = envelope.height;
+    const halfWidth = width / 2;
 
-    const length =
-        envelope.length;
+    const leftX = -halfWidth - overhangs.left;
+    const rightX = halfWidth + overhangs.right;
+    const frontZ = -overhangs.front;
+    const backZ = length + overhangs.back;
 
-    const height =
-        envelope.height;
+    const rise = calculateRise(width, pitchRatio, type);
 
-    const halfWidth =
-        width / 2;
+    const leftY = type === 'right-sloped' ? height + rise : height;
+    const rightY = type === 'left-sloped' ? height + rise : height;
 
-    const leftX =
-        -halfWidth -
-        overhangs.left;
+    const leftFront = point(leftX, leftY, frontZ);
+    const leftBack = point(leftX, leftY, backZ);
+    const rightFront = point(rightX, rightY, frontZ);
+    const rightBack = point(rightX, rightY, backZ);
 
-    const rightX =
-        halfWidth +
-        overhangs.right;
+    const ridgeFront = type === 'gabled'
+        ? point(0, height + rise, frontZ)
+        : null;
 
-    const frontZ =
-        -overhangs.front;
+    const ridgeBack = type === 'gabled'
+        ? point(0, height + rise, backZ)
+        : null;
 
-    const backZ =
-        length +
-        overhangs.back;
-
-    const rise =
-        calculateRise(
-            width,
-            pitchRatio
-        );
-
-    const leftY =
-        type === 'right-sloped'
-            ? height + rise
-            : height;
-
-    const rightY =
-        type === 'left-sloped'
-            ? height + rise
-            : height;
-
-    const leftFront =
-        point(
-            leftX,
-            leftY,
-            frontZ
-        );
-
-    const leftBack =
-        point(
-            leftX,
-            leftY,
-            backZ
-        );
-
-    const rightFront =
-        point(
-            rightX,
-            rightY,
-            frontZ
-        );
-
-    const rightBack =
-        point(
-            rightX,
-            rightY,
-            backZ
-        );
-
-    const ridgeFront =
-        type === 'gabled'
-            ? point(
-                0,
-                height + rise,
-                frontZ
-            )
-            : null;
-
-    const ridgeBack =
-        type === 'gabled'
-            ? point(
-                0,
-                height + rise,
-                backZ
-            )
-            : null;
-
-    const planes =
-        type === 'gabled'
-            ? [
-                {
-                    id: 'left',
-                    corners: [
-                        leftFront,
-                        ridgeFront,
-                        ridgeBack,
-                        leftBack
-                    ]
-                },
-
-                {
-                    id: 'right',
-                    corners: [
-                        ridgeFront,
-                        rightFront,
-                        rightBack,
-                        ridgeBack
-                    ]
-                }
-            ]
-            : [
-                {
-                    id: type,
-                    corners: [
-                        leftFront,
-                        rightFront,
-                        rightBack,
-                        leftBack
-                    ]
-                }
-            ];
+    const planes = type === 'gabled'
+        ? [
+            {
+                id: 'left',
+                corners: [
+                    leftFront,
+                    ridgeFront,
+                    ridgeBack,
+                    leftBack
+                ]
+            },
+            {
+                id: 'right',
+                corners: [
+                    ridgeFront,
+                    rightFront,
+                    rightBack,
+                    ridgeBack
+                ]
+            }
+        ]
+        : [
+            {
+                id: type,
+                corners: [
+                    leftFront,
+                    rightFront,
+                    rightBack,
+                    leftBack
+                ]
+            }
+        ];
 
     const points = [
         leftFront,
@@ -12489,161 +11972,83 @@ function createRoof(
     ];
 
     if (ridgeFront) {
-        points.push(
-            ridgeFront,
-            ridgeBack
-        );
+        points.push(ridgeFront, ridgeBack);
     }
 
     return {
         type,
-
         pitchRatio,
-
-        pitchAngle:
-            Math.atan(
-                pitchRatio
-            ),
-
+        pitchAngle: Math.atan(pitchRatio),
         rise,
-
         eaves: {
             left: {
                 front: leftFront,
                 back: leftBack,
-                edge: edge(
-                    leftFront,
-                    leftBack
-                )
+                edge: edge(leftFront, leftBack)
             },
-
             right: {
                 front: rightFront,
                 back: rightBack,
-                edge: edge(
-                    rightFront,
-                    rightBack
-                )
+                edge: edge(rightFront, rightBack)
             }
         },
-
-        ridge:
-            ridgeFront
-                ? {
-                    front: ridgeFront,
-                    back: ridgeBack,
-                    edge: edge(
-                        ridgeFront,
-                        ridgeBack
-                    )
-                }
-                : null,
-
+        ridge: ridgeFront
+            ? {
+                front: ridgeFront,
+                back: ridgeBack,
+                edge: edge(ridgeFront, ridgeBack)
+            }
+            : null,
         edges: {
-            front: edge(
-                leftFront,
-                rightFront
-            ),
-
-            back: edge(
-                leftBack,
-                rightBack
-            )
+            front: edge(leftFront, rightFront),
+            back: edge(leftBack, rightBack)
         },
-
         planes: Object.freeze(
-            planes.map(
-                plane =>
-                    Object.freeze({
-                        id: plane.id,
-                        corners:
-                            Object.freeze([
-                                ...plane.corners
-                            ])
-                    })
-            )
+            planes.map(plane => Object.freeze({
+                id: plane.id,
+                corners: Object.freeze([...plane.corners])
+            }))
         ),
-
-        bounds:
-            calculateBounds(
-                points
-            )
+        bounds: calculateBounds(points)
     };
 }
 
-export function createRoofGeometry(
-    model,
-    envelope,
-    walls
-) {
+export function createRoofGeometry(model, envelope, walls) {
     if (!model?.roof) {
-        throw new TypeError(
-            'BuildingModel.roof is required'
-        );
+        throw new TypeError('BuildingModel.roof is required');
     }
-
     if (!envelope) {
-        throw new TypeError(
-            'BuildingEnvelope is required'
-        );
+        throw new TypeError('BuildingEnvelope is required');
     }
-
     if (!walls) {
-        throw new TypeError(
-            'WallGeometry is required'
-        );
+        throw new TypeError('WallGeometry is required');
     }
 
-    const {
-        type,
-        pitchRatio,
-        overhangs
-    } = model.roof;
+    const { type, pitchRatio, overhangs } = model.roof;
 
-    if (
-        !ROOF_TYPES.includes(type)
-    ) {
-        throw new RangeError(
-            `Unsupported roof type: ${type}`
-        );
+    if (!ROOF_TYPES.includes(type)) {
+        throw new RangeError(`Unsupported roof type: ${type}`);
     }
 
-    if (
-        !Number.isFinite(
-            pitchRatio
-        ) ||
-        pitchRatio <= 0
-    ) {
-        throw new RangeError(
-            'roof.pitchRatio must be greater than zero'
-        );
+    if (!Number.isFinite(pitchRatio) || pitchRatio <= 0) {
+        throw new RangeError('roof.pitchRatio must be greater than zero');
     }
 
-    if (
-        !overhangs ||
-        typeof overhangs !== 'object'
-    ) {
-        throw new TypeError(
-            'roof.overhangs is required'
-        );
+    if (!overhangs || typeof overhangs !== 'object') {
+        throw new TypeError('roof.overhangs is required');
     }
 
-    return Object.freeze(
-        createRoof(
-            model,
-            envelope
-        )
-    );
+    return Object.freeze(createRoof(model, envelope));
 }
 
-export {
-    ROOF_TYPES
-};
+export { ROOF_TYPES };
 
 
 ================================================
 FILE: js/model/geometry/StructuralGeometry.js
 ================================================
+// js/model/geometry/StructuralGeometry.js
+
 const DEFAULTS = Object.freeze({
     frameSpacing: 6.096,
     girtSpacing: 1.524,
@@ -12651,11 +12056,7 @@ const DEFAULTS = Object.freeze({
 });
 
 function point(x, y, z) {
-    return Object.freeze({
-        x,
-        y,
-        z
-    });
+    return Object.freeze({ x, y, z });
 }
 
 function line(start, end) {
@@ -12670,20 +12071,10 @@ function line(start, end) {
     });
 }
 
-function createPositions(
-    start,
-    end,
-    spacing
-) {
-    if (
-        !Number.isFinite(spacing) ||
-        spacing <= 0
-    ) {
-        throw new RangeError(
-            'Structural spacing must be greater than zero'
-        );
+function createPositions(start, end, spacing) {
+    if (!Number.isFinite(spacing) || spacing <= 0) {
+        throw new RangeError('Structural spacing must be greater than zero');
     }
-
     const positions = [start];
     let current = start;
 
@@ -12692,491 +12083,178 @@ function createPositions(
         positions.push(current);
     }
 
-    if (
-        Math.abs(
-            positions[positions.length - 1] - end
-        ) > 1e-9
-    ) {
+    if (Math.abs(positions[positions.length - 1] - end) > 1e-9) {
         positions.push(end);
     }
-
     return positions;
 }
 
-function createFrame(
-    roof,
-    z,
-    index
-) {
-    const leftFront = point(
-        roof.eaves.left.front.x,
-        roof.eaves.left.front.y,
-        z
-    );
+function createFrame(roof, z, index) {
+    const leftFront = point(roof.eaves.left.front.x, roof.eaves.left.front.y, z);
+    const rightFront = point(roof.eaves.right.front.x, roof.eaves.right.front.y, z);
+    const leftBase = point(roof.eaves.left.front.x, 0, z);
+    const rightBase = point(roof.eaves.right.front.x, 0, z);
 
-    const rightFront = point(
-        roof.eaves.right.front.x,
-        roof.eaves.right.front.y,
-        z
-    );
-
-    const leftBase = point(
-        roof.eaves.left.front.x,
-        0,
-        z
-    );
-
-    const rightBase = point(
-        roof.eaves.right.front.x,
-        0,
-        z
-    );
-
-    if (
-        roof.type === 'gabled'
-    ) {
-        const ridge = point(
-            roof.ridge.front.x,
-            roof.ridge.front.y,
-            z
-        );
-
+    if (roof.type === 'gabled' && roof.ridge) {
+        const ridge = point(roof.ridge.front.x, roof.ridge.front.y, z);
         return Object.freeze({
             index,
             position: z,
-
-            leftColumn: line(
-                leftBase,
-                leftFront
-            ),
-
-            leftRafter: line(
-                leftFront,
-                ridge
-            ),
-
-            rightRafter: line(
-                ridge,
-                rightFront
-            ),
-
-            rightColumn: line(
-                rightFront,
-                rightBase
-            )
+            leftColumn: line(leftBase, leftFront),
+            leftRafter: line(leftFront, ridge),
+            rightRafter: line(ridge, rightFront),
+            rightColumn: line(rightFront, rightBase)
         });
     }
 
     return Object.freeze({
         index,
         position: z,
-
-        leftColumn: line(
-            leftBase,
-            leftFront
-        ),
-
-        rafter: line(
-            leftFront,
-            rightFront
-        ),
-
-        rightColumn: line(
-            rightFront,
-            rightBase
-        )
+        leftColumn: line(leftBase, leftFront),
+        rafter: line(leftFront, rightFront),
+        rightColumn: line(rightFront, rightBase)
     });
 }
 
-function createGirts(
-    walls,
-    height,
-    spacing
-) {
-    const levels = createPositions(
-        0,
-        height,
-        spacing
-    );
+function splitSpanWithOpenings(startCoord, endCoord, yLevel, openings, sideCode, isAxisX) {
+    const intersecting = openings.filter(op => {
+        if (op.side !== sideCode) return false;
+        const minY = op.bounds.min.y;
+        const maxY = op.bounds.max.y;
+        return yLevel >= minY && yLevel <= maxY;
+    });
 
-    return levels.map(
-        (y, index) => Object.freeze({
-            index,
-            elevation: y,
+    if (intersecting.length === 0) {
+        return [{ start: startCoord, end: endCoord }];
+    }
 
-            front: line(
-                point(
-                    walls.front.corners.bottomLeft.x,
-                    y,
-                    walls.front.corners.bottomLeft.z
-                ),
-                point(
-                    walls.front.corners.bottomRight.x,
-                    y,
-                    walls.front.corners.bottomRight.z
-                )
-            ),
+    // Интервалы вырезов
+    const cutouts = intersecting.map(op => {
+        const center = op.x;
+        const halfW = op.dimensions.width / 2;
+        return { min: center - halfW, max: center + halfW };
+    }).sort((a, b) => a.min - b.min);
 
-            back: line(
-                point(
-                    walls.back.corners.bottomLeft.x,
-                    y,
-                    walls.back.corners.bottomLeft.z
-                ),
-                point(
-                    walls.back.corners.bottomRight.x,
-                    y,
-                    walls.back.corners.bottomRight.z
-                )
-            ),
+    const resultSegments = [];
+    let current = startCoord;
 
-            left: line(
-                point(
-                    walls.left.corners.bottomLeft.x,
-                    y,
-                    walls.left.corners.bottomLeft.z
-                ),
-                point(
-                    walls.left.corners.topLeft.x,
-                    y,
-                    walls.left.corners.topLeft.z
-                )
-            ),
+    for (const cut of cutouts) {
+        if (cut.min > current) {
+            resultSegments.push({ start: current, end: Math.min(endCoord, cut.min) });
+        }
+        current = Math.max(current, cut.max);
+        if (current >= endCoord) break;
+    }
 
-            right: line(
-                point(
-                    walls.right.corners.bottomRight.x,
-                    y,
-                    walls.right.corners.bottomRight.z
-                ),
-                point(
-                    walls.right.corners.topRight.x,
-                    y,
-                    walls.right.corners.topRight.z
-                )
-            )
-        })
-    );
+    if (current < endCoord) {
+        resultSegments.push({ start: current, end: endCoord });
+    }
+
+    return resultSegments;
 }
 
-function createPurlins(
-    roof,
-    length,
-    spacing
-) {
-    const positions = createPositions(
-        0,
-        length,
-        spacing
-    );
+function createGirts(walls, height, spacing, openings, envelope) {
+    const levels = createPositions(0, height, spacing);
+    const girts = [];
 
-    return positions.map(
-        (z, index) => {
-            if (
-                roof.type === 'gabled'
-            ) {
-                return Object.freeze({
-                    index,
-                    position: z,
+    const halfW = envelope.width / 2;
+    const length = envelope.length;
 
-                    planes: {
-                        left: line(
-                            point(
-                                roof.eaves.left.front.x,
-                                roof.eaves.left.front.y,
-                                z
-                            ),
-                            point(
-                                roof.ridge.front.x,
-                                roof.ridge.front.y,
-                                z
-                            )
-                        ),
+    levels.forEach((y, index) => {
+        const frontSegs = splitSpanWithOpenings(-halfW, halfW, y, openings, 'F', true);
+        const backSegs = splitSpanWithOpenings(-halfW, halfW, y, openings, 'B', true);
+        const leftSegs = splitSpanWithOpenings(0, length, y, openings, 'L', false);
+        const rightSegs = splitSpanWithOpenings(0, length, y, openings, 'R', false);
 
-                        right: line(
-                            point(
-                                roof.ridge.front.x,
-                                roof.ridge.front.y,
-                                z
-                            ),
-                            point(
-                                roof.eaves.right.front.x,
-                                roof.eaves.right.front.y,
-                                z
-                            )
-                        )
-                    }
-                });
-            }
+        girts.push(Object.freeze({
+            index,
+            elevation: y,
+            frontSegments: Object.freeze(frontSegs.map(s => line(point(s.start, y, 0), point(s.end, y, 0)))),
+            backSegments: Object.freeze(backSegs.map(s => line(point(s.start, y, length), point(s.end, y, length)))),
+            leftSegments: Object.freeze(leftSegs.map(s => line(point(-halfW, y, s.start), point(-halfW, y, s.end)))),
+            rightSegments: Object.freeze(rightSegs.map(s => line(point(halfW, y, s.start), point(halfW, y, s.end))))
+        }));
+    });
 
+    return girts;
+}
+
+function createPurlins(roof, length, spacing) {
+    const positions = createPositions(0, length, spacing);
+    return positions.map((z, index) => {
+        if (roof.type === 'gabled' && roof.ridge) {
             return Object.freeze({
                 index,
                 position: z,
-
-                plane: line(
-                    point(
-                        roof.eaves.left.front.x,
-                        roof.eaves.left.front.y,
-                        z
+                planes: {
+                    left: line(
+                        point(roof.eaves.left.front.x, roof.eaves.left.front.y, z),
+                        point(roof.ridge.front.x, roof.ridge.front.y, z)
                     ),
-                    point(
-                        roof.eaves.right.front.x,
-                        roof.eaves.right.front.y,
-                        z
+                    right: line(
+                        point(roof.ridge.front.x, roof.ridge.front.y, z),
+                        point(roof.eaves.right.front.x, roof.eaves.right.front.y, z)
                     )
-                )
+                }
             });
         }
-    );
+
+        return Object.freeze({
+            index,
+            position: z,
+            plane: line(
+                point(roof.eaves.left.front.x, roof.eaves.left.front.y, z),
+                point(roof.eaves.right.front.x, roof.eaves.right.front.y, z)
+            )
+        });
+    });
 }
 
-function createEndWallColumns(
-    walls
-) {
+function createEndWallColumns(walls) {
     return Object.freeze([
         Object.freeze({
             side: 'F',
-
-            left: line(
-                walls.front.corners.bottomLeft,
-                walls.front.corners.topLeft
-            ),
-
-            right: line(
-                walls.front.corners.bottomRight,
-                walls.front.corners.topRight
-            )
+            left: line(walls.front.corners.bottomLeft, walls.front.corners.topLeft),
+            right: line(walls.front.corners.bottomRight, walls.front.corners.topRight)
         }),
-
         Object.freeze({
             side: 'B',
-
-            left: line(
-                walls.back.corners.bottomLeft,
-                walls.back.corners.topLeft
-            ),
-
-            right: line(
-                walls.back.corners.bottomRight,
-                walls.back.corners.topRight
-            )
+            left: line(walls.back.corners.bottomLeft, walls.back.corners.topLeft),
+            right: line(walls.back.corners.bottomRight, walls.back.corners.topRight)
         })
     ]);
 }
 
-function calculateBounds(
-    structural
-) {
-    const points = [];
-
-    const collectLine = value => {
-        if (!value?.start || !value?.end) {
-            return;
-        }
-
-        points.push(
-            value.start,
-            value.end
-        );
-    };
-
-    for (
-        const frame
-        of structural.frames
-    ) {
-        collectLine(frame.leftColumn);
-        collectLine(frame.rightColumn);
-        collectLine(frame.leftRafter);
-        collectLine(frame.rightRafter);
-        collectLine(frame.rafter);
+export function createStructuralGeometry(model, buildingGeometry, options = {}) {
+    if (!model || !buildingGeometry?.walls || !buildingGeometry?.roof) {
+        throw new TypeError('BuildingModel, walls, and roof geometry are required');
     }
 
-    for (
-        const level
-        of structural.girts
-    ) {
-        collectLine(level.front);
-        collectLine(level.back);
-        collectLine(level.left);
-        collectLine(level.right);
-    }
+    const frameSpacing = options.frameSpacing ?? DEFAULTS.frameSpacing;
+    const girtSpacing = options.girtSpacing ?? DEFAULTS.girtSpacing;
+    const purlinSpacing = options.purlinSpacing ?? DEFAULTS.purlinSpacing;
 
-    for (
-        const purlin
-        of structural.purlins
-    ) {
-        if (purlin.planes) {
-            collectLine(purlin.planes.left);
-            collectLine(purlin.planes.right);
-        } else {
-            collectLine(purlin.plane);
-        }
-    }
+    const roof = buildingGeometry.roof;
+    const walls = buildingGeometry.walls;
+    const openings = buildingGeometry.openings || [];
+    const envelope = buildingGeometry.envelope;
 
-    for (
-        const wall
-        of structural.endWallColumns
-    ) {
-        collectLine(wall.left);
-        collectLine(wall.right);
-    }
-
-    if (!points.length) {
-        return Object.freeze({
-            min: point(0, 0, 0),
-            max: point(0, 0, 0),
-            center: point(0, 0, 0),
-            width: 0,
-            height: 0,
-            length: 0
-        });
-    }
-
-    const xs = points.map(
-        value => value.x
+    const framePositions = createPositions(
+        roof.eaves.left.front.z,
+        roof.eaves.left.back.z,
+        frameSpacing
     );
 
-    const ys = points.map(
-        value => value.y
-    );
-
-    const zs = points.map(
-        value => value.z
-    );
-
-    const min = point(
-        Math.min(...xs),
-        Math.min(...ys),
-        Math.min(...zs)
-    );
-
-    const max = point(
-        Math.max(...xs),
-        Math.max(...ys),
-        Math.max(...zs)
-    );
+    const frames = framePositions.map((z, index) => createFrame(roof, z, index));
+    const girts = createGirts(walls, model.dimensions.height, girtSpacing, openings, envelope);
+    const purlins = createPurlins(roof, model.dimensions.length, purlinSpacing);
+    const endWallColumns = createEndWallColumns(walls);
 
     return Object.freeze({
-        min,
-        max,
-
-        center: point(
-            (min.x + max.x) / 2,
-            (min.y + max.y) / 2,
-            (min.z + max.z) / 2
-        ),
-
-        width: max.x - min.x,
-        height: max.y - min.y,
-        length: max.z - min.z
-    });
-}
-
-export function createStructuralGeometry(
-    model,
-    buildingGeometry,
-    options = {}
-) {
-    if (!model) {
-        throw new TypeError(
-            'BuildingModel is required'
-        );
-    }
-
-    if (!buildingGeometry) {
-        throw new TypeError(
-            'BuildingGeometry is required'
-        );
-    }
-
-    if (!buildingGeometry.walls) {
-        throw new TypeError(
-            'BuildingGeometry.walls is required'
-        );
-    }
-
-    if (!buildingGeometry.roof) {
-        throw new TypeError(
-            'BuildingGeometry.roof is required'
-        );
-    }
-
-    const frameSpacing =
-        options.frameSpacing ??
-        DEFAULTS.frameSpacing;
-
-    const girtSpacing =
-        options.girtSpacing ??
-        DEFAULTS.girtSpacing;
-
-    const purlinSpacing =
-        options.purlinSpacing ??
-        DEFAULTS.purlinSpacing;
-
-    const roof =
-        buildingGeometry.roof;
-
-    const walls =
-        buildingGeometry.walls;
-
-    const framePositions =
-        createPositions(
-            roof.eaves.left.front.z,
-            roof.eaves.left.back.z,
-            frameSpacing
-        );
-
-    const frames =
-        framePositions.map(
-            (z, index) =>
-                createFrame(
-                    roof,
-                    z,
-                    index
-                )
-        );
-
-    const girts =
-        createGirts(
-            walls,
-            model.dimensions.height,
-            girtSpacing
-        );
-
-    const purlins =
-        createPurlins(
-            roof,
-            model.dimensions.length,
-            purlinSpacing
-        );
-
-    const endWallColumns =
-        createEndWallColumns(
-            walls
-        );
-
-    const structural = {
-        frames: Object.freeze(
-            frames
-        ),
-
-        girts: Object.freeze(
-            girts
-        ),
-
-        purlins: Object.freeze(
-            purlins
-        ),
-
+        frames: Object.freeze(frames),
+        girts: Object.freeze(girts),
+        purlins: Object.freeze(purlins),
         endWallColumns
-    };
-
-    return Object.freeze({
-        ...structural,
-        bounds:
-            calculateBounds(
-                structural
-            )
     });
 }
 
@@ -13184,633 +12262,128 @@ export function createStructuralGeometry(
 ================================================
 FILE: js/model/geometry/TrimsGeometry.js
 ================================================
-const SIDES = Object.freeze([
-    'front',
-    'back',
-    'left',
-    'right'
-]);
+// js/model/geometry/TrimsGeometry.js
 
-function point(
-    x,
-    y,
-    z
-) {
-    return Object.freeze({
-        x,
-        y,
-        z
-    });
+function point(x, y, z) {
+    return Object.freeze({ x, y, z });
 }
 
-function segment(
-    start,
-    end
-) {
+function segment(start, end) {
     return Object.freeze({
         start,
         end,
-
-        length:
-            Math.hypot(
-                end.x - start.x,
-                end.y - start.y,
-                end.z - start.z
-            )
-    });
-}
-
-function assertFinite(
-    value,
-    name
-) {
-    if (
-        !Number.isFinite(value)
-    ) {
-        throw new TypeError(
-            `${name} must be finite`
-        );
-    }
-}
-
-function positive(
-    value,
-    name
-) {
-    assertFinite(
-        value,
-        name
-    );
-
-    if (
-        value <= 0
-    ) {
-        throw new RangeError(
-            `${name} must be greater than zero`
-        );
-    }
-
-    return value;
-}
-
-function resolveConfig(
-    model
-) {
-    return (
-        model.trims ??
-        {}
-    );
-}
-
-function resolveProfile(
-    config
-) {
-    const profile =
-        config.profile ??
-        {};
-
-    return Object.freeze({
-        width:
-            positive(
-                profile.width ??
-                    0.12,
-                'trims.profile.width'
-            ),
-
-        depth:
-            positive(
-                profile.depth ??
-                    0.06,
-                'trims.profile.depth'
-            ),
-
-        thickness:
-            positive(
-                profile.thickness ??
-                    0.01,
-                'trims.profile.thickness'
-            )
-    });
-}
-
-function createEmpty() {
-    return Object.freeze({
-        enabled: false,
-
-        profile:
-            Object.freeze({
-                width: 0,
-                depth: 0,
-                thickness: 0
-            }),
-
-        eaves:
-            Object.freeze([]),
-
-        rake:
-            Object.freeze([]),
-
-        ridge:
-            Object.freeze([]),
-
-        roofEdges:
-            Object.freeze([]),
-
-        corners:
-            Object.freeze([]),
-
-        bounds: null
-    });
-}
-
-function createEaveTrim(
-    side,
-    roof,
-    profile
-) {
-    const eave =
-        side === 'left'
-            ? roof.eaves.left
-            : roof.eaves.right;
-
-    const start =
-        point(
-            eave.front.x,
-            eave.front.y,
-            eave.front.z
-        );
-
-    const end =
-        point(
-            eave.back.x,
-            eave.back.y,
-            eave.back.z
-        );
-
-    return Object.freeze({
-        id:
-            `eave-${side}`,
-
-        type:
-            'eave',
-
-        side,
-
-        profile,
-
-        start,
-
-        end,
-
-        segment:
-            segment(
-                start,
-                end
-            ),
-
-        anchors:
-            Object.freeze([
-                start,
-                end
-            ])
-    });
-}
-
-function createRakeTrim(
-    side,
-    roof,
-    profile
-) {
-    const rake =
-        side === 'front'
-            ? roof.rake.front
-            : roof.rake.back;
-
-    if (!rake) {
-        return null;
-    }
-
-    const start =
-        point(
-            rake.start.x,
-            rake.start.y,
-            rake.start.z
-        );
-
-    const end =
-        point(
-            rake.end.x,
-            rake.end.y,
-            rake.end.z
-        );
-
-    return Object.freeze({
-        id:
-            `rake-${side}`,
-
-        type:
-            'rake',
-
-        side,
-
-        profile,
-
-        start,
-
-        end,
-
-        segment:
-            segment(
-                start,
-                end
-            ),
-
-        anchors:
-            Object.freeze([
-                start,
-                end
-            ])
-    });
-}
-
-function createRidgeTrim(
-    roof,
-    profile
-) {
-    if (
-        !roof.ridge
-    ) {
-        return null;
-    }
-
-    const start =
-        point(
-            roof.ridge.start.x,
-            roof.ridge.start.y,
-            roof.ridge.start.z
-        );
-
-    const end =
-        point(
-            roof.ridge.end.x,
-            roof.ridge.end.y,
-            roof.ridge.end.z
-        );
-
-    return Object.freeze({
-        id:
-            'ridge',
-
-        type:
-            'ridge',
-
-        side:
-            null,
-
-        profile,
-
-        start,
-
-        end,
-
-        segment:
-            segment(
-                start,
-                end
-            ),
-
-        anchors:
-            Object.freeze([
-                start,
-                end
-            ])
-    });
-}
-
-function createRoofEdge(
-    id,
-    edge,
-    profile
-) {
-    if (!edge) {
-        return null;
-    }
-
-    const start =
-        point(
-            edge.start.x,
-            edge.start.y,
-            edge.start.z
-        );
-
-    const end =
-        point(
-            edge.end.x,
-            edge.end.y,
-            edge.end.z
-        );
-
-    return Object.freeze({
-        id,
-
-        type:
-            'roof-edge',
-
-        side:
-            null,
-
-        profile,
-
-        start,
-
-        end,
-
-        segment:
-            segment(
-                start,
-                end
-            ),
-
-        anchors:
-            Object.freeze([
-                start,
-                end
-            ])
-    });
-}
-
-function collectPoints(
-    trims
-) {
-    const points = [];
-
-    for (
-        const trim
-        of trims
-    ) {
-        if (!trim) {
-            continue;
-        }
-
-        points.push(
-            trim.start,
-            trim.end
-        );
-    }
-
-    return points;
-}
-
-function calculateBounds(
-    trims
-) {
-    const points =
-        collectPoints(
-            trims
-        );
-
-    if (
-        points.length === 0
-    ) {
-        return null;
-    }
-
-    const min =
-        point(
-            Math.min(
-                ...points.map(
-                    value =>
-                        value.x
-                )
-            ),
-            Math.min(
-                ...points.map(
-                    value =>
-                        value.y
-                )
-            ),
-            Math.min(
-                ...points.map(
-                    value =>
-                        value.z
-                )
-            )
-        );
-
-    const max =
-        point(
-            Math.max(
-                ...points.map(
-                    value =>
-                        value.x
-                )
-            ),
-            Math.max(
-                ...points.map(
-                    value =>
-                        value.y
-                )
-            ),
-            Math.max(
-                ...points.map(
-                    value =>
-                        value.z
-                )
-            )
-        );
-
-    return Object.freeze({
-        min,
-        max,
-
-        width:
-            max.x - min.x,
-
-        height:
-            max.y - min.y,
-
-        length:
-            max.z - min.z,
-
-        center:
-            point(
-                (
-                    min.x +
-                    max.x
-                ) / 2,
-
-                (
-                    min.y +
-                    max.y
-                ) / 2,
-
-                (
-                    min.z +
-                    max.z
-                ) / 2
-            )
-    });
-}
-
-export function createTrimsGeometry(
-    model,
-    envelope,
-    roof
-) {
-    if (!model) {
-        throw new TypeError(
-            'BuildingModel is required'
-        );
-    }
-
-    if (!envelope) {
-        throw new TypeError(
-            'BuildingEnvelope is required'
-        );
-    }
-
-    if (!roof) {
-        throw new TypeError(
-            'RoofGeometry is required'
-        );
-    }
-
-    const config =
-        resolveConfig(
-            model
-        );
-
-    if (
-        config.enabled === false
-    ) {
-        return createEmpty();
-    }
-
-    const profile =
-        resolveProfile(
-            config
-        );
-
-    const eaves = [
-        createEaveTrim(
-            'left',
-            roof,
-            profile
-        ),
-
-        createEaveTrim(
-            'right',
-            roof,
-            profile
+        length: Math.hypot(
+            end.x - start.x,
+            end.y - start.y,
+            end.z - start.z
         )
+    });
+}
+
+export function createTrimsGeometry(model, envelope, roof) {
+    if (!model || !envelope || !roof) {
+        throw new TypeError('BuildingModel, BuildingEnvelope, and RoofGeometry are required');
+    }
+
+    if (model.visibility?.trims === false) {
+        return Object.freeze({
+            enabled: false,
+            eaves: Object.freeze([]),
+            rake: Object.freeze([]),
+            ridge: Object.freeze([]),
+            corners: Object.freeze([]),
+            roofEdges: Object.freeze([])
+        });
+    }
+
+    const ov = model.roof.overhangs;
+    const isGabled = model.roof.type === 'gabled';
+    const isLeftSloped = model.roof.type === 'left-sloped';
+    const isRightSloped = model.roof.type === 'right-sloped';
+
+    const halfW = envelope.width / 2;
+    const length = envelope.length;
+    const height = envelope.height;
+    const rise = roof.rise;
+
+    const leftX = -halfW - ov.left;
+    const rightX = halfW + ov.right;
+    const frontZ = -ov.front;
+    const backZ = length + ov.back;
+
+    const leftY = isRightSloped ? height + rise : height;
+    const rightY = isLeftSloped ? height + rise : height;
+    const ridgeY = height + rise;
+
+    // 1. Eaves Trims (карнизные нащельники)
+    const eaves = [
+        Object.freeze({
+            id: 'eave-left',
+            side: 'L',
+            start: point(leftX, leftY, frontZ),
+            end: point(leftX, leftY, backZ),
+            edge: segment(point(leftX, leftY, frontZ), point(leftX, leftY, backZ))
+        }),
+        Object.freeze({
+            id: 'eave-right',
+            side: 'R',
+            start: point(rightX, rightY, frontZ),
+            end: point(rightX, rightY, backZ),
+            edge: segment(point(rightX, rightY, frontZ), point(rightX, rightY, backZ))
+        })
     ];
 
-    const rake = [
-        createRakeTrim(
-            'front',
-            roof,
-            profile
-        ),
-
-        createRakeTrim(
-            'back',
-            roof,
-            profile
-        )
-    ].filter(
-        Boolean
-    );
-
-    const ridge = [
-        createRidgeTrim(
-            roof,
-            profile
-        )
-    ].filter(
-        Boolean
-    );
-
-    const roofEdges = [
-        createRoofEdge(
-            'left-rake',
-            roof.rake?.left,
-            profile
-        ),
-
-        createRoofEdge(
-            'right-rake',
-            roof.rake?.right,
-            profile
-        ),
-
-        createRoofEdge(
-            'front-edge',
-            roof.edges?.front,
-            profile
-        ),
-
-        createRoofEdge(
-            'back-edge',
-            roof.edges?.back,
-            profile
-        )
-    ].filter(
-        Boolean
-    );
-
-    const corners = [
-        ...eaves,
-        ...rake,
-        ...ridge,
-        ...roofEdges
-    ]
-        .flatMap(
-            trim => [
-                ...trim.anchors
-            ]
+    // 2. Rake Trims (фронтонные нащельники торцов)
+    const rake = [];
+    if (isGabled) {
+        // Передний торец (Front)
+        rake.push(
+            Object.freeze({ id: 'rake-front-left', side: 'F', start: point(leftX, height, frontZ), end: point(0, ridgeY, frontZ), edge: segment(point(leftX, height, frontZ), point(0, ridgeY, frontZ)) }),
+            Object.freeze({ id: 'rake-front-right', side: 'F', start: point(0, ridgeY, frontZ), end: point(rightX, height, frontZ), edge: segment(point(0, ridgeY, frontZ), point(rightX, height, frontZ)) })
         );
+        // Задний торец (Back)
+        rake.push(
+            Object.freeze({ id: 'rake-back-left', side: 'B', start: point(leftX, height, backZ), end: point(0, ridgeY, backZ), edge: segment(point(leftX, height, backZ), point(0, ridgeY, backZ)) }),
+            Object.freeze({ id: 'rake-back-right', side: 'B', start: point(0, ridgeY, backZ), end: point(rightX, height, backZ), edge: segment(point(0, ridgeY, backZ), point(rightX, height, backZ)) })
+        );
+    } else {
+        // Односкатные (Left-sloped / Right-sloped)
+        rake.push(
+            Object.freeze({ id: 'rake-front', side: 'F', start: point(leftX, leftY, frontZ), end: point(rightX, rightY, frontZ), edge: segment(point(leftX, leftY, frontZ), point(rightX, rightY, frontZ)) }),
+            Object.freeze({ id: 'rake-back', side: 'B', start: point(leftX, leftY, backZ), end: point(rightX, rightY, backZ), edge: segment(point(leftX, leftY, backZ), point(rightX, rightY, backZ)) })
+        );
+    }
 
-    const allTrims = [
-        ...eaves,
-        ...rake,
-        ...ridge,
-        ...roofEdges
+    // 3. Ridge Trim (конёк)
+    const ridge = [];
+    if (isGabled && roof.ridge) {
+        ridge.push(Object.freeze({
+            id: 'ridge-trim',
+            side: 'center',
+            start: point(0, ridgeY, frontZ),
+            end: point(0, ridgeY, backZ),
+            edge: segment(point(0, ridgeY, frontZ), point(0, ridgeY, backZ))
+        }));
+    }
+
+    // 4. Corner Trims (угловые нащельники 4-х углов здания)
+    const corners = [
+        Object.freeze({ id: 'corner-FL', edge: segment(point(-halfW, 0, 0), point(-halfW, leftY, 0)) }),
+        Object.freeze({ id: 'corner-FR', edge: segment(point(halfW, 0, 0), point(halfW, rightY, 0)) }),
+        Object.freeze({ id: 'corner-BL', edge: segment(point(-halfW, 0, length), point(-halfW, leftY, length)) }),
+        Object.freeze({ id: 'corner-BR', edge: segment(point(halfW, 0, length), point(halfW, rightY, length)) })
     ];
 
     return Object.freeze({
         enabled: true,
-
-        profile,
-
-        eaves:
-            Object.freeze(
-                eaves
-            ),
-
-        rake:
-            Object.freeze(
-                rake
-            ),
-
-        ridge:
-            Object.freeze(
-                ridge
-            ),
-
-        roofEdges:
-            Object.freeze(
-                roofEdges
-            ),
-
-        corners:
-            Object.freeze(
-                corners
-            ),
-
-        bounds:
-            calculateBounds(
-                allTrims
-            )
+        eaves: Object.freeze(eaves),
+        rake: Object.freeze(rake),
+        ridge: Object.freeze(ridge),
+        corners: Object.freeze(corners),
+        roofEdges: Object.freeze([
+            segment(point(leftX, leftY, frontZ), point(rightX, rightY, frontZ)),
+            segment(point(leftX, leftY, backZ), point(rightX, rightY, backZ))
+        ])
     });
 }
 
@@ -13818,6 +12391,8 @@ export function createTrimsGeometry(
 ================================================
 FILE: js/model/geometry/WallGeometry.js
 ================================================
+// js/model/geometry/WallGeometry.js
+
 const SIDES = Object.freeze({
     FRONT: 'F',
     BACK: 'B',
@@ -13831,53 +12406,14 @@ const ROOF_TYPES = Object.freeze([
     'right-sloped'
 ]);
 
-function assertFinite(
-    value,
-    name
-) {
-    if (!Number.isFinite(value)) {
-        throw new TypeError(
-            `${name} must be a finite number`
-        );
-    }
+function point(x, y, z) {
+    return Object.freeze({ x, y, z });
 }
 
-function assertPositive(
-    value,
-    name
-) {
-    assertFinite(
-        value,
-        name
-    );
-
-    if (value <= 0) {
-        throw new RangeError(
-            `${name} must be greater than zero`
-        );
-    }
-}
-
-function point(
-    x,
-    y,
-    z
-) {
-    return Object.freeze({
-        x,
-        y,
-        z
-    });
-}
-
-function edge(
-    start,
-    end
-) {
+function edge(start, end) {
     return Object.freeze({
         start,
         end,
-
         length: Math.sqrt(
             (end.x - start.x) ** 2 +
             (end.y - start.y) ** 2 +
@@ -13886,38 +12422,20 @@ function edge(
     });
 }
 
-function plane(
-    normal,
-    constant
-) {
+function plane(normal, constant) {
     return Object.freeze({
-        normal: point(
-            normal.x,
-            normal.y,
-            normal.z
-        ),
-
+        normal: point(normal.x, normal.y, normal.z),
         constant
     });
 }
 
-function bounds(
-    min,
-    max
-) {
+function bounds(min, max) {
     return Object.freeze({
         min,
         max,
-
-        width:
-            max.x - min.x,
-
-        height:
-            max.y - min.y,
-
-        length:
-            max.z - min.z,
-
+        width: max.x - min.x,
+        height: max.y - min.y,
+        length: max.z - min.z,
         center: point(
             (min.x + max.x) / 2,
             (min.y + max.y) / 2,
@@ -13926,628 +12444,291 @@ function bounds(
     });
 }
 
-function resolveThickness(
-    model
-) {
-    const thickness =
-        model.walls?.thickness;
-
-    assertPositive(
-        thickness,
-        'walls.thickness'
-    );
-
+function resolveThickness(model) {
+    const thickness = model.walls?.thickness;
+    if (!Number.isFinite(thickness) || thickness <= 0) {
+        throw new RangeError('walls.thickness must be greater than zero');
+    }
     return thickness;
 }
 
-function resolveRoofHeights(
-    model,
-    envelope
-) {
-    const type =
-        model.roof?.type;
+function createFrontWall(envelope, thickness, model) {
+    const width = envelope.width;
+    const baseHeight = envelope.height;
+    const halfWidth = width / 2;
+    const isGabled = model.roof.type === 'gabled';
+    const isLeftSloped = model.roof.type === 'left-sloped';
+    const isRightSloped = model.roof.type === 'right-sloped';
 
-    if (
-        !ROOF_TYPES.includes(type)
-    ) {
-        throw new RangeError(
-            `Unsupported roof type: ${type}`
-        );
+    const run = isGabled ? halfWidth : width;
+    const rise = run * model.roof.pitchRatio;
+
+    const bottomLeft = point(-halfWidth, 0, 0);
+    const bottomRight = point(halfWidth, 0, 0);
+
+    let topLeft, topRight, peakPoint = null;
+    let shapePoints = [];
+
+    if (isGabled) {
+        topLeft = point(-halfWidth, baseHeight, 0);
+        topRight = point(halfWidth, baseHeight, 0);
+        peakPoint = point(0, baseHeight + rise, 0);
+        shapePoints = [
+            { x: -halfWidth, y: 0 },
+            { x: halfWidth, y: 0 },
+            { x: halfWidth, y: baseHeight },
+            { x: 0, y: baseHeight + rise },
+            { x: -halfWidth, y: baseHeight }
+        ];
+    } else if (isLeftSloped) {
+        topLeft = point(-halfWidth, baseHeight + rise, 0);
+        topRight = point(halfWidth, baseHeight, 0);
+        shapePoints = [
+            { x: -halfWidth, y: 0 },
+            { x: halfWidth, y: 0 },
+            { x: halfWidth, y: baseHeight },
+            { x: -halfWidth, y: baseHeight + rise }
+        ];
+    } else if (isRightSloped) {
+        topLeft = point(-halfWidth, baseHeight, 0);
+        topRight = point(halfWidth, baseHeight + rise, 0);
+        shapePoints = [
+            { x: -halfWidth, y: 0 },
+            { x: halfWidth, y: 0 },
+            { x: halfWidth, y: baseHeight + rise },
+            { x: -halfWidth, y: baseHeight }
+        ];
+    } else {
+        topLeft = point(-halfWidth, baseHeight, 0);
+        topRight = point(halfWidth, baseHeight, 0);
+        shapePoints = [
+            { x: -halfWidth, y: 0 },
+            { x: halfWidth, y: 0 },
+            { x: halfWidth, y: baseHeight },
+            { x: -halfWidth, y: baseHeight }
+        ];
     }
 
-    const baseHeight =
-        envelope.height;
-
-    const pitchRatio =
-        model.roof?.pitchRatio;
-
-    assertFinite(
-        pitchRatio,
-        'roof.pitchRatio'
-    );
-
-    if (pitchRatio <= 0) {
-        throw new RangeError(
-            'roof.pitchRatio must be greater than zero'
-        );
-    }
-
-    const rise =
-        envelope.width *
-        pitchRatio;
-
-    if (type === 'left-sloped') {
-        return Object.freeze({
-            front: baseHeight + rise,
-            back: baseHeight + rise,
-            left: baseHeight + rise,
-            right: baseHeight
-        });
-    }
-
-    if (type === 'right-sloped') {
-        return Object.freeze({
-            front: baseHeight + rise,
-            back: baseHeight + rise,
-            left: baseHeight,
-            right: baseHeight + rise
-        });
-    }
-
-    return Object.freeze({
-        front:
-            baseHeight,
-
-        back:
-            baseHeight,
-
-        left:
-            baseHeight,
-
-        right:
-            baseHeight
-    });
-}
-
-function createFrontWall(
-    envelope,
-    thickness,
-    heights
-) {
-    const {
-        width
-    } = envelope;
-
-    const halfWidth =
-        width / 2;
-
-    const bottomLeft =
-        point(
-            -halfWidth,
-            0,
-            0
-        );
-
-    const bottomRight =
-        point(
-            halfWidth,
-            0,
-            0
-        );
-
-    const topLeft =
-        point(
-            -halfWidth,
-            heights.left,
-            0
-        );
-
-    const topRight =
-        point(
-            halfWidth,
-            heights.right,
-            0
-        );
+    const maxHeight = peakPoint ? peakPoint.y : Math.max(topLeft.y, topRight.y);
 
     return {
-        side:
-            SIDES.FRONT,
-
+        side: SIDES.FRONT,
         thickness,
-
-        height: Object.freeze({
-            left:
-                heights.left,
-
-            right:
-                heights.right
+        shapePoints: Object.freeze(shapePoints),
+        bounds: bounds(
+            point(-halfWidth, 0, 0),
+            point(halfWidth, maxHeight, 0)
+        ),
+        corners: Object.freeze({
+            bottomLeft,
+            bottomRight,
+            topLeft,
+            topRight,
+            peak: peakPoint
         }),
-
-        bounds:
-            bounds(
-                point(
-                    -halfWidth,
-                    0,
-                    0
-                ),
-                point(
-                    halfWidth,
-                    Math.max(
-                        heights.left,
-                        heights.right
-                    ),
-                    0
-                )
-            ),
-
-        corners:
-            Object.freeze({
-                bottomLeft,
-                bottomRight,
-                topLeft,
-                topRight
-            }),
-
-        edges:
-            Object.freeze({
-                bottom:
-                    edge(
-                        bottomLeft,
-                        bottomRight
-                    ),
-
-                top:
-                    edge(
-                        topLeft,
-                        topRight
-                    ),
-
-                left:
-                    edge(
-                        bottomLeft,
-                        topLeft
-                    ),
-
-                right:
-                    edge(
-                        bottomRight,
-                        topRight
-                    )
-            }),
-
-        plane:
-            plane(
-                {
-                    x: 0,
-                    y: 0,
-                    z: 1
-                },
-                0
-            )
+        edges: Object.freeze({
+            bottom: edge(bottomLeft, bottomRight),
+            left: edge(bottomLeft, topLeft),
+            right: edge(bottomRight, topRight),
+            top: edge(topLeft, topRight)
+        }),
+        plane: plane({ x: 0, y: 0, z: 1 }, 0)
     };
 }
 
-function createBackWall(
-    envelope,
-    thickness,
-    heights
-) {
-    const {
-        width,
-        length
-    } = envelope;
+function createBackWall(envelope, thickness, model) {
+    const width = envelope.width;
+    const length = envelope.length;
+    const baseHeight = envelope.height;
+    const halfWidth = width / 2;
+    const isGabled = model.roof.type === 'gabled';
+    const isLeftSloped = model.roof.type === 'left-sloped';
+    const isRightSloped = model.roof.type === 'right-sloped';
 
-    const halfWidth =
-        width / 2;
+    const run = isGabled ? halfWidth : width;
+    const rise = run * model.roof.pitchRatio;
 
-    const bottomLeft =
-        point(
-            -halfWidth,
-            0,
-            length
-        );
+    const bottomLeft = point(-halfWidth, 0, length);
+    const bottomRight = point(halfWidth, 0, length);
 
-    const bottomRight =
-        point(
-            halfWidth,
-            0,
-            length
-        );
+    let topLeft, topRight, peakPoint = null;
+    let shapePoints = [];
 
-    const topLeft =
-        point(
-            -halfWidth,
-            heights.left,
-            length
-        );
+    if (isGabled) {
+        topLeft = point(-halfWidth, baseHeight, length);
+        topRight = point(halfWidth, baseHeight, length);
+        peakPoint = point(0, baseHeight + rise, length);
+        shapePoints = [
+            { x: -halfWidth, y: 0 },
+            { x: halfWidth, y: 0 },
+            { x: halfWidth, y: baseHeight },
+            { x: 0, y: baseHeight + rise },
+            { x: -halfWidth, y: baseHeight }
+        ];
+    } else if (isLeftSloped) {
+        topLeft = point(-halfWidth, baseHeight + rise, length);
+        topRight = point(halfWidth, baseHeight, length);
+        shapePoints = [
+            { x: -halfWidth, y: 0 },
+            { x: halfWidth, y: 0 },
+            { x: halfWidth, y: baseHeight },
+            { x: -halfWidth, y: baseHeight + rise }
+        ];
+    } else if (isRightSloped) {
+        topLeft = point(-halfWidth, baseHeight, length);
+        topRight = point(halfWidth, baseHeight + rise, length);
+        shapePoints = [
+            { x: -halfWidth, y: 0 },
+            { x: halfWidth, y: 0 },
+            { x: halfWidth, y: baseHeight + rise },
+            { x: -halfWidth, y: baseHeight }
+        ];
+    } else {
+        topLeft = point(-halfWidth, baseHeight, length);
+        topRight = point(halfWidth, baseHeight, length);
+        shapePoints = [
+            { x: -halfWidth, y: 0 },
+            { x: halfWidth, y: 0 },
+            { x: halfWidth, y: baseHeight },
+            { x: -halfWidth, y: baseHeight }
+        ];
+    }
 
-    const topRight =
-        point(
-            halfWidth,
-            heights.right,
-            length
-        );
+    const maxHeight = peakPoint ? peakPoint.y : Math.max(topLeft.y, topRight.y);
 
     return {
-        side:
-            SIDES.BACK,
-
+        side: SIDES.BACK,
         thickness,
-
-        height: Object.freeze({
-            left:
-                heights.left,
-
-            right:
-                heights.right
+        shapePoints: Object.freeze(shapePoints),
+        bounds: bounds(
+            point(-halfWidth, 0, length),
+            point(halfWidth, maxHeight, length)
+        ),
+        corners: Object.freeze({
+            bottomLeft,
+            bottomRight,
+            topLeft,
+            topRight,
+            peak: peakPoint
         }),
-
-        bounds:
-            bounds(
-                point(
-                    -halfWidth,
-                    0,
-                    length
-                ),
-                point(
-                    halfWidth,
-                    Math.max(
-                        heights.left,
-                        heights.right
-                    ),
-                    length
-                )
-            ),
-
-        corners:
-            Object.freeze({
-                bottomLeft,
-                bottomRight,
-                topLeft,
-                topRight
-            }),
-
-        edges:
-            Object.freeze({
-                bottom:
-                    edge(
-                        bottomRight,
-                        bottomLeft
-                    ),
-
-                top:
-                    edge(
-                        topRight,
-                        topLeft
-                    ),
-
-                left:
-                    edge(
-                        bottomLeft,
-                        topLeft
-                    ),
-
-                right:
-                    edge(
-                        bottomRight,
-                        topRight
-                    )
-            }),
-
-        plane:
-            plane(
-                {
-                    x: 0,
-                    y: 0,
-                    z: -1
-                },
-                length
-            )
+        edges: Object.freeze({
+            bottom: edge(bottomRight, bottomLeft),
+            left: edge(bottomLeft, topLeft),
+            right: edge(bottomRight, topRight),
+            top: edge(topRight, topLeft)
+        }),
+        plane: plane({ x: 0, y: 0, z: -1 }, length)
     };
 }
 
-function createLeftWall(
-    envelope,
-    thickness,
-    heights
-) {
-    const {
-        width,
-        length
-    } = envelope;
+function createLeftWall(envelope, thickness, model) {
+    const width = envelope.width;
+    const length = envelope.length;
+    const baseHeight = envelope.height;
+    const isLeftSloped = model.roof.type === 'left-sloped';
+    const rise = width * model.roof.pitchRatio;
+    const wallHeight = isLeftSloped ? baseHeight + rise : baseHeight;
+    const x = -width / 2;
 
-    const x =
-        -width / 2;
+    const frontBottom = point(x, 0, 0);
+    const backBottom = point(x, 0, length);
+    const frontTop = point(x, wallHeight, 0);
+    const backTop = point(x, wallHeight, length);
 
-    const frontBottom =
-        point(
-            x,
-            0,
-            0
-        );
-
-    const backBottom =
-        point(
-            x,
-            0,
-            length
-        );
-
-    const frontTop =
-        point(
-            x,
-            heights.front,
-            0
-        );
-
-    const backTop =
-        point(
-            x,
-            heights.back,
-            length
-        );
+    const shapePoints = [
+        { x: 0, y: 0 },
+        { x: length, y: 0 },
+        { x: length, y: wallHeight },
+        { x: 0, y: wallHeight }
+    ];
 
     return {
-        side:
-            SIDES.LEFT,
-
+        side: SIDES.LEFT,
         thickness,
-
-        height: Object.freeze({
-            front:
-                heights.front,
-
-            back:
-                heights.back
+        shapePoints: Object.freeze(shapePoints),
+        bounds: bounds(
+            point(x, 0, 0),
+            point(x, wallHeight, length)
+        ),
+        corners: Object.freeze({
+            frontBottom,
+            backBottom,
+            frontTop,
+            backTop
         }),
-
-        bounds:
-            bounds(
-                point(
-                    x,
-                    0,
-                    0
-                ),
-                point(
-                    x,
-                    Math.max(
-                        heights.front,
-                        heights.back
-                    ),
-                    length
-                )
-            ),
-
-        corners:
-            Object.freeze({
-                frontBottom,
-                backBottom,
-                frontTop,
-                backTop
-            }),
-
-        edges:
-            Object.freeze({
-                bottom:
-                    edge(
-                        frontBottom,
-                        backBottom
-                    ),
-
-                top:
-                    edge(
-                        frontTop,
-                        backTop
-                    ),
-
-                front:
-                    edge(
-                        frontBottom,
-                        frontTop
-                    ),
-
-                back:
-                    edge(
-                        backBottom,
-                        backTop
-                    )
-            }),
-
-        plane:
-            plane(
-                {
-                    x: 1,
-                    y: 0,
-                    z: 0
-                },
-                width / 2
-            )
+        edges: Object.freeze({
+            bottom: edge(frontBottom, backBottom),
+            top: edge(frontTop, backTop),
+            front: edge(frontBottom, frontTop),
+            back: edge(backBottom, backTop)
+        }),
+        plane: plane({ x: 1, y: 0, z: 0 }, width / 2)
     };
 }
 
-function createRightWall(
-    envelope,
-    thickness,
-    heights
-) {
-    const {
-        width,
-        length
-    } = envelope;
+function createRightWall(envelope, thickness, model) {
+    const width = envelope.width;
+    const length = envelope.length;
+    const baseHeight = envelope.height;
+    const isRightSloped = model.roof.type === 'right-sloped';
+    const rise = width * model.roof.pitchRatio;
+    const wallHeight = isRightSloped ? baseHeight + rise : baseHeight;
+    const x = width / 2;
 
-    const x =
-        width / 2;
+    const frontBottom = point(x, 0, 0);
+    const backBottom = point(x, 0, length);
+    const frontTop = point(x, wallHeight, 0);
+    const backTop = point(x, wallHeight, length);
 
-    const frontBottom =
-        point(
-            x,
-            0,
-            0
-        );
-
-    const backBottom =
-        point(
-            x,
-            0,
-            length
-        );
-
-    const frontTop =
-        point(
-            x,
-            heights.front,
-            0
-        );
-
-    const backTop =
-        point(
-            x,
-            heights.back,
-            length
-        );
+    const shapePoints = [
+        { x: 0, y: 0 },
+        { x: length, y: 0 },
+        { x: length, y: wallHeight },
+        { x: 0, y: wallHeight }
+    ];
 
     return {
-        side:
-            SIDES.RIGHT,
-
+        side: SIDES.RIGHT,
         thickness,
-
-        height: Object.freeze({
-            front:
-                heights.front,
-
-            back:
-                heights.back
+        shapePoints: Object.freeze(shapePoints),
+        bounds: bounds(
+            point(x, 0, 0),
+            point(x, wallHeight, length)
+        ),
+        corners: Object.freeze({
+            frontBottom,
+            backBottom,
+            frontTop,
+            backTop
         }),
-
-        bounds:
-            bounds(
-                point(
-                    x,
-                    0,
-                    0
-                ),
-                point(
-                    x,
-                    Math.max(
-                        heights.front,
-                        heights.back
-                    ),
-                    length
-                )
-            ),
-
-        corners:
-            Object.freeze({
-                frontBottom,
-                backBottom,
-                frontTop,
-                backTop
-            }),
-
-        edges:
-            Object.freeze({
-                bottom:
-                    edge(
-                        backBottom,
-                        frontBottom
-                    ),
-
-                top:
-                    edge(
-                        backTop,
-                        frontTop
-                    ),
-
-                front:
-                    edge(
-                        frontBottom,
-                        frontTop
-                    ),
-
-                back:
-                    edge(
-                        backBottom,
-                        backTop
-                    )
-            }),
-
-        plane:
-            plane(
-                {
-                    x: -1,
-                    y: 0,
-                    z: 0
-                },
-                width / 2
-            )
+        edges: Object.freeze({
+            bottom: edge(backBottom, frontBottom),
+            top: edge(backTop, frontTop),
+            front: edge(frontBottom, frontTop),
+            back: edge(backBottom, backTop)
+        }),
+        plane: plane({ x: -1, y: 0, z: 0 }, width / 2)
     };
 }
 
-export function createWallGeometry(
-    model,
-    envelope
-) {
+export function createWallGeometry(model, envelope) {
     if (!model) {
-        throw new TypeError(
-            'BuildingModel is required'
-        );
+        throw new TypeError('BuildingModel is required');
     }
-
     if (!envelope) {
-        throw new TypeError(
-            'BuildingEnvelope is required'
-        );
+        throw new TypeError('BuildingEnvelope is required');
     }
 
-    const thickness =
-        resolveThickness(
-            model
-        );
-
-    const heights =
-        resolveRoofHeights(
-            model,
-            envelope
-        );
+    const thickness = resolveThickness(model);
 
     const walls = {
-        front:
-            createFrontWall(
-                envelope,
-                thickness,
-                heights
-            ),
-
-        back:
-            createBackWall(
-                envelope,
-                thickness,
-                heights
-            ),
-
-        left:
-            createLeftWall(
-                envelope,
-                thickness,
-                heights
-            ),
-
-        right:
-            createRightWall(
-                envelope,
-                thickness,
-                heights
-            )
+        front: createFrontWall(envelope, thickness, model),
+        back: createBackWall(envelope, thickness, model),
+        left: createLeftWall(envelope, thickness, model),
+        right: createRightWall(envelope, thickness, model)
     };
 
-    return Object.freeze({
-        ...walls,
-
-        thickness,
-
-        heights
-    });
+    return Object.freeze(walls);
 }
 
 
@@ -15285,6 +13466,103 @@ export function createPanelSystem(
 
         roof: roofLayouts
     });
+}
+
+
+================================================
+FILE: js/panels/PanelProfiles.js
+================================================
+// js/panels/PanelProfiles.js
+import * as THREE from 'three';
+
+export const PANEL_PROFILES = Object.freeze({
+    awr: Object.freeze({
+        id: 'awr',
+        name: 'AWR Panel',
+        width: 0.9144, // 36 inches
+        ribSpacing: 0.3048, // 12 inches
+        ribHeight: 0.019, // 3/4 inch
+        majorRibWidth: 0.038,
+        minorRibsCount: 2
+    }),
+    pbr: Object.freeze({
+        id: 'pbr',
+        name: 'PBR Panel',
+        width: 0.9144, // 36 inches
+        ribSpacing: 0.3048, // 12 inches
+        ribHeight: 0.03175, // 1.25 inches
+        majorRibWidth: 0.05,
+        minorRibsCount: 2
+    }),
+    corrugated: Object.freeze({
+        id: 'corrugated',
+        name: 'Corrugated Panel',
+        width: 0.6604, // 26 inches
+        ribSpacing: 0.0635, // 2.5 inches
+        ribHeight: 0.0127, // 0.5 inch
+        majorRibWidth: 0.03,
+        minorRibsCount: 0
+    })
+});
+
+export function getPanelProfile(profileId = 'awr') {
+    return PANEL_PROFILES[profileId] || PANEL_PROFILES.awr;
+}
+
+export function generatePanelNormalMap(profileId = 'awr') {
+    const profile = getPanelProfile(profileId);
+    const canvas = document.createElement('canvas');
+    canvas.width = 512;
+    canvas.height = 512;
+    const ctx = canvas.getContext('2d');
+
+    ctx.fillStyle = 'rgb(128, 128, 255)'; // нейтральная нормаль (0, 0, 1)
+    ctx.fillRect(0, 0, 512, 512);
+
+    const ribsTotal = Math.max(1, Math.round(profile.width / profile.ribSpacing));
+    const stepPx = 512 / ribsTotal;
+
+    for (let i = 0; i < ribsTotal; i++) {
+        const x = i * stepPx;
+        const ribWidthPx = Math.max(4, stepPx * 0.25);
+
+        // Левый склон ребра (наклон нормали влево)
+        const gradLeft = ctx.createLinearGradient(x, 0, x + ribWidthPx / 2, 0);
+        gradLeft.addColorStop(0, 'rgb(128, 128, 255)');
+        gradLeft.addColorStop(1, 'rgb(220, 128, 200)');
+        ctx.fillStyle = gradLeft;
+        ctx.fillRect(x, 0, ribWidthPx / 2, 512);
+
+        // Правый склон ребра (наклон нормали вправо)
+        const gradRight = ctx.createLinearGradient(x + ribWidthPx / 2, 0, x + ribWidthPx, 0);
+        gradRight.addColorStop(0, 'rgb(35, 128, 200)');
+        gradRight.addColorStop(1, 'rgb(128, 128, 255)');
+        ctx.fillStyle = gradRight;
+        ctx.fillRect(x + ribWidthPx / 2, 0, ribWidthPx / 2, 512);
+    }
+
+    const texture = new THREE.CanvasTexture(canvas);
+    texture.wrapS = THREE.RepeatWrapping;
+    texture.wrapT = THREE.RepeatWrapping;
+    return texture;
+}
+
+export function applyPhysicalPanelUVs(geometry, widthM, heightM, profileId = 'awr') {
+    if (!geometry || !geometry.attributes.position) return;
+    const profile = getPanelProfile(profileId);
+
+    const uRepeat = widthM / profile.width;
+    const vRepeat = heightM / profile.width;
+
+    const uvAttr = geometry.attributes.uv;
+    if (!uvAttr) return;
+
+    for (let i = 0; i < uvAttr.count; i++) {
+        const u = uvAttr.getX(i) * uRepeat;
+        const v = uvAttr.getY(i) * vRepeat;
+        uvAttr.setXY(i, u, v);
+    }
+    uvAttr.needsUpdate = true;
 }
 
 
@@ -16772,6 +15050,493 @@ export function createUBuildRuntime({
 
     window.addEventListener('resize', resize);
     return api;
+}
+
+
+================================================
+FILE: js/testing/RegressionSuite.js
+================================================
+// js/testing/RegressionSuite.js
+import { createBuildingModel } from '../model/buildingModel.js';
+import { createBuildingGeometry } from '../model/geometry/buildingGeometry.js';
+import { serializeModelToURL, deserializeModelFromURL } from '../integration/URLSerializer.js';
+
+export function runRegressionSuite(runtime) {
+    console.group('🚀 U-BUILD AUTOMATED REGRESSION SUITE');
+    let totalTests = 0;
+    let passedTests = 0;
+
+    function assert(condition, testId, description) {
+        totalTests++;
+        if (condition) {
+            passedTests++;
+            console.log(`%c[x] ${testId}: ${description}`, 'color: #10b981; font-weight: bold;');
+        } else {
+            console.error(`[!] ${testId}: ${description}`);
+        }
+    }
+
+    try {
+        // Секция 1: Размеры и Единицы
+        const baseModel = createBuildingModel({ dimensions: { width: 15.0, length: 25.0, height: 5.0 } });
+        const baseGeom = createBuildingGeometry(baseModel);
+        assert(baseGeom.bounds.width === 15.0 && baseGeom.bounds.length === 25.0, '1.1-1.3', 'Dimensions matched in BuildingGeometry');
+
+        // Секция 2: Крыша и уклоны
+        const gabledModel = createBuildingModel({ roof: { type: 'gabled', pitchRatio: 0.25, overhangs: { front: 0.5, back: 0.5, left: 0.5, right: 0.5 } } });
+        const gabledGeom = createBuildingGeometry(gabledModel);
+        assert(gabledGeom.roof.ridge !== null && gabledGeom.roof.rise === (18.288 / 2) * 0.25, '2.1, 2.4', 'Gabled roof pitch and ridge calculated correctly from half-width');
+
+        const monoModel = createBuildingModel({ roof: { type: 'left-sloped', pitchRatio: 0.1 } });
+        const monoGeom = createBuildingGeometry(monoModel);
+        assert(monoGeom.roof.ridge === null && monoGeom.walls.left.bounds.height > monoGeom.walls.right.bounds.height, '2.2', 'Mono-slope calculates asymmetric wall heights with no ridge');
+
+        // Секция 3: Стены и цоколь
+        const wsModel = createBuildingModel({ panels: { wainscotHeight: 1.2 }, visibility: { wainscot: true } });
+        const wsGeom = createBuildingGeometry(wsModel);
+        assert(wsGeom.wainscot.front.length > 0, '3.3', 'Wainscot layout matches wall panel system');
+
+        // Секция 4: Проёмы
+        const opModel = createBuildingModel({
+            openings: [
+                { id: 'door1', type: 'Walk Door Solid', side: 'F', x: 0, width: 1.0, height: 2.1, yOff: 0 },
+                { id: 'win1', type: 'Window', side: 'F', x: 4.0, width: 1.5, height: 1.2, yOff: 1.0 }
+            ]
+        });
+        const opGeom = createBuildingGeometry(opModel);
+        assert(opGeom.openings.length === 2, '4.1', 'Openings geometry created with valid anchors');
+
+        // Секция 5: Каркас
+        assert(opGeom.frames.length > 0 && opGeom.girts.length > 0, '5.1-5.2', 'Structural frames and segmented girts generated');
+
+        // Секция 6: Trims & Gutters
+        assert(gabledGeom.trims.eaves.length === 2 && gabledGeom.trims.rake.length === 4, '6.1', 'Trims generated with overhangs');
+
+        // Секция 9: Стресс-тест Lifecycle (50+ перестроений)
+        const initialGeometries = runtime.renderer.info.memory.geometries;
+        for (let i = 0; i < 55; i++) {
+            const w = 10 + (i % 10);
+            runtime.update({ dimensions: { width: w, length: 20 + i, height: 4 + (i % 3) } });
+        }
+        const finalGeometries = runtime.renderer.info.memory.geometries;
+        assert(finalGeometries <= initialGeometries + 25, '9.1-9.3', `50+ Rebuild lifecycle memory leak test passed (${initialGeometries} -> ${finalGeometries})`);
+
+        // Секция 10: Сериализация
+        const serialized = serializeModelToURL(baseModel);
+        const deserialized = deserializeModelFromURL(`?config=${serialized}`);
+        assert(deserialized.dimensions.width === baseModel.dimensions.width, '10.1-10.2', 'Model URL roundtrip serialization intact');
+
+    } catch (e) {
+        console.error('Regression suite encountered an exception:', e);
+    }
+
+    console.log(`%c══════════════════════════════════════════════`, 'color: #3b82f6;');
+    console.log(`%cRESULTS: ${passedTests} / ${totalTests} PASSED`, passedTests === totalTests ? 'color: #10b981; font-weight: bold;' : 'color: #ef4444; font-weight: bold;');
+    console.groupEnd();
+}
+
+
+================================================
+FILE: js/ui/UIAdapter.js
+================================================
+import { serializeModelToURL, deserializeModelFromURL } from '../integration/URLSerializer.js';
+import { submitToGravityForms } from '../integration/GravityFormsAdapter.js';
+
+const M_TO_FT = 3.28084;
+const FT_TO_M = 1 / M_TO_FT;
+
+export function createUIAdapter(runtime) {
+    if (!runtime) {
+        throw new TypeError('UBuildRuntime instance is required for UIAdapter');
+    }
+
+    let isMetric = false;
+
+    function getUnitSuffix() {
+        return isMetric ? ' m' : ' ft';
+    }
+
+    function parseInputDistance(value) {
+        const num = parseFloat(value);
+        if (!Number.isFinite(num) || num <= 0) return 0;
+        return isMetric ? num : num * FT_TO_M;
+    }
+
+    function formatDistanceForDisplay(meters) {
+        if (!Number.isFinite(meters)) return '0.00';
+        const val = isMetric ? meters : meters * M_TO_FT;
+        return val.toFixed(2);
+    }
+
+    function syncInputsFromModel(model) {
+        const setVal = (id, meters) => {
+            const input = document.getElementById(id);
+            const display = document.getElementById(id.replace('input', 'val'));
+            if (input) {
+                input.value = formatDistanceForDisplay(meters);
+                input.setAttribute('data-current-m', meters.toString());
+            }
+            if (display) {
+                display.value = formatDistanceForDisplay(meters);
+            }
+        };
+
+        setVal('inputW', model.dimensions.width);
+        setVal('inputL', model.dimensions.length);
+        setVal('inputH', model.dimensions.height);
+
+        const pitchInput = document.getElementById('inputPitch');
+        const pitchVal = document.getElementById('valPitch');
+        if (pitchInput) pitchInput.value = model.roof.pitchRatio.toString();
+        if (pitchVal) pitchVal.value = (model.roof.pitchRatio * 12).toFixed(1).replace('.0', '');
+
+        const roofTypeSelect = document.getElementById('roofType');
+        if (roofTypeSelect) roofTypeSelect.value = model.roof.type;
+
+        const overL = document.getElementById('overL');
+        const overR = document.getElementById('overR');
+        const overF = document.getElementById('overF');
+        const overB = document.getElementById('overB');
+        if (overL) overL.value = formatDistanceForDisplay(model.roof.overhangs.left);
+        if (overR) overR.value = formatDistanceForDisplay(model.roof.overhangs.right);
+        if (overF) overF.value = formatDistanceForDisplay(model.roof.overhangs.front);
+        if (overB) overB.value = formatDistanceForDisplay(model.roof.overhangs.back);
+
+        const wainscotEn = document.getElementById('wainscotEn');
+        if (wainscotEn) wainscotEn.checked = model.visibility.wainscot;
+
+        const setChecked = (id, checked) => {
+            const el = document.getElementById(id);
+            if (el) el.checked = Boolean(checked);
+        };
+
+        setChecked('wF', model.visibility.walls);
+        setChecked('wB', model.visibility.walls);
+        setChecked('wL', model.visibility.walls);
+        setChecked('wR', model.visibility.walls);
+        setChecked('checkRoof', model.visibility.roof);
+        setChecked('checkTrims', model.visibility.trims);
+        setChecked('checkGutters', model.visibility.gutters);
+        setChecked('checkGirts', model.visibility.girts);
+        setChecked('checkPurlins', model.visibility.purlins);
+        setChecked('checkEWColumns', model.visibility.endWallColumns);
+        setChecked('drivewayEn', model.driveway.enabled);
+        setChecked('craneEn', model.crane.enabled);
+        setChecked('mezzEn', model.mezzanine.enabled);
+        setChecked('intWallsEn', model.liner.enabled);
+
+        updateSummaryDisplay(model);
+    }
+
+    function readModelFromUI() {
+        const current = runtime.model;
+
+        const widthM = parseInputDistance(document.getElementById('inputW')?.value) || current.dimensions.width;
+        const lengthM = parseInputDistance(document.getElementById('inputL')?.value) || current.dimensions.length;
+        const heightM = parseInputDistance(document.getElementById('inputH')?.value) || current.dimensions.height;
+
+        const pitchRatio = parseFloat(document.getElementById('inputPitch')?.value) || current.roof.pitchRatio;
+        const roofType = document.getElementById('roofType')?.value || current.roof.type;
+
+        const overL = parseInputDistance(document.getElementById('overL')?.value) || 0;
+        const overR = parseInputDistance(document.getElementById('overR')?.value) || 0;
+        const overF = parseInputDistance(document.getElementById('overF')?.value) || 0;
+        const overB = parseInputDistance(document.getElementById('overB')?.value) || 0;
+
+        const isWainscot = document.getElementById('wainscotEn')?.checked ?? false;
+        const wsHeightM = parseInputDistance(document.getElementById('inputWSHeight')?.value) || 0.9144;
+
+        const checkTrims = document.getElementById('checkTrims')?.checked ?? true;
+        const checkGutters = document.getElementById('checkGutters')?.checked ?? false;
+        const checkGirts = document.getElementById('checkGirts')?.checked ?? true;
+        const checkPurlins = document.getElementById('checkPurlins')?.checked ?? true;
+        const checkEWColumns = document.getElementById('checkEWColumns')?.checked ?? true;
+        const checkRoof = document.getElementById('checkRoof')?.checked ?? true;
+
+        const craneEn = document.getElementById('craneEn')?.checked ?? false;
+        const craneZ = (parseFloat(document.getElementById('craneZ')?.value) || 50) / 100;
+
+        const mezzEn = document.getElementById('mezzEn')?.checked ?? false;
+        const mezzCov = parseFloat(document.getElementById('mezzCov')?.value) || 1;
+        const mezzH = (parseFloat(document.getElementById('mezzH')?.value) || 50) / 100 * heightM;
+
+        const drivewayEn = document.getElementById('drivewayEn')?.checked ?? false;
+        const intLinerEn = document.getElementById('intWallsEn')?.checked ?? false;
+
+        return {
+            ...current,
+            dimensions: {
+                width: widthM,
+                length: lengthM,
+                height: heightM
+            },
+            roof: {
+                type: roofType,
+                pitchRatio: pitchRatio,
+                overhangs: {
+                    front: overF,
+                    back: overB,
+                    left: overL,
+                    right: overR
+                }
+            },
+            panels: {
+                ...current.panels,
+                wallHeight: heightM,
+                wainscotHeight: isWainscot ? wsHeightM : 0
+            },
+            crane: {
+                ...current.crane,
+                enabled: craneEn,
+                zPercent: craneZ,
+                z: craneZ
+            },
+            mezzanine: {
+                ...current.mezzanine,
+                enabled: mezzEn,
+                coverage: mezzCov,
+                height: mezzH
+            },
+            driveway: {
+                ...current.driveway,
+                enabled: drivewayEn,
+                width: widthM * 0.8,
+                length: 6.0,
+                height: 0.15
+            },
+            liner: {
+                ...current.liner,
+                enabled: intLinerEn,
+                height: heightM,
+                thickness: 0.01
+            },
+            visibility: {
+                ...current.visibility,
+                roof: checkRoof,
+                wainscot: isWainscot,
+                trims: checkTrims,
+                ridge: checkTrims && roofType === 'gabled',
+                gutters: checkGutters,
+                girts: checkGirts,
+                purlins: checkPurlins,
+                endWallColumns: checkEWColumns,
+                crane: craneEn,
+                mezzanine: mezzEn,
+                driveway: drivewayEn,
+                liner: intLinerEn
+            }
+        };
+    }
+
+    function updateSummaryDisplay(model) {
+        const dimsEl = document.getElementById('sidebar-summary-dimensions');
+        const roofEl = document.getElementById('sidebar-summary-roof');
+        const colorsEl = document.getElementById('sidebar-summary-colors');
+
+        if (dimsEl) {
+            const unit = getUnitSuffix();
+            const w = formatDistanceForDisplay(model.dimensions.width);
+            const l = formatDistanceForDisplay(model.dimensions.length);
+            const h = formatDistanceForDisplay(model.dimensions.height);
+            const pitch = (model.roof.pitchRatio * 12).toFixed(1).replace('.0', '');
+            dimsEl.textContent = `${w}${unit} x ${l}${unit} x ${h}${unit} · ${pitch}:12`;
+        }
+
+        if (roofEl) {
+            const roofTypeLabels = {
+                'gabled': 'Gable Roof',
+                'left-sloped': 'Left Sloped Roof',
+                'right-sloped': 'Right Sloped Roof'
+            };
+            const label = roofTypeLabels[model.roof.type] || 'Gable Roof';
+            roofEl.textContent = `Roof: ${label}`;
+        }
+
+        if (colorsEl) {
+            const wallColor = document.getElementById('colorWall')?.value || '#777777';
+            colorsEl.textContent = `Color: ${wallColor}`;
+        }
+    }
+
+    function bindEvents() {
+        const inputIds = [
+            'inputW', 'inputL', 'inputH', 'inputPitch', 'roofType',
+            'overL', 'overR', 'overF', 'overB', 'wainscotEn', 'inputWSHeight',
+            'checkRoof', 'checkTrims', 'checkGutters', 'checkGirts',
+            'checkPurlins', 'checkEWColumns', 'craneEn', 'craneZ',
+            'mezzEn', 'mezzCov', 'mezzH', 'drivewayEn', 'intWallsEn'
+        ];
+
+        inputIds.forEach(id => {
+            const el = document.getElementById(id);
+            if (!el) return;
+            const eventType = (el.tagName === 'SELECT' || el.type === 'checkbox') ? 'change' : 'input';
+            el.addEventListener(eventType, () => {
+                const nextModel = readModelFromUI();
+                runtime.update(nextModel);
+                updateSummaryDisplay(nextModel);
+            });
+        });
+
+        const colorIds = [
+            'colorRoof', 'colorWall', 'colorTrim', 'colorEaveTrim',
+            'colorWainscot', 'colorCeiling', 'colorMezzanine'
+        ];
+
+        colorIds.forEach(id => {
+            const el = document.getElementById(id);
+            if (!el) return;
+            el.addEventListener('input', () => {
+                const colors = {
+                    wall: document.getElementById('colorWall')?.value || '#777777',
+                    roof: document.getElementById('colorRoof')?.value || '#555555',
+                    trim: document.getElementById('colorTrim')?.value || '#444444',
+                    eaveTrim: document.getElementById('colorEaveTrim')?.value || '#444444',
+                    wainscot: document.getElementById('colorWainscot')?.value || '#444444',
+                    mezzanine: document.getElementById('colorMezzanine')?.value || '#666666',
+                    ceiling: document.getElementById('colorCeiling')?.value || '#FFFFFF'
+                };
+                if (runtime.materials) {
+                    for (const [key, colorHex] of Object.entries(colors)) {
+                        const mat = runtime.materials.get(key);
+                        if (mat && mat.color) mat.color.set(colorHex);
+                    }
+                    runtime.render();
+                }
+            });
+        });
+
+        // Metric / Imperial Unit Switching
+        const unitToggle = document.getElementById('unitToggle');
+        if (unitToggle) {
+            unitToggle.addEventListener('change', (e) => {
+                isMetric = e.target.checked;
+                syncInputsFromModel(runtime.model);
+            });
+        }
+    }
+
+    return Object.freeze({
+        init() {
+            bindEvents();
+            syncInputsFromModel(runtime.model);
+        },
+        syncInputsFromModel,
+        readModelFromUI
+    });
+}
+
+
+================================================
+FILE: js/ui/UIModals.js
+================================================
+import { submitToGravityForms } from '../integration/GravityFormsAdapter.js';
+
+export function setupUIModals(runtime) {
+    if (!runtime) {
+        throw new TypeError('UBuildRuntime instance is required for UIModals');
+    }
+
+    // 1. Quote Modal Setup
+    const btnRequestQuote = document.getElementById('btnRequestQuote');
+    const quoteModal = document.getElementById('quoteModal');
+    const btnSubmitQuote = document.getElementById('btnSubmitQuote');
+
+    if (btnRequestQuote && quoteModal) {
+        btnRequestQuote.addEventListener('click', () => {
+            quoteModal.style.display = 'block';
+            quoteModal.classList.add('show');
+        });
+
+        const closeBtns = quoteModal.querySelectorAll('.btn-close, .modal-close');
+        closeBtns.forEach(btn => {
+            btn.addEventListener('click', () => {
+                quoteModal.style.display = 'none';
+                quoteModal.classList.remove('show');
+            });
+        });
+    }
+
+    if (btnSubmitQuote) {
+        btnSubmitQuote.addEventListener('click', (e) => {
+            e.preventDefault();
+            const success = submitToGravityForms({
+                formId: 4,
+                snapshotFieldId: 10,
+                specFieldId: 11,
+                model: runtime.model,
+                geometry: runtime.geometry,
+                renderer: runtime.renderer
+            });
+
+            if (success) {
+                alert('Quote request sent successfully.');
+                if (quoteModal) {
+                    quoteModal.style.display = 'none';
+                    quoteModal.classList.remove('show');
+                }
+            } else {
+                alert('Gravity Forms integration error. Please check form ID.');
+            }
+        });
+    }
+
+    // 2. Openings Editor Modal Setup
+    const openingsContainer = document.getElementById('openingsListContainer');
+    const btnAddOpening = document.getElementById('btnAddOpening');
+
+    function refreshOpeningsList() {
+        if (!openingsContainer) return;
+        openingsContainer.innerHTML = '';
+
+        runtime.model.openings.forEach(op => {
+            const row = document.createElement('div');
+            row.className = 'opening-row d-flex justify-content-between align-items-center mb-2';
+            row.innerHTML = `
+                <span><b>${op.type}</b> (${op.side}) - W:${(op.width * 3.28084).toFixed(1)}ft</span>
+                <button class="btn btn-sm btn-danger btn-delete-op" data-id="${op.id}">×</button>
+            `;
+            openingsContainer.appendChild(row);
+        });
+
+        openingsContainer.querySelectorAll('.btn-delete-op').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                const id = e.target.getAttribute('data-id');
+                const nextOpenings = runtime.model.openings.filter(op => op.id !== id);
+                runtime.update({
+                    ...runtime.model,
+                    openings: nextOpenings
+                });
+                refreshOpeningsList();
+            });
+        });
+    }
+
+    if (btnAddOpening) {
+        btnAddOpening.addEventListener('click', () => {
+            const selectType = document.getElementById('selectOpeningType')?.value || 'Walk Door Solid';
+            const selectSide = document.getElementById('selectOpeningSide')?.value || 'F';
+            const newOp = {
+                id: `op_${Date.now()}`,
+                type: selectType,
+                side: selectSide,
+                x: 0,
+                yOff: selectType === 'Window' ? 1.0 : 0,
+                width: selectType === 'Window' ? 1.2 : 1.0,
+                height: selectType === 'Window' ? 1.2 : 2.1
+            };
+
+            runtime.update({
+                ...runtime.model,
+                openings: [...runtime.model.openings, newOp]
+            });
+            refreshOpeningsList();
+        });
+    }
+
+    return Object.freeze({
+        refreshOpeningsList
+    });
 }
 
 
