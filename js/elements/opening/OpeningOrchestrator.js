@@ -2,25 +2,58 @@ import * as THREE from 'three';
 
 const TYPES = Object.freeze({
     WINDOW: 'Window',
-    WALK_DOOR_SOLID: 'Walk Door Solid',
-    WALK_DOOR_SOLID_DOUBLE: 'Walk Door Solid Double',
-    OVERHEAD_PANEL_DOOR: 'Overhead Panel Door',
-    BI_FOLD_DOOR: 'Bi-Fold Door',
-    HYDRAULIC_DOOR: 'Hydraulic Door'
+
+    WALK_DOOR_SOLID:
+        'Walk Door Solid',
+
+    WALK_DOOR_SOLID_DOUBLE:
+        'Walk Door Solid Double',
+
+    OVERHEAD_PANEL_DOOR:
+        'Overhead Panel Door',
+
+    BI_FOLD_DOOR:
+        'Bi-Fold Door',
+
+    HYDRAULIC_DOOR:
+        'Hydraulic Door'
 });
 
-function assertContext(context) {
-    if (!context || typeof context !== 'object') {
-        throw new TypeError('Element context is required');
+const DEFAULTS = Object.freeze({
+    frameThickness: 0.05,
+
+    depth: 0.2,
+
+    panelGap: 0.02,
+
+    windowDepth: 0.02
+});
+
+function assertContext(
+    context
+) {
+    if (
+        !context ||
+        typeof context !== 'object'
+    ) {
+        throw new TypeError(
+            'Element context is required'
+        );
     }
 
-    if (!Array.isArray(context.geometry?.openings)) {
+    if (
+        !Array.isArray(
+            context.geometry?.openings
+        )
+    ) {
         throw new TypeError(
             'Opening geometry is required'
         );
     }
 
-    if (!context.materials) {
+    if (
+        !context.materials
+    ) {
         throw new TypeError(
             'Material system is required'
         );
@@ -33,7 +66,8 @@ function resolveMaterial(
     color = null
 ) {
     if (
-        typeof context.materials.get === 'function'
+        typeof context.materials.get ===
+        'function'
     ) {
         return context.materials.get(
             name,
@@ -41,11 +75,15 @@ function resolveMaterial(
         );
     }
 
-    if (context.materials[name]) {
+    if (
+        context.materials[name]
+    ) {
         return context.materials[name];
     }
 
-    if (context.materials.steel) {
+    if (
+        context.materials.steel
+    ) {
         return context.materials.steel;
     }
 
@@ -54,34 +92,37 @@ function resolveMaterial(
     );
 }
 
-function createBoxFromBounds(
-    bounds,
-    depth = 0.08
+function createBox(
+    width,
+    height,
+    depth,
+    material,
+    x = 0,
+    y = 0,
+    z = 0
 ) {
-    const width = Math.max(
-        bounds.max.x - bounds.min.x,
-        0.001
+    const mesh =
+        new THREE.Mesh(
+            new THREE.BoxGeometry(
+                width,
+                height,
+                depth
+            ),
+            material
+        );
+
+    mesh.position.set(
+        x,
+        y,
+        z
     );
 
-    const height = Math.max(
-        bounds.max.y - bounds.min.y,
-        0.001
-    );
-
-    const length = Math.max(
-        bounds.max.z - bounds.min.z,
-        depth
-    );
-
-    return new THREE.BoxGeometry(
-        width,
-        height,
-        length
-    );
+    return mesh;
 }
 
 function createFrame(
-    opening,
+    width,
+    height,
     context
 ) {
     const material =
@@ -91,17 +132,73 @@ function createFrame(
             context.colors?.trim
         );
 
-    const frame =
-        new THREE.Mesh(
-            createBoxFromBounds(
-                opening.bounds
-            ),
-            material
-        );
+    const thickness =
+        DEFAULTS.frameThickness;
 
-    frame.name = 'frame';
+    const depth =
+        DEFAULTS.depth;
 
-    return frame;
+    const group =
+        new THREE.Group();
+
+    group.name =
+        'frame';
+
+    group.add(
+        createBox(
+            width,
+            thickness,
+            depth,
+            material,
+            0,
+            -height / 2 +
+                thickness / 2,
+            0
+        )
+    );
+
+    group.add(
+        createBox(
+            width,
+            thickness,
+            depth,
+            material,
+            0,
+            height / 2 -
+                thickness / 2,
+            0
+        )
+    );
+
+    group.add(
+        createBox(
+            thickness,
+            height -
+                thickness * 2,
+            depth,
+            material,
+            -width / 2 +
+                thickness / 2,
+            0,
+            0
+        )
+    );
+
+    group.add(
+        createBox(
+            thickness,
+            height -
+                thickness * 2,
+            depth,
+            material,
+            width / 2 -
+                thickness / 2,
+            0,
+            0
+        )
+    );
+
+    return group;
 }
 
 function createWindow(
@@ -121,24 +218,25 @@ function createWindow(
             context.colors?.glass
         );
 
-    const glass =
-        new THREE.Mesh(
-            createBoxFromBounds(
-                opening.bounds,
-                0.02
-            ),
-            glassMaterial
-        );
+    const width =
+        opening.dimensions.width;
 
-    glass.name = 'glass';
+    const height =
+        opening.dimensions.height;
 
     group.add(
-        glass
+        createBox(
+            width,
+            height,
+            DEFAULTS.windowDepth,
+            glassMaterial
+        )
     );
 
     group.add(
         createFrame(
-            opening,
+            width,
+            height,
             context
         )
     );
@@ -159,47 +257,16 @@ function createWalkDoor(
             ? 'walk-door-double'
             : 'walk-door';
 
-    const material =
-        resolveMaterial(
-            context,
-            'doorPanel',
-            context.colors?.wall
-        );
-
-    const panel =
-        new THREE.Mesh(
-            createBoxFromBounds(
-                opening.bounds,
-                0.06
-            ),
-            material
-        );
-
-    panel.name = 'door-panel';
-
-    group.add(
-        panel
-    );
-
-    group.add(
+    const frame =
         createFrame(
-            opening,
+            opening.dimensions.width,
+            opening.dimensions.height,
             context
-        )
+        );
+
+    group.add(
+        frame
     );
-
-    return group;
-}
-
-function createLargeDoor(
-    opening,
-    context,
-    name
-) {
-    const group =
-        new THREE.Group();
-
-    group.name = name;
 
     const panelMaterial =
         resolveMaterial(
@@ -208,27 +275,343 @@ function createLargeDoor(
             context.colors?.wall
         );
 
-    const panel =
-        new THREE.Mesh(
-            createBoxFromBounds(
-                opening.bounds,
-                0.08
-            ),
-            panelMaterial
+    const width =
+        opening.dimensions.width;
+
+    const height =
+        opening.dimensions.height;
+
+    const f =
+        DEFAULTS.frameThickness;
+
+    const d =
+        DEFAULTS.depth;
+
+    if (!doubleDoor) {
+        group.add(
+            createBox(
+                width -
+                    f * 2,
+                height -
+                    f,
+                d - 0.05,
+                panelMaterial,
+                0,
+                f / 2,
+                0
+            )
         );
 
-    panel.name =
-        'door-panel';
+        const trimMaterial =
+            resolveMaterial(
+                context,
+                'doorTrim',
+                context.colors?.trim
+            );
+
+        group.add(
+            createBox(
+                0.05,
+                0.2,
+                0.3,
+                trimMaterial,
+                width / 2 -
+                    0.15,
+                0,
+                0
+            )
+        );
+
+        return group;
+    }
 
     group.add(
-        panel
+        createBox(
+            0.02,
+            height - f,
+            d,
+            resolveMaterial(
+                context,
+                'doorFrame',
+                context.colors?.trim
+            ),
+            0,
+            f / 2,
+            0
+        )
     );
 
     group.add(
+        createBox(
+            width / 2 - f,
+            height - f,
+            d - 0.05,
+            panelMaterial,
+            -width / 4,
+            f / 2,
+            0
+        )
+    );
+
+    group.add(
+        createBox(
+            width / 2 - f,
+            height - f,
+            d - 0.05,
+            panelMaterial,
+            width / 4,
+            f / 2,
+            0
+        )
+    );
+
+    const trimMaterial =
+        resolveMaterial(
+            context,
+            'doorTrim',
+            context.colors?.trim
+        );
+
+    group.add(
+        createBox(
+            0.05,
+            0.2,
+            0.3,
+            trimMaterial,
+            -0.1,
+            0,
+            0
+        )
+    );
+
+    group.add(
+        createBox(
+            0.05,
+            0.2,
+            0.3,
+            trimMaterial,
+            0.1,
+            0,
+            0
+        )
+    );
+
+    return group;
+}
+
+function createOverheadPanelDoor(
+    opening,
+    context
+) {
+    const group =
+        new THREE.Group();
+
+    group.name =
+        'overhead-panel-door';
+
+    const width =
+        opening.dimensions.width;
+
+    const height =
+        opening.dimensions.height;
+
+    group.add(
         createFrame(
-            opening,
+            width,
+            height,
             context
         )
+    );
+
+    const material =
+        resolveMaterial(
+            context,
+            'doorPanel',
+            context.colors?.wall
+        );
+
+    const f =
+        DEFAULTS.frameThickness;
+
+    const panelWidth =
+        width -
+        f * 2;
+
+    const panelHeight =
+        (
+            height -
+            f
+        ) / 4;
+
+    for (
+        let i = 0;
+        i < 4;
+        i++
+    ) {
+        const y =
+            -height / 2 +
+            f +
+            panelHeight * i +
+            panelHeight / 2;
+
+        group.add(
+            createBox(
+                panelWidth,
+                panelHeight -
+                    DEFAULTS.panelGap,
+                DEFAULTS.depth -
+                    0.05,
+                material,
+                0,
+                y,
+                0
+            )
+        );
+    }
+
+    return group;
+}
+
+function createBiFoldDoor(
+    opening,
+    context
+) {
+    const group =
+        new THREE.Group();
+
+    group.name =
+        'bi-fold-door';
+
+    const width =
+        opening.dimensions.width;
+
+    const height =
+        opening.dimensions.height;
+
+    group.add(
+        createFrame(
+            width,
+            height,
+            context
+        )
+    );
+
+    const material =
+        resolveMaterial(
+            context,
+            'doorPanel',
+            context.colors?.wall
+        );
+
+    const f =
+        DEFAULTS.frameThickness;
+
+    const panelWidth =
+        width -
+        f * 2;
+
+    const panelHeight =
+        (
+            height -
+            f
+        ) / 2;
+
+    const zOffset =
+        0.22;
+
+    const bottom =
+        createBox(
+            panelWidth,
+            panelHeight -
+                0.01,
+            DEFAULTS.depth -
+                0.05,
+            material,
+            0,
+            -height / 4 +
+                f / 2,
+            zOffset
+        );
+
+    bottom.rotation.x =
+        0.1;
+
+    group.add(
+        bottom
+    );
+
+    const top =
+        createBox(
+            panelWidth,
+            panelHeight -
+                0.01,
+            DEFAULTS.depth -
+                0.05,
+            material,
+            0,
+            height / 4 +
+                f / 2,
+            zOffset
+        );
+
+    top.rotation.x =
+        -0.1;
+
+    group.add(
+        top
+    );
+
+    return group;
+}
+
+function createHydraulicDoor(
+    opening,
+    context
+) {
+    const group =
+        new THREE.Group();
+
+    group.name =
+        'hydraulic-door';
+
+    const width =
+        opening.dimensions.width;
+
+    const height =
+        opening.dimensions.height;
+
+    group.add(
+        createFrame(
+            width,
+            height,
+            context
+        )
+    );
+
+    const material =
+        resolveMaterial(
+            context,
+            'doorPanel',
+            context.colors?.wall
+        );
+
+    const panel =
+        createBox(
+            width,
+            height,
+            DEFAULTS.depth -
+                0.05,
+            material,
+            0,
+            height / 4,
+            height / 4
+        );
+
+    panel.rotation.x =
+        -0.3;
+
+    group.add(
+        panel
     );
 
     return group;
@@ -238,7 +621,9 @@ function createOpening(
     opening,
     context
 ) {
-    switch (opening.type) {
+    switch (
+        opening.type
+    ) {
         case TYPES.WINDOW:
             return createWindow(
                 opening,
@@ -260,30 +645,67 @@ function createOpening(
             );
 
         case TYPES.OVERHEAD_PANEL_DOOR:
-            return createLargeDoor(
+            return createOverheadPanelDoor(
                 opening,
-                context,
-                'overhead-panel-door'
+                context
             );
 
         case TYPES.BI_FOLD_DOOR:
-            return createLargeDoor(
+            return createBiFoldDoor(
                 opening,
-                context,
-                'bi-fold-door'
+                context
             );
 
         case TYPES.HYDRAULIC_DOOR:
-            return createLargeDoor(
+            return createHydraulicDoor(
                 opening,
-                context,
-                'hydraulic-door'
+                context
             );
 
         default:
             throw new RangeError(
                 `Unsupported opening type: ${opening.type}`
             );
+    }
+}
+
+function orientOpening(
+    object,
+    opening
+) {
+    object.position.set(
+        opening.anchor.x,
+        opening.anchor.y,
+        opening.anchor.z
+    );
+
+    const side =
+        opening.side;
+
+    if (
+        side === 'B'
+    ) {
+        object.rotation.y =
+            Math.PI;
+    }
+
+    else if (
+        side === 'L'
+    ) {
+        object.rotation.y =
+            Math.PI / 2;
+    }
+
+    else if (
+        side === 'R'
+    ) {
+        object.rotation.y =
+            -Math.PI / 2;
+    }
+
+    else {
+        object.rotation.y =
+            0;
     }
 }
 
@@ -310,6 +732,11 @@ function createObject(
                 context
             );
 
+        orientOpening(
+            object,
+            opening
+        );
+
         object.userData.element =
             'opening';
 
@@ -321,6 +748,9 @@ function createObject(
 
         object.userData.side =
             opening.side;
+
+        object.userData.geometry =
+            opening;
 
         root.add(
             object
@@ -348,7 +778,22 @@ function disposeObject(
 
     object.geometry?.dispose();
 
-    object.material?.dispose?.();
+    if (
+        Array.isArray(
+            object.material
+        )
+    ) {
+        for (
+            const material
+            of object.material
+        ) {
+            material?.dispose?.();
+        }
+    }
+
+    else {
+        object.material?.dispose?.();
+    }
 
     object.removeFromParent();
 }
@@ -357,7 +802,9 @@ export const OpeningOrchestrator =
     Object.freeze({
         id: 'openings',
 
-        create(context) {
+        create(
+            context
+        ) {
             return createObject(
                 context
             );
@@ -382,7 +829,9 @@ export const OpeningOrchestrator =
             );
         },
 
-        dispose(object) {
+        dispose(
+            object
+        ) {
             disposeObject(
                 object
             );
