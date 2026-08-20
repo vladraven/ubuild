@@ -35,6 +35,10 @@ import {
 } from './MezzanineGeometry.js';
 
 import {
+    createCraneGeometry
+} from './CraneGeometry.js';
+
+import {
     createPanelSystem
 } from '../panels/PanelSystem.js';
 
@@ -118,6 +122,14 @@ export function createBuildingGeometry(
             roof
         );
 
+    const crane =
+        createCraneGeometry(
+            model,
+            envelope,
+            walls,
+            roof
+        );
+
     const geometrySource = {
         model,
 
@@ -138,7 +150,9 @@ export function createBuildingGeometry(
 
         awnings,
 
-        mezzanine
+        mezzanine,
+
+        crane
     };
 
     const panelSystem =
@@ -174,9 +188,6 @@ export function createBuildingGeometry(
 
             liner:
                 options.liner ?? null,
-
-            crane:
-                options.crane ?? null,
 
             driveway:
                 options.driveway ?? null,
