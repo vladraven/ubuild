@@ -1,5 +1,5 @@
-// js/elements/wall/WallOrchestrator.js
 import * as THREE from 'three';
+import { generatePanelNormalMap } from '../../panels/PanelProfiles.js';
 
 const SIDE_MAP = Object.freeze({
     front: 'F',
@@ -21,8 +21,15 @@ function assertContext(context) {
 }
 
 function getWallMaterial(context) {
+    const profileId = context.model?.panels?.profile || 'awr';
+    const normalMap = generatePanelNormalMap(profileId);
+    normalMap.repeat.set(10, 10);
+    const textureBundle = { normalMap };
+
     if (typeof context.materials.get === 'function') {
-        return context.materials.get('wallMetal', context.colors?.wall);
+        const mat = context.materials.get('wallMetal', context.colors?.wall, textureBundle);
+        mat.side = THREE.DoubleSide;
+        return mat;
     }
     return context.materials.wallMetal || context.materials.wall;
 }
@@ -30,8 +37,6 @@ function getWallMaterial(context) {
 function createWallMeshWithHoles(wallData, openings, wallKey, material, envelope) {
     const shape = new THREE.Shape();
     const sideCode = SIDE_MAP[wallKey];
-    const isEndWall = sideCode === 'F' || sideCode === 'B';
-    const halfSpan = (isEndWall ? envelope.width : envelope.length) / 2;
 
     wallData.shapePoints.forEach((p, idx) => {
         if (idx === 0) shape.moveTo(p.x, p.y);
@@ -41,21 +46,21 @@ function createWallMeshWithHoles(wallData, openings, wallKey, material, envelope
     const relevantOpenings = openings.filter(op => op.side === sideCode);
 
     relevantOpenings.forEach(op => {
-        const opX = op.x;
         const opW = op.dimensions.width;
         const opH = op.dimensions.height;
         const opY = op.bounds.min.y;
 
-        let holeMinX, holeMaxX;
-
-        if (isEndWall) {
-            holeMinX = opX - opW / 2;
-            holeMaxX = opX + opW / 2;
+        let holeCenterX;
+        if (sideCode === 'F' || sideCode === 'B') {
+            holeCenterX = op.x;
+        } else if (sideCode === 'L') {
+            holeCenterX = op.x;
         } else {
-            // Для боковых стен (L/R) начало Shape в x=0 (Z=0)
-            holeMinX = opX - opW / 2;
-            holeMaxX = opX + opW / 2;
+            holeCenterX = envelope.length - op.x;
         }
+
+        const holeMinX = holeCenterX - opW / 2;
+        const holeMaxX = holeCenterX + opW / 2;
 
         const holePath = new THREE.Path();
         holePath.moveTo(holeMinX, opY);
@@ -74,16 +79,19 @@ function createWallMeshWithHoles(wallData, openings, wallKey, material, envelope
     const mesh = new THREE.Mesh(geometry, material);
     mesh.name = `wall-mesh-${sideCode}`;
 
+    const t = wallData.thickness;
     if (sideCode === 'F') {
-        mesh.position.set(0, 0, -wallData.thickness);
+        mesh.position.set(0, 0, 0);
+        mesh.rotation.set(0, 0, 0);
     } else if (sideCode === 'B') {
-        mesh.position.set(0, 0, envelope.length);
+        mesh.position.set(0, 0, envelope.length - t);
+        mesh.rotation.set(0, 0, 0);
     } else if (sideCode === 'L') {
-        mesh.position.set(-envelope.width / 2, 0, 0);
-        mesh.rotation.y = Math.PI / 2;
+        mesh.position.set(-envelope.width / 2 + t, 0, 0);
+        mesh.rotation.set(0, -Math.PI / 2, 0);
     } else if (sideCode === 'R') {
-        mesh.position.set(envelope.width / 2 + wallData.thickness, 0, 0);
-        mesh.rotation.y = Math.PI / 2;
+        mesh.position.set(envelope.width / 2 - t, 0, envelope.length);
+        mesh.rotation.set(0, Math.PI / 2, 0);
     }
 
     mesh.castShadow = true;
@@ -93,7 +101,6 @@ function createWallMeshWithHoles(wallData, openings, wallKey, material, envelope
 
 function createObject(context) {
     assertContext(context);
-
     const root = new THREE.Group();
     root.name = 'walls';
 

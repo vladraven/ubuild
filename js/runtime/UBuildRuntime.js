@@ -40,7 +40,7 @@ function assertContainer(container) {
 
 function createScene() {
     const scene = new THREE.Scene();
-    scene.background = new THREE.Color(0x8ec3eb);
+    scene.background = new THREE.Color(0x76b6e4);
     return scene;
 }
 
@@ -53,7 +53,7 @@ function createCamera(container, geometry) {
     const center = bounds.center;
     const size = Math.max(bounds.width, bounds.height, bounds.length, 1);
 
-    camera.position.set(center.x + size * 1.4, center.y + size * 0.9, center.z + size * 1.4);
+    camera.position.set(center.x + size * 1.3, center.y + size * 0.8, center.z + size * 1.3);
     camera.lookAt(center.x, center.y, center.z);
     return camera;
 }
@@ -112,7 +112,7 @@ function createRuntimeMaterialSystem(paletteOverrides, catalogOverrides, texture
         const updatedPalette = createColorPalette(newPaletteOverrides);
         for (const [key, material] of materialsMap.entries()) {
             for (const [colorName, hexColor] of Object.entries(updatedPalette)) {
-                if (key.startsWith(colorName)) {
+                if (key.includes(colorName) || key.startsWith(colorName)) {
                     updateMaterialColor(material, hexColor);
                 }
             }

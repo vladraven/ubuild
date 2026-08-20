@@ -1,5 +1,5 @@
-// js/elements/wainscot/WainscotOrchestrator.js
 import * as THREE from 'three';
+import { generatePanelNormalMap } from '../../panels/PanelProfiles.js';
 
 const SIDE_MAP = Object.freeze({
     front: 'F',
@@ -21,8 +21,15 @@ function assertContext(context) {
 }
 
 function resolveMaterial(context) {
+    const profileId = context.model?.panels?.profile || 'awr';
+    const normalMap = generatePanelNormalMap(profileId);
+    normalMap.repeat.set(10, 3);
+    const textureBundle = { normalMap };
+
     if (typeof context.materials.get === 'function') {
-        return context.materials.get('wallMetal', context.colors?.wainscot);
+        const mat = context.materials.get('wallMetal', context.colors?.wainscot, textureBundle);
+        mat.side = THREE.DoubleSide;
+        return mat;
     }
     return context.materials.wallMetal;
 }
@@ -48,17 +55,24 @@ function createWainscotMesh(wallKey, wsHeight, openings, material, envelope, wal
         shape.closePath();
     }
 
-    // Двери и проёмы, пересекающие цоколь снизу (yOff < wsHeight)
     const relevantOpenings = openings.filter(op => op.side === sideCode && op.bounds.min.y < wsHeight);
 
     relevantOpenings.forEach(op => {
-        const opX = op.x;
         const opW = op.dimensions.width;
         const opH = Math.min(wsHeight, op.dimensions.height);
         const opY = op.bounds.min.y;
 
-        const holeMinX = opX - opW / 2;
-        const holeMaxX = opX + opW / 2;
+        let holeCenterX;
+        if (sideCode === 'F' || sideCode === 'B') {
+            holeCenterX = op.x;
+        } else if (sideCode === 'L') {
+            holeCenterX = op.x;
+        } else {
+            holeCenterX = envelope.length - op.x;
+        }
+
+        const holeMinX = holeCenterX - opW / 2;
+        const holeMaxX = holeCenterX + opW / 2;
 
         const holePath = new THREE.Path();
         holePath.moveTo(holeMinX, opY);
@@ -78,16 +92,19 @@ function createWainscotMesh(wallKey, wsHeight, openings, material, envelope, wal
     const mesh = new THREE.Mesh(geometry, material);
     mesh.name = `wainscot-mesh-${sideCode}`;
 
+    const offset = 0.003;
     if (sideCode === 'F') {
-        mesh.position.set(0, 0, -wsThickness);
+        mesh.position.set(0, 0, -offset);
+        mesh.rotation.set(0, 0, 0);
     } else if (sideCode === 'B') {
-        mesh.position.set(0, 0, envelope.length);
+        mesh.position.set(0, 0, envelope.length - wsThickness + offset);
+        mesh.rotation.set(0, 0, 0);
     } else if (sideCode === 'L') {
-        mesh.position.set(-envelope.width / 2, 0, 0);
-        mesh.rotation.y = Math.PI / 2;
+        mesh.position.set(-envelope.width / 2 + wsThickness - offset, 0, 0);
+        mesh.rotation.set(0, -Math.PI / 2, 0);
     } else if (sideCode === 'R') {
-        mesh.position.set(envelope.width / 2 + wsThickness, 0, 0);
-        mesh.rotation.y = Math.PI / 2;
+        mesh.position.set(envelope.width / 2 - wsThickness + offset, 0, envelope.length);
+        mesh.rotation.set(0, Math.PI / 2, 0);
     }
 
     mesh.castShadow = true;

@@ -1,4 +1,3 @@
-// js/environment/EnvironmentSystem.js
 import * as THREE from 'three';
 
 const SEASONS_NORTH = Object.freeze({
@@ -50,6 +49,30 @@ const SEASON_PROFILES = Object.freeze({
     })
 });
 
+function createProceduralGroundTexture() {
+    const canvas = document.createElement('canvas');
+    canvas.width = 512;
+    canvas.height = 512;
+    const ctx = canvas.getContext('2d');
+
+    ctx.fillStyle = '#486b32';
+    ctx.fillRect(0, 0, 512, 512);
+
+    for (let i = 0; i < 4000; i++) {
+        const x = Math.random() * 512;
+        const y = Math.random() * 512;
+        const shade = Math.floor(Math.random() * 30);
+        ctx.fillStyle = `rgba(${50 + shade}, ${80 + shade}, ${30 + shade}, 0.5)`;
+        ctx.fillRect(x, y, 2, 2);
+    }
+
+    const texture = new THREE.CanvasTexture(canvas);
+    texture.wrapS = THREE.RepeatWrapping;
+    texture.wrapT = THREE.RepeatWrapping;
+    texture.repeat.set(80, 80);
+    return texture;
+}
+
 export function getSeason(dateInput, hemisphere = 'north') {
     let month = 5;
     if (typeof dateInput === 'string') {
@@ -80,12 +103,13 @@ export function createEnvironmentSystem(initialConfig = {}) {
     const group = new THREE.Group();
     group.name = 'environment-system';
 
-    // Создание меша земли
-    const groundGeometry = new THREE.PlaneGeometry(600, 600, 32, 32);
+    const groundGeometry = new THREE.PlaneGeometry(800, 800, 32, 32);
     groundGeometry.rotateX(-Math.PI / 2);
 
+    const groundTexture = createProceduralGroundTexture();
     const groundMaterial = new THREE.MeshStandardMaterial({
         color: SEASON_PROFILES.summer.groundColor,
+        map: groundTexture,
         roughness: SEASON_PROFILES.summer.groundRoughness,
         metalness: SEASON_PROFILES.summer.groundMetalness
     });
@@ -150,6 +174,7 @@ export function createEnvironmentSystem(initialConfig = {}) {
     function dispose() {
         groundGeometry.dispose();
         groundMaterial.dispose();
+        groundTexture.dispose();
         group.clear();
         group.removeFromParent();
     }

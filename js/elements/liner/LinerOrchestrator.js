@@ -19,7 +19,7 @@ function resolveMaterial(context) {
     return context.materials.interiorWall || context.materials.wallMetal;
 }
 
-function createSideMesh(sideData, material) {
+function createSideMesh(sideData, material, envelope) {
     const shape = new THREE.Shape();
     sideData.shapeData.points.forEach((p, idx) => {
         if (idx === 0) shape.moveTo(p.x, p.y);
@@ -43,8 +43,22 @@ function createSideMesh(sideData, material) {
 
     const mesh = new THREE.Mesh(geometry, material);
     mesh.name = `liner-side-${sideData.side}`;
-    mesh.position.set(sideData.position.x, sideData.position.y, sideData.position.z);
-    mesh.rotation.y = sideData.rotationY;
+
+    const t = sideData.thickness;
+    if (sideData.side === 'F') {
+        mesh.position.set(0, 0, 0);
+        mesh.rotation.set(0, 0, 0);
+    } else if (sideData.side === 'B') {
+        mesh.position.set(0, 0, envelope.length - t);
+        mesh.rotation.set(0, 0, 0);
+    } else if (sideData.side === 'L') {
+        mesh.position.set(-envelope.width / 2 + t, 0, 0);
+        mesh.rotation.set(0, -Math.PI / 2, 0);
+    } else if (sideData.side === 'R') {
+        mesh.position.set(envelope.width / 2 - t, 0, envelope.length);
+        mesh.rotation.set(0, Math.PI / 2, 0);
+    }
+
     mesh.receiveShadow = true;
     return mesh;
 }
@@ -60,10 +74,12 @@ function createObject(context) {
     }
 
     const material = resolveMaterial(context);
+    const envelope = context.geometry.envelope;
+
     for (const side of ['F', 'B', 'L', 'R']) {
         const sideData = liner.sides[side];
         if (sideData) {
-            root.add(createSideMesh(sideData, material));
+            root.add(createSideMesh(sideData, material, envelope));
         }
     }
 

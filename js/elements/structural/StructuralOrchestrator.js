@@ -1,4 +1,3 @@
-// js/elements/structural/StructuralOrchestrator.js
 import * as THREE from 'three';
 
 function assertContext(context) {
@@ -20,23 +19,20 @@ function resolveMaterial(context) {
     return context.materials.structuralSteel || context.materials.steel;
 }
 
-function createBeam(lineSeg, material, thickness = 0.1) {
-    const direction = new THREE.Vector3(
-        lineSeg.end.x - lineSeg.start.x,
-        lineSeg.end.y - lineSeg.start.y,
-        lineSeg.end.z - lineSeg.start.z
-    );
+function createBeam(lineSeg, material, thickness = 0.12) {
+    if (!lineSeg || !lineSeg.start || !lineSeg.end) return null;
 
+    const start = new THREE.Vector3(lineSeg.start.x, lineSeg.start.y, lineSeg.start.z);
+    const end = new THREE.Vector3(lineSeg.end.x, lineSeg.end.y, lineSeg.end.z);
+    const direction = end.clone().sub(start);
     const length = direction.length();
+
     if (length <= 0.001) return null;
 
     const geometry = new THREE.BoxGeometry(thickness, thickness, length);
     const mesh = new THREE.Mesh(geometry, material);
 
-    const start = new THREE.Vector3(lineSeg.start.x, lineSeg.start.y, lineSeg.start.z);
-    const end = new THREE.Vector3(lineSeg.end.x, lineSeg.end.y, lineSeg.end.z);
     const center = start.clone().add(end).multiplyScalar(0.5);
-
     mesh.position.copy(center);
     mesh.quaternion.setFromUnitVectors(
         new THREE.Vector3(0, 0, 1),
@@ -44,6 +40,7 @@ function createBeam(lineSeg, material, thickness = 0.1) {
     );
 
     mesh.castShadow = true;
+    mesh.receiveShadow = true;
     return mesh;
 }
 
@@ -55,15 +52,14 @@ function createObject(context) {
     const material = resolveMaterial(context);
     const vis = context.model?.visibility || {};
 
-    // 1. Main Frames
-    if (vis.frames !== false) {
+    if (vis.frames !== false && context.structuralGeometry.frames) {
         for (const frame of context.structuralGeometry.frames) {
             const group = new THREE.Group();
             group.name = `frame-${frame.index}`;
 
             for (const key of ['leftColumn', 'leftRafter', 'rightRafter', 'rightColumn', 'rafter']) {
                 if (frame[key]) {
-                    const beam = createBeam(frame[key], material);
+                    const beam = createBeam(frame[key], material, 0.18);
                     if (beam) group.add(beam);
                 }
             }
@@ -71,40 +67,37 @@ function createObject(context) {
         }
     }
 
-    // 2. Girts (с сегментацией вокруг проёмов)
-    if (vis.girts !== false) {
+    if (vis.girts !== false && context.structuralGeometry.girts) {
         for (const girt of context.structuralGeometry.girts) {
             const sideKeys = ['frontSegments', 'backSegments', 'leftSegments', 'rightSegments'];
             sideKeys.forEach(sideKey => {
                 const segs = girt[sideKey] || [];
                 segs.forEach(seg => {
-                    const beam = createBeam(seg, material);
+                    const beam = createBeam(seg, material, 0.08);
                     if (beam) root.add(beam);
                 });
             });
         }
     }
 
-    // 3. Purlins
-    if (vis.purlins !== false) {
+    if (vis.purlins !== false && context.structuralGeometry.purlins) {
         for (const purlin of context.structuralGeometry.purlins) {
             if (purlin.planes) {
                 for (const l of Object.values(purlin.planes)) {
-                    const beam = createBeam(l, material);
+                    const beam = createBeam(l, material, 0.08);
                     if (beam) root.add(beam);
                 }
             } else if (purlin.plane) {
-                const beam = createBeam(purlin.plane, material);
+                const beam = createBeam(purlin.plane, material, 0.08);
                 if (beam) root.add(beam);
             }
         }
     }
 
-    // 4. End-Wall Columns
-    if (vis.endWallColumns !== false) {
+    if (vis.endWallColumns !== false && context.structuralGeometry.endWallColumns) {
         for (const col of context.structuralGeometry.endWallColumns) {
-            const leftCol = createBeam(col.left, material);
-            const rightCol = createBeam(col.right, material);
+            const leftCol = createBeam(col.left, material, 0.14);
+            const rightCol = createBeam(col.right, material, 0.14);
             if (leftCol) root.add(leftCol);
             if (rightCol) root.add(rightCol);
         }
