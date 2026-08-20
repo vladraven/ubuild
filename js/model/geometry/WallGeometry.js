@@ -1,3 +1,5 @@
+// js/model/geometry/WallGeometry.js
+
 const SIDES = Object.freeze({
     FRONT: 'F',
     BACK: 'B',
@@ -11,53 +13,14 @@ const ROOF_TYPES = Object.freeze([
     'right-sloped'
 ]);
 
-function assertFinite(
-    value,
-    name
-) {
-    if (!Number.isFinite(value)) {
-        throw new TypeError(
-            `${name} must be a finite number`
-        );
-    }
+function point(x, y, z) {
+    return Object.freeze({ x, y, z });
 }
 
-function assertPositive(
-    value,
-    name
-) {
-    assertFinite(
-        value,
-        name
-    );
-
-    if (value <= 0) {
-        throw new RangeError(
-            `${name} must be greater than zero`
-        );
-    }
-}
-
-function point(
-    x,
-    y,
-    z
-) {
-    return Object.freeze({
-        x,
-        y,
-        z
-    });
-}
-
-function edge(
-    start,
-    end
-) {
+function edge(start, end) {
     return Object.freeze({
         start,
         end,
-
         length: Math.sqrt(
             (end.x - start.x) ** 2 +
             (end.y - start.y) ** 2 +
@@ -66,38 +29,20 @@ function edge(
     });
 }
 
-function plane(
-    normal,
-    constant
-) {
+function plane(normal, constant) {
     return Object.freeze({
-        normal: point(
-            normal.x,
-            normal.y,
-            normal.z
-        ),
-
+        normal: point(normal.x, normal.y, normal.z),
         constant
     });
 }
 
-function bounds(
-    min,
-    max
-) {
+function bounds(min, max) {
     return Object.freeze({
         min,
         max,
-
-        width:
-            max.x - min.x,
-
-        height:
-            max.y - min.y,
-
-        length:
-            max.z - min.z,
-
+        width: max.x - min.x,
+        height: max.y - min.y,
+        length: max.z - min.z,
         center: point(
             (min.x + max.x) / 2,
             (min.y + max.y) / 2,
@@ -106,626 +51,289 @@ function bounds(
     });
 }
 
-function resolveThickness(
-    model
-) {
-    const thickness =
-        model.walls?.thickness;
-
-    assertPositive(
-        thickness,
-        'walls.thickness'
-    );
-
+function resolveThickness(model) {
+    const thickness = model.walls?.thickness;
+    if (!Number.isFinite(thickness) || thickness <= 0) {
+        throw new RangeError('walls.thickness must be greater than zero');
+    }
     return thickness;
 }
 
-function resolveRoofHeights(
-    model,
-    envelope
-) {
-    const type =
-        model.roof?.type;
+function createFrontWall(envelope, thickness, model) {
+    const width = envelope.width;
+    const baseHeight = envelope.height;
+    const halfWidth = width / 2;
+    const isGabled = model.roof.type === 'gabled';
+    const isLeftSloped = model.roof.type === 'left-sloped';
+    const isRightSloped = model.roof.type === 'right-sloped';
 
-    if (
-        !ROOF_TYPES.includes(type)
-    ) {
-        throw new RangeError(
-            `Unsupported roof type: ${type}`
-        );
+    const run = isGabled ? halfWidth : width;
+    const rise = run * model.roof.pitchRatio;
+
+    const bottomLeft = point(-halfWidth, 0, 0);
+    const bottomRight = point(halfWidth, 0, 0);
+
+    let topLeft, topRight, peakPoint = null;
+    let shapePoints = [];
+
+    if (isGabled) {
+        topLeft = point(-halfWidth, baseHeight, 0);
+        topRight = point(halfWidth, baseHeight, 0);
+        peakPoint = point(0, baseHeight + rise, 0);
+        shapePoints = [
+            { x: -halfWidth, y: 0 },
+            { x: halfWidth, y: 0 },
+            { x: halfWidth, y: baseHeight },
+            { x: 0, y: baseHeight + rise },
+            { x: -halfWidth, y: baseHeight }
+        ];
+    } else if (isLeftSloped) {
+        topLeft = point(-halfWidth, baseHeight + rise, 0);
+        topRight = point(halfWidth, baseHeight, 0);
+        shapePoints = [
+            { x: -halfWidth, y: 0 },
+            { x: halfWidth, y: 0 },
+            { x: halfWidth, y: baseHeight },
+            { x: -halfWidth, y: baseHeight + rise }
+        ];
+    } else if (isRightSloped) {
+        topLeft = point(-halfWidth, baseHeight, 0);
+        topRight = point(halfWidth, baseHeight + rise, 0);
+        shapePoints = [
+            { x: -halfWidth, y: 0 },
+            { x: halfWidth, y: 0 },
+            { x: halfWidth, y: baseHeight + rise },
+            { x: -halfWidth, y: baseHeight }
+        ];
+    } else {
+        topLeft = point(-halfWidth, baseHeight, 0);
+        topRight = point(halfWidth, baseHeight, 0);
+        shapePoints = [
+            { x: -halfWidth, y: 0 },
+            { x: halfWidth, y: 0 },
+            { x: halfWidth, y: baseHeight },
+            { x: -halfWidth, y: baseHeight }
+        ];
     }
 
-    const baseHeight =
-        envelope.height;
-
-    const pitchRatio =
-        model.roof?.pitchRatio;
-
-    assertFinite(
-        pitchRatio,
-        'roof.pitchRatio'
-    );
-
-    if (pitchRatio <= 0) {
-        throw new RangeError(
-            'roof.pitchRatio must be greater than zero'
-        );
-    }
-
-    const rise =
-        envelope.width *
-        pitchRatio;
-
-    if (type === 'left-sloped') {
-        return Object.freeze({
-            front: baseHeight + rise,
-            back: baseHeight + rise,
-            left: baseHeight + rise,
-            right: baseHeight
-        });
-    }
-
-    if (type === 'right-sloped') {
-        return Object.freeze({
-            front: baseHeight + rise,
-            back: baseHeight + rise,
-            left: baseHeight,
-            right: baseHeight + rise
-        });
-    }
-
-    return Object.freeze({
-        front:
-            baseHeight,
-
-        back:
-            baseHeight,
-
-        left:
-            baseHeight,
-
-        right:
-            baseHeight
-    });
-}
-
-function createFrontWall(
-    envelope,
-    thickness,
-    heights
-) {
-    const {
-        width
-    } = envelope;
-
-    const halfWidth =
-        width / 2;
-
-    const bottomLeft =
-        point(
-            -halfWidth,
-            0,
-            0
-        );
-
-    const bottomRight =
-        point(
-            halfWidth,
-            0,
-            0
-        );
-
-    const topLeft =
-        point(
-            -halfWidth,
-            heights.left,
-            0
-        );
-
-    const topRight =
-        point(
-            halfWidth,
-            heights.right,
-            0
-        );
+    const maxHeight = peakPoint ? peakPoint.y : Math.max(topLeft.y, topRight.y);
 
     return {
-        side:
-            SIDES.FRONT,
-
+        side: SIDES.FRONT,
         thickness,
-
-        height: Object.freeze({
-            left:
-                heights.left,
-
-            right:
-                heights.right
+        shapePoints: Object.freeze(shapePoints),
+        bounds: bounds(
+            point(-halfWidth, 0, 0),
+            point(halfWidth, maxHeight, 0)
+        ),
+        corners: Object.freeze({
+            bottomLeft,
+            bottomRight,
+            topLeft,
+            topRight,
+            peak: peakPoint
         }),
-
-        bounds:
-            bounds(
-                point(
-                    -halfWidth,
-                    0,
-                    0
-                ),
-                point(
-                    halfWidth,
-                    Math.max(
-                        heights.left,
-                        heights.right
-                    ),
-                    0
-                )
-            ),
-
-        corners:
-            Object.freeze({
-                bottomLeft,
-                bottomRight,
-                topLeft,
-                topRight
-            }),
-
-        edges:
-            Object.freeze({
-                bottom:
-                    edge(
-                        bottomLeft,
-                        bottomRight
-                    ),
-
-                top:
-                    edge(
-                        topLeft,
-                        topRight
-                    ),
-
-                left:
-                    edge(
-                        bottomLeft,
-                        topLeft
-                    ),
-
-                right:
-                    edge(
-                        bottomRight,
-                        topRight
-                    )
-            }),
-
-        plane:
-            plane(
-                {
-                    x: 0,
-                    y: 0,
-                    z: 1
-                },
-                0
-            )
+        edges: Object.freeze({
+            bottom: edge(bottomLeft, bottomRight),
+            left: edge(bottomLeft, topLeft),
+            right: edge(bottomRight, topRight),
+            top: edge(topLeft, topRight)
+        }),
+        plane: plane({ x: 0, y: 0, z: 1 }, 0)
     };
 }
 
-function createBackWall(
-    envelope,
-    thickness,
-    heights
-) {
-    const {
-        width,
-        length
-    } = envelope;
+function createBackWall(envelope, thickness, model) {
+    const width = envelope.width;
+    const length = envelope.length;
+    const baseHeight = envelope.height;
+    const halfWidth = width / 2;
+    const isGabled = model.roof.type === 'gabled';
+    const isLeftSloped = model.roof.type === 'left-sloped';
+    const isRightSloped = model.roof.type === 'right-sloped';
 
-    const halfWidth =
-        width / 2;
+    const run = isGabled ? halfWidth : width;
+    const rise = run * model.roof.pitchRatio;
 
-    const bottomLeft =
-        point(
-            -halfWidth,
-            0,
-            length
-        );
+    const bottomLeft = point(-halfWidth, 0, length);
+    const bottomRight = point(halfWidth, 0, length);
 
-    const bottomRight =
-        point(
-            halfWidth,
-            0,
-            length
-        );
+    let topLeft, topRight, peakPoint = null;
+    let shapePoints = [];
 
-    const topLeft =
-        point(
-            -halfWidth,
-            heights.left,
-            length
-        );
+    if (isGabled) {
+        topLeft = point(-halfWidth, baseHeight, length);
+        topRight = point(halfWidth, baseHeight, length);
+        peakPoint = point(0, baseHeight + rise, length);
+        shapePoints = [
+            { x: -halfWidth, y: 0 },
+            { x: halfWidth, y: 0 },
+            { x: halfWidth, y: baseHeight },
+            { x: 0, y: baseHeight + rise },
+            { x: -halfWidth, y: baseHeight }
+        ];
+    } else if (isLeftSloped) {
+        topLeft = point(-halfWidth, baseHeight + rise, length);
+        topRight = point(halfWidth, baseHeight, length);
+        shapePoints = [
+            { x: -halfWidth, y: 0 },
+            { x: halfWidth, y: 0 },
+            { x: halfWidth, y: baseHeight },
+            { x: -halfWidth, y: baseHeight + rise }
+        ];
+    } else if (isRightSloped) {
+        topLeft = point(-halfWidth, baseHeight, length);
+        topRight = point(halfWidth, baseHeight + rise, length);
+        shapePoints = [
+            { x: -halfWidth, y: 0 },
+            { x: halfWidth, y: 0 },
+            { x: halfWidth, y: baseHeight + rise },
+            { x: -halfWidth, y: baseHeight }
+        ];
+    } else {
+        topLeft = point(-halfWidth, baseHeight, length);
+        topRight = point(halfWidth, baseHeight, length);
+        shapePoints = [
+            { x: -halfWidth, y: 0 },
+            { x: halfWidth, y: 0 },
+            { x: halfWidth, y: baseHeight },
+            { x: -halfWidth, y: baseHeight }
+        ];
+    }
 
-    const topRight =
-        point(
-            halfWidth,
-            heights.right,
-            length
-        );
+    const maxHeight = peakPoint ? peakPoint.y : Math.max(topLeft.y, topRight.y);
 
     return {
-        side:
-            SIDES.BACK,
-
+        side: SIDES.BACK,
         thickness,
-
-        height: Object.freeze({
-            left:
-                heights.left,
-
-            right:
-                heights.right
+        shapePoints: Object.freeze(shapePoints),
+        bounds: bounds(
+            point(-halfWidth, 0, length),
+            point(halfWidth, maxHeight, length)
+        ),
+        corners: Object.freeze({
+            bottomLeft,
+            bottomRight,
+            topLeft,
+            topRight,
+            peak: peakPoint
         }),
-
-        bounds:
-            bounds(
-                point(
-                    -halfWidth,
-                    0,
-                    length
-                ),
-                point(
-                    halfWidth,
-                    Math.max(
-                        heights.left,
-                        heights.right
-                    ),
-                    length
-                )
-            ),
-
-        corners:
-            Object.freeze({
-                bottomLeft,
-                bottomRight,
-                topLeft,
-                topRight
-            }),
-
-        edges:
-            Object.freeze({
-                bottom:
-                    edge(
-                        bottomRight,
-                        bottomLeft
-                    ),
-
-                top:
-                    edge(
-                        topRight,
-                        topLeft
-                    ),
-
-                left:
-                    edge(
-                        bottomLeft,
-                        topLeft
-                    ),
-
-                right:
-                    edge(
-                        bottomRight,
-                        topRight
-                    )
-            }),
-
-        plane:
-            plane(
-                {
-                    x: 0,
-                    y: 0,
-                    z: -1
-                },
-                length
-            )
+        edges: Object.freeze({
+            bottom: edge(bottomRight, bottomLeft),
+            left: edge(bottomLeft, topLeft),
+            right: edge(bottomRight, topRight),
+            top: edge(topRight, topLeft)
+        }),
+        plane: plane({ x: 0, y: 0, z: -1 }, length)
     };
 }
 
-function createLeftWall(
-    envelope,
-    thickness,
-    heights
-) {
-    const {
-        width,
-        length
-    } = envelope;
+function createLeftWall(envelope, thickness, model) {
+    const width = envelope.width;
+    const length = envelope.length;
+    const baseHeight = envelope.height;
+    const isLeftSloped = model.roof.type === 'left-sloped';
+    const rise = width * model.roof.pitchRatio;
+    const wallHeight = isLeftSloped ? baseHeight + rise : baseHeight;
+    const x = -width / 2;
 
-    const x =
-        -width / 2;
+    const frontBottom = point(x, 0, 0);
+    const backBottom = point(x, 0, length);
+    const frontTop = point(x, wallHeight, 0);
+    const backTop = point(x, wallHeight, length);
 
-    const frontBottom =
-        point(
-            x,
-            0,
-            0
-        );
-
-    const backBottom =
-        point(
-            x,
-            0,
-            length
-        );
-
-    const frontTop =
-        point(
-            x,
-            heights.front,
-            0
-        );
-
-    const backTop =
-        point(
-            x,
-            heights.back,
-            length
-        );
+    const shapePoints = [
+        { x: 0, y: 0 },
+        { x: length, y: 0 },
+        { x: length, y: wallHeight },
+        { x: 0, y: wallHeight }
+    ];
 
     return {
-        side:
-            SIDES.LEFT,
-
+        side: SIDES.LEFT,
         thickness,
-
-        height: Object.freeze({
-            front:
-                heights.front,
-
-            back:
-                heights.back
+        shapePoints: Object.freeze(shapePoints),
+        bounds: bounds(
+            point(x, 0, 0),
+            point(x, wallHeight, length)
+        ),
+        corners: Object.freeze({
+            frontBottom,
+            backBottom,
+            frontTop,
+            backTop
         }),
-
-        bounds:
-            bounds(
-                point(
-                    x,
-                    0,
-                    0
-                ),
-                point(
-                    x,
-                    Math.max(
-                        heights.front,
-                        heights.back
-                    ),
-                    length
-                )
-            ),
-
-        corners:
-            Object.freeze({
-                frontBottom,
-                backBottom,
-                frontTop,
-                backTop
-            }),
-
-        edges:
-            Object.freeze({
-                bottom:
-                    edge(
-                        frontBottom,
-                        backBottom
-                    ),
-
-                top:
-                    edge(
-                        frontTop,
-                        backTop
-                    ),
-
-                front:
-                    edge(
-                        frontBottom,
-                        frontTop
-                    ),
-
-                back:
-                    edge(
-                        backBottom,
-                        backTop
-                    )
-            }),
-
-        plane:
-            plane(
-                {
-                    x: 1,
-                    y: 0,
-                    z: 0
-                },
-                width / 2
-            )
+        edges: Object.freeze({
+            bottom: edge(frontBottom, backBottom),
+            top: edge(frontTop, backTop),
+            front: edge(frontBottom, frontTop),
+            back: edge(backBottom, backTop)
+        }),
+        plane: plane({ x: 1, y: 0, z: 0 }, width / 2)
     };
 }
 
-function createRightWall(
-    envelope,
-    thickness,
-    heights
-) {
-    const {
-        width,
-        length
-    } = envelope;
+function createRightWall(envelope, thickness, model) {
+    const width = envelope.width;
+    const length = envelope.length;
+    const baseHeight = envelope.height;
+    const isRightSloped = model.roof.type === 'right-sloped';
+    const rise = width * model.roof.pitchRatio;
+    const wallHeight = isRightSloped ? baseHeight + rise : baseHeight;
+    const x = width / 2;
 
-    const x =
-        width / 2;
+    const frontBottom = point(x, 0, 0);
+    const backBottom = point(x, 0, length);
+    const frontTop = point(x, wallHeight, 0);
+    const backTop = point(x, wallHeight, length);
 
-    const frontBottom =
-        point(
-            x,
-            0,
-            0
-        );
-
-    const backBottom =
-        point(
-            x,
-            0,
-            length
-        );
-
-    const frontTop =
-        point(
-            x,
-            heights.front,
-            0
-        );
-
-    const backTop =
-        point(
-            x,
-            heights.back,
-            length
-        );
+    const shapePoints = [
+        { x: 0, y: 0 },
+        { x: length, y: 0 },
+        { x: length, y: wallHeight },
+        { x: 0, y: wallHeight }
+    ];
 
     return {
-        side:
-            SIDES.RIGHT,
-
+        side: SIDES.RIGHT,
         thickness,
-
-        height: Object.freeze({
-            front:
-                heights.front,
-
-            back:
-                heights.back
+        shapePoints: Object.freeze(shapePoints),
+        bounds: bounds(
+            point(x, 0, 0),
+            point(x, wallHeight, length)
+        ),
+        corners: Object.freeze({
+            frontBottom,
+            backBottom,
+            frontTop,
+            backTop
         }),
-
-        bounds:
-            bounds(
-                point(
-                    x,
-                    0,
-                    0
-                ),
-                point(
-                    x,
-                    Math.max(
-                        heights.front,
-                        heights.back
-                    ),
-                    length
-                )
-            ),
-
-        corners:
-            Object.freeze({
-                frontBottom,
-                backBottom,
-                frontTop,
-                backTop
-            }),
-
-        edges:
-            Object.freeze({
-                bottom:
-                    edge(
-                        backBottom,
-                        frontBottom
-                    ),
-
-                top:
-                    edge(
-                        backTop,
-                        frontTop
-                    ),
-
-                front:
-                    edge(
-                        frontBottom,
-                        frontTop
-                    ),
-
-                back:
-                    edge(
-                        backBottom,
-                        backTop
-                    )
-            }),
-
-        plane:
-            plane(
-                {
-                    x: -1,
-                    y: 0,
-                    z: 0
-                },
-                width / 2
-            )
+        edges: Object.freeze({
+            bottom: edge(backBottom, frontBottom),
+            top: edge(backTop, frontTop),
+            front: edge(frontBottom, frontTop),
+            back: edge(backBottom, backTop)
+        }),
+        plane: plane({ x: -1, y: 0, z: 0 }, width / 2)
     };
 }
 
-export function createWallGeometry(
-    model,
-    envelope
-) {
+export function createWallGeometry(model, envelope) {
     if (!model) {
-        throw new TypeError(
-            'BuildingModel is required'
-        );
+        throw new TypeError('BuildingModel is required');
     }
-
     if (!envelope) {
-        throw new TypeError(
-            'BuildingEnvelope is required'
-        );
+        throw new TypeError('BuildingEnvelope is required');
     }
 
-    const thickness =
-        resolveThickness(
-            model
-        );
-
-    const heights =
-        resolveRoofHeights(
-            model,
-            envelope
-        );
+    const thickness = resolveThickness(model);
 
     const walls = {
-        front:
-            createFrontWall(
-                envelope,
-                thickness,
-                heights
-            ),
-
-        back:
-            createBackWall(
-                envelope,
-                thickness,
-                heights
-            ),
-
-        left:
-            createLeftWall(
-                envelope,
-                thickness,
-                heights
-            ),
-
-        right:
-            createRightWall(
-                envelope,
-                thickness,
-                heights
-            )
+        front: createFrontWall(envelope, thickness, model),
+        back: createBackWall(envelope, thickness, model),
+        left: createLeftWall(envelope, thickness, model),
+        right: createRightWall(envelope, thickness, model)
     };
 
-    return Object.freeze({
-        ...walls,
-
-        thickness,
-
-        heights
-    });
+    return Object.freeze(walls);
 }

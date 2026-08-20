@@ -1,256 +1,142 @@
+// js/elements/wall/WallOrchestrator.js
 import * as THREE from 'three';
+
+const SIDE_MAP = Object.freeze({
+    front: 'F',
+    back: 'B',
+    left: 'L',
+    right: 'R'
+});
 
 function assertContext(context) {
     if (!context || typeof context !== 'object') {
         throw new TypeError('Element context is required');
     }
-
     if (!context.geometry?.walls) {
-        throw new TypeError(
-            'Wall geometry is required'
-        );
+        throw new TypeError('Wall geometry is required');
     }
-
-    if (!context.panelGeometry?.walls) {
-        throw new TypeError(
-            'Wall panel geometry is required'
-        );
-    }
-
     if (!context.materials) {
-        throw new TypeError(
-            'Material system is required'
-        );
-    }
-
-    if (!context.colors) {
-        throw new TypeError(
-            'Color system is required'
-        );
+        throw new TypeError('Material system is required');
     }
 }
 
-function getWallMaterial(
-    context,
-    side
-) {
-    if (
-        typeof context.materials.get === 'function'
-    ) {
-        return context.materials.get(
-            'wallMetal',
-            context.colors.wall,
-            context.textures?.wallPanel
-        );
+function getWallMaterial(context) {
+    if (typeof context.materials.get === 'function') {
+        return context.materials.get('wallMetal', context.colors?.wall);
     }
-
-    if (context.materials.wallMetal) {
-        return context.materials.wallMetal;
-    }
-
-    if (context.materials.wall) {
-        return context.materials.wall;
-    }
-
-    throw new Error(
-        `Wall material is not available for ${side}`
-    );
+    return context.materials.wallMetal || context.materials.wall;
 }
 
-function createPanelGeometry(
-    panel
-) {
-    const bounds = panel.bounds;
+function createWallMeshWithHoles(wallData, openings, wallKey, material, envelope) {
+    const shape = new THREE.Shape();
+    const sideCode = SIDE_MAP[wallKey];
+    const isEndWall = sideCode === 'F' || sideCode === 'B';
+    const halfSpan = (isEndWall ? envelope.width : envelope.length) / 2;
 
-    const width = Math.max(
-        bounds.max.x - bounds.min.x,
-        0
-    );
+    wallData.shapePoints.forEach((p, idx) => {
+        if (idx === 0) shape.moveTo(p.x, p.y);
+        else shape.lineTo(p.x, p.y);
+    });
 
-    const height = Math.max(
-        bounds.max.y - bounds.min.y,
-        0
-    );
+    const relevantOpenings = openings.filter(op => op.side === sideCode);
 
-    const length = Math.max(
-        bounds.max.z - bounds.min.z,
-        0
-    );
+    relevantOpenings.forEach(op => {
+        const opX = op.x;
+        const opW = op.dimensions.width;
+        const opH = op.dimensions.height;
+        const opY = op.bounds.min.y;
 
-    return new THREE.BoxGeometry(
-        width || 0.001,
-        height || 0.001,
-        length || 0.001
-    );
-}
+        let holeMinX, holeMaxX;
 
-function createPanelMesh(
-    panel,
-    material
-) {
-    const mesh = new THREE.Mesh(
-        createPanelGeometry(panel),
-        material
-    );
+        if (isEndWall) {
+            holeMinX = opX - opW / 2;
+            holeMaxX = opX + opW / 2;
+        } else {
+            // Для боковых стен (L/R) начало Shape в x=0 (Z=0)
+            holeMinX = opX - opW / 2;
+            holeMaxX = opX + opW / 2;
+        }
 
-    const bounds = panel.bounds;
+        const holePath = new THREE.Path();
+        holePath.moveTo(holeMinX, opY);
+        holePath.lineTo(holeMaxX, opY);
+        holePath.lineTo(holeMaxX, opY + opH);
+        holePath.lineTo(holeMinX, opY + opH);
+        holePath.closePath();
+        shape.holes.push(holePath);
+    });
 
-    mesh.position.set(
-        (bounds.min.x + bounds.max.x) / 2,
-        (bounds.min.y + bounds.max.y) / 2,
-        (bounds.min.z + bounds.max.z) / 2
-    );
+    const geometry = new THREE.ExtrudeGeometry(shape, {
+        depth: wallData.thickness,
+        bevelEnabled: false
+    });
 
-    mesh.userData.element = 'wall';
-    mesh.userData.panelIndex = panel.index;
+    const mesh = new THREE.Mesh(geometry, material);
+    mesh.name = `wall-mesh-${sideCode}`;
 
+    if (sideCode === 'F') {
+        mesh.position.set(0, 0, -wallData.thickness);
+    } else if (sideCode === 'B') {
+        mesh.position.set(0, 0, envelope.length);
+    } else if (sideCode === 'L') {
+        mesh.position.set(-envelope.width / 2, 0, 0);
+        mesh.rotation.y = Math.PI / 2;
+    } else if (sideCode === 'R') {
+        mesh.position.set(envelope.width / 2 + wallData.thickness, 0, 0);
+        mesh.rotation.y = Math.PI / 2;
+    }
+
+    mesh.castShadow = true;
+    mesh.receiveShadow = true;
     return mesh;
-}
-
-function createWallGroup(
-    side,
-    panels,
-    material
-) {
-    const group = new THREE.Group();
-
-    group.name = `wall-${side}`;
-
-    for (const panel of panels) {
-        group.add(
-            createPanelMesh(
-                panel,
-                material
-            )
-        );
-    }
-
-    return group;
 }
 
 function createObject(context) {
     assertContext(context);
 
     const root = new THREE.Group();
-
     root.name = 'walls';
 
-    for (const side of [
-        'front',
-        'back',
-        'left',
-        'right'
-    ]) {
-        const panels =
-            context.panelGeometry.walls[side];
+    if (context.model?.visibility?.walls === false) {
+        return root;
+    }
 
-        if (!Array.isArray(panels)) {
-            continue;
+    const material = getWallMaterial(context);
+    const openings = context.geometry.openings || [];
+    const envelope = context.geometry.envelope;
+
+    for (const [wallKey, wallData] of Object.entries(context.geometry.walls)) {
+        if (wallData && wallData.shapePoints) {
+            root.add(createWallMeshWithHoles(wallData, openings, wallKey, material, envelope));
         }
-
-        const material =
-            getWallMaterial(
-                context,
-                side
-            );
-
-        root.add(
-            createWallGroup(
-                side,
-                panels,
-                material
-            )
-        );
     }
 
     return root;
 }
 
-function updateObject(
-    object,
-    context
-) {
-    assertContext(context);
-
-    if (!object) {
-        return createObject(context);
-    }
-
-    disposeChildren(object);
-
-    for (const side of [
-        'front',
-        'back',
-        'left',
-        'right'
-    ]) {
-        const panels =
-            context.panelGeometry.walls[side];
-
-        if (!Array.isArray(panels)) {
-            continue;
+function disposeObject(object) {
+    if (!object) return;
+    object.traverse(child => {
+        if (child.isMesh) {
+            child.geometry?.dispose();
         }
-
-        object.add(
-            createWallGroup(
-                side,
-                panels,
-                getWallMaterial(
-                    context,
-                    side
-                )
-            )
-        );
+    });
+    while (object.children.length > 0) {
+        object.remove(object.children[0]);
     }
-
-    return object;
-}
-
-function disposeChildren(
-    group
-) {
-    while (group.children.length) {
-        const child =
-            group.children.pop();
-
-        disposeObject(child);
-    }
-}
-
-function disposeObject(
-    object
-) {
-    if (!object) {
-        return;
-    }
-
-    if (object.children) {
-        for (
-            const child
-            of [...object.children]
-        ) {
-            disposeObject(child);
-        }
-    }
-
-    object.geometry?.dispose();
     object.removeFromParent();
 }
 
 export const WallOrchestrator = Object.freeze({
     id: 'walls',
-
     create(context) {
         return createObject(context);
     },
-
     update(object, context) {
-        return updateObject(
-            object,
-            context
-        );
+        if (!object) return createObject(context);
+        disposeObject(object);
+        return createObject(context);
     },
-
     dispose(object) {
         disposeObject(object);
     }
