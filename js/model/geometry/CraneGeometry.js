@@ -6,34 +6,42 @@ function point(x, y, z) {
     });
 }
 
-function createRail(
-    x,
-    y,
-    z
+function validateFinite(
+    value,
+    name
 ) {
-    return Object.freeze({
-        anchor: point(
-            x,
-            y,
-            z
-        ),
+    if (!Number.isFinite(value)) {
+        throw new TypeError(
+            `${name} must be a finite number`
+        );
+    }
+}
 
-        position: point(
-            x,
-            y,
-            z
-        ),
+function validatePositive(
+    value,
+    name
+) {
+    validateFinite(
+        value,
+        name
+    );
 
-        width: 0.15,
-        height: 0.25
-    });
+    if (value <= 0) {
+        throw new RangeError(
+            `${name} must be greater than zero`
+        );
+    }
 }
 
 function validatePercent(
     value
 ) {
+    validateFinite(
+        value,
+        'crane.zPercent'
+    );
+
     if (
-        !Number.isFinite(value) ||
         value < 0 ||
         value > 1
     ) {
@@ -41,6 +49,61 @@ function validatePercent(
             'crane.zPercent must be between 0 and 1'
         );
     }
+}
+
+function createRail(
+    x,
+    y,
+    z,
+    length
+) {
+    return Object.freeze({
+        anchor:
+            point(
+                x,
+                y,
+                z
+            ),
+
+        position:
+            point(
+                x,
+                y,
+                z
+            ),
+
+        width: 0.15,
+
+        height: 0.25,
+
+        length
+    });
+}
+
+function createBounds(
+    width,
+    length,
+    height
+) {
+    return Object.freeze({
+        min:
+            point(
+                -width / 2,
+                0,
+                -length / 2
+            ),
+
+        max:
+            point(
+                width / 2,
+                height,
+                length / 2
+            ),
+
+        width,
+        length,
+        height
+    });
 }
 
 export function createCraneGeometry(
@@ -100,7 +163,9 @@ export function createCraneGeometry(
 
             trolley: null,
 
-            cable: null
+            cable: null,
+
+            bounds: null
         });
     }
 
@@ -117,16 +182,10 @@ export function createCraneGeometry(
         config.runwayLength ??
         envelope.length;
 
-    if (
-        !Number.isFinite(
-            runwayLength
-        ) ||
-        runwayLength <= 0
-    ) {
-        throw new RangeError(
-            'crane.runwayLength must be greater than zero'
-        );
-    }
+    validatePositive(
+        runwayLength,
+        'crane.runwayLength'
+    );
 
     if (
         runwayLength >
@@ -137,31 +196,56 @@ export function createCraneGeometry(
         );
     }
 
+    const bridgeWidth =
+        config.bridgeWidth ??
+        envelope.width;
+
+    validatePositive(
+        bridgeWidth,
+        'crane.bridgeWidth'
+    );
+
+    if (
+        bridgeWidth >
+        envelope.width
+    ) {
+        throw new RangeError(
+            'crane.bridgeWidth cannot exceed building width'
+        );
+    }
+
+    const cableLength =
+        config.cableLength ??
+        1.2;
+
+    validatePositive(
+        cableLength,
+        'crane.cableLength'
+    );
+
+    const cableRadius =
+        config.cableRadius ??
+        0.015;
+
+    validatePositive(
+        cableRadius,
+        'crane.cableRadius'
+    );
+
     const eaveHeight =
         model.dimensions.height;
 
-    const roofHeight =
+    const ridgeHeight =
         roof.ridge?.height ??
         eaveHeight;
 
     const bridgeY =
         eaveHeight +
         (
-            roofHeight -
+            ridgeHeight -
             eaveHeight
         ) *
         zPercent;
-
-    const railX =
-        envelope.width / 2;
-
-    const railY =
-        bridgeY -
-        0.125;
-
-    const bridgeWidth =
-        config.bridgeWidth ??
-        envelope.width;
 
     const bridgeZ =
         config.bridgeZ ??
@@ -171,9 +255,12 @@ export function createCraneGeometry(
         config.trolleyZ ??
         bridgeZ;
 
-    const cableLength =
-        config.cableLength ??
-        1.2;
+    const railY =
+        bridgeY -
+        0.125;
+
+    const railX =
+        envelope.width / 2;
 
     const rails =
         Object.freeze({
@@ -181,14 +268,16 @@ export function createCraneGeometry(
                 createRail(
                     -railX,
                     railY,
-                    0
+                    0,
+                    runwayLength
                 ),
 
             right:
                 createRail(
                     railX,
                     railY,
-                    0
+                    0,
+                    runwayLength
                 )
         });
 
@@ -211,9 +300,11 @@ export function createCraneGeometry(
             width:
                 bridgeWidth,
 
-            height: 0.35,
+            height:
+                0.35,
 
-            depth: 0.3
+            depth:
+                0.3
         });
 
     const trolley =
@@ -234,36 +325,42 @@ export function createCraneGeometry(
                     trolleyZ
                 ),
 
-            width: 0.4,
-            height: 0.4,
-            depth: 0.4
+            width:
+                0.4,
+
+            height:
+                0.4,
+
+            depth:
+                0.4
         });
+
+    const cableAnchor =
+        point(
+            0,
+            bridgeY -
+                0.9,
+            trolleyZ
+        );
 
     const cable =
         Object.freeze({
             anchor:
-                point(
-                    0,
-                    bridgeY -
-                        0.9,
-                    trolleyZ
-                ),
+                cableAnchor,
 
             position:
                 point(
-                    0,
-                    bridgeY -
-                        0.9 -
+                    cableAnchor.x,
+                    cableAnchor.y -
                         cableLength / 2,
-                    trolleyZ
+                    cableAnchor.z
                 ),
 
             length:
                 cableLength,
 
             radius:
-                config.cableRadius ??
-                0.015
+                cableRadius
         });
 
     return Object.freeze({
@@ -282,29 +379,10 @@ export function createCraneGeometry(
         cable,
 
         bounds:
-            Object.freeze({
-                width:
-                    envelope.width,
-
-                length:
-                    runwayLength,
-
-                height:
-                    bridgeY,
-
-                min:
-                    point(
-                        -envelope.width / 2,
-                        0,
-                        -runwayLength / 2
-                    ),
-
-                max:
-                    point(
-                        envelope.width / 2,
-                        bridgeY,
-                        runwayLength / 2
-                    )
-            })
+            createBounds(
+                envelope.width,
+                runwayLength,
+                bridgeY
+            )
     });
 }
