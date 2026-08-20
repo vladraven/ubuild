@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { generatePanelNormalMap } from '../../panels/PanelProfiles.js';
+import { getPanelNormalMapForUse } from '../../panels/PanelProfiles.js';
 
 function assertContext(context) {
     if (!context || typeof context !== 'object') {
@@ -18,14 +18,12 @@ function assertContext(context) {
 
 function resolveMaterial(context) {
     const profileId = context.model?.roof?.profile || 'awr';
-    const normalMap = generatePanelNormalMap(profileId);
-    normalMap.wrapS = THREE.RepeatWrapping;
-    normalMap.wrapT = THREE.RepeatWrapping;
-    normalMap.repeat.set(
+    const normalMap = getPanelNormalMapForUse(
+        profileId,
+        'roof',
         Math.max(1, context.model?.dimensions?.length || 10) * 0.8,
         Math.max(1, context.model?.dimensions?.width || 10) * 1.5
     );
-    normalMap.needsUpdate = true;
 
     if (typeof context.materials.get === 'function') {
         const mat = context.materials.get('roofMetal', context.colors?.roof, {

@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { generatePanelNormalMap } from '../../panels/PanelProfiles.js';
+import { getPanelNormalMapForUse } from '../../panels/PanelProfiles.js';
 
 const SIDE_MAP = Object.freeze({
     front: 'F',
@@ -22,19 +22,29 @@ function assertContext(context) {
 
 function resolveMaterial(context) {
     const profileId = context.model?.panels?.profile || 'awr';
-    const normalMap = generatePanelNormalMap(profileId);
-    normalMap.repeat.set(10, 3);
-    const textureBundle = { normalMap };
+    const normalMap = getPanelNormalMapForUse(profileId, 'wainscot', 10, 3);
 
     if (typeof context.materials.get === 'function') {
-        const mat = context.materials.get('wallMetal', context.colors?.wainscot, textureBundle);
+        const mat = context.materials.get(
+            'wallMetal',
+            context.colors?.wainscot,
+            { normalMap }
+        );
         mat.side = THREE.DoubleSide;
+        mat.needsUpdate = true;
         return mat;
     }
     return context.materials.wallMetal;
 }
 
-function createWainscotMesh(wallKey, wsHeight, openings, material, envelope, wallThickness) {
+function createWainscotMesh(
+    wallKey,
+    wsHeight,
+    openings,
+    material,
+    envelope,
+    wallThickness
+) {
     const sideCode = SIDE_MAP[wallKey];
     const isEndWall = sideCode === 'F' || sideCode === 'B';
     const span = isEndWall ? envelope.width : envelope.length;
@@ -55,9 +65,11 @@ function createWainscotMesh(wallKey, wsHeight, openings, material, envelope, wal
         shape.closePath();
     }
 
-    const relevantOpenings = openings.filter(op => op.side === sideCode && op.bounds.min.y < wsHeight);
+    const relevantOpenings = openings.filter(
+        (op) => op.side === sideCode && op.bounds.min.y < wsHeight
+    );
 
-    relevantOpenings.forEach(op => {
+    relevantOpenings.forEach((op) => {
         const opW = op.dimensions.width;
         const opH = Math.min(wsHeight, op.dimensions.height);
         const opY = op.bounds.min.y;
@@ -103,7 +115,11 @@ function createWainscotMesh(wallKey, wsHeight, openings, material, envelope, wal
         mesh.position.set(-envelope.width / 2 + wsThickness - offset, 0, 0);
         mesh.rotation.set(0, -Math.PI / 2, 0);
     } else if (sideCode === 'R') {
-        mesh.position.set(envelope.width / 2 - wsThickness + offset, 0, envelope.length);
+        mesh.position.set(
+            envelope.width / 2 - wsThickness + offset,
+            0,
+            envelope.length
+        );
         mesh.rotation.set(0, Math.PI / 2, 0);
     }
 
@@ -128,7 +144,16 @@ function createObject(context) {
     const wallThickness = context.model.walls.thickness;
 
     for (const wallKey of ['front', 'back', 'left', 'right']) {
-        root.add(createWainscotMesh(wallKey, wsHeight, openings, material, envelope, wallThickness));
+        root.add(
+            createWainscotMesh(
+                wallKey,
+                wsHeight,
+                openings,
+                material,
+                envelope,
+                wallThickness
+            )
+        );
     }
 
     return root;
@@ -136,14 +161,20 @@ function createObject(context) {
 
 function disposeObject(object) {
     if (!object) return;
-    object.traverse(child => {
-        if (child.isMesh) {
-            child.geometry?.dispose();
+
+    object.traverse((child) => {
+        if (!child.isMesh) return;
+        if (child.geometry) {
+            child.geometry.dispose();
+            child.geometry = null;
         }
     });
-    while (object.children.length > 0) {
-        object.remove(object.children[0]);
+
+    const children = object.children.slice();
+    for (let i = 0; i < children.length; i++) {
+        object.remove(children[i]);
     }
+
     object.removeFromParent();
 }
 

@@ -1,5 +1,8 @@
 import * as THREE from 'three';
-import { generatePanelNormalMap, applyPhysicalPanelUVs } from '../../panels/PanelProfiles.js';
+import {
+    getPanelNormalMapForUse,
+    applyPhysicalPanelUVs
+} from '../../panels/PanelProfiles.js';
 
 const SIDE_MAP = Object.freeze({
     front: 'F',
@@ -22,15 +25,12 @@ function assertContext(context) {
 
 function getWallMaterial(context) {
     const profileId = context.model?.panels?.profile || 'awr';
-    // Shared procedural texture — do not create a new one per rebuild
-    const normalMap = generatePanelNormalMap(profileId);
-    normalMap.wrapS = THREE.RepeatWrapping;
-    normalMap.wrapT = THREE.RepeatWrapping;
-    normalMap.repeat.set(
+    const normalMap = getPanelNormalMapForUse(
+        profileId,
+        'wall',
         Math.max(1, context.model?.dimensions?.length || 10),
         Math.max(1, context.model?.dimensions?.height || 5)
     );
-    normalMap.needsUpdate = true;
 
     if (typeof context.materials.get === 'function') {
         const mat = context.materials.get('wallMetal', context.colors?.wall, {
@@ -156,10 +156,8 @@ function disposeObject(object) {
             child.geometry.dispose();
             child.geometry = null;
         }
-        // Materials are shared via materials system — do not dispose here
     });
 
-    // O(n) detach instead of while+remove(0)
     const children = object.children.slice();
     for (let i = 0; i < children.length; i++) {
         object.remove(children[i]);

@@ -31,8 +31,8 @@ export const PANEL_PROFILES = Object.freeze({
     })
 });
 
-/** Cache: one CanvasTexture per profileId for the whole session. */
 const normalMapCache = new Map();
+const slotMapCache = new Map();
 
 export function getPanelProfile(profileId = 'awr') {
     return PANEL_PROFILES[profileId] || PANEL_PROFILES.awr;
@@ -50,7 +50,6 @@ function createPanelNormalMapTexture(profileId) {
         throw new Error('2D canvas context unavailable for panel normal map');
     }
 
-    // Neutral tangent-space normal (0, 0, 1)
     ctx.fillStyle = 'rgb(128, 128, 255)';
     ctx.fillRect(0, 0, size, size);
 
@@ -93,27 +92,14 @@ function createPanelNormalMapTexture(profileId) {
     return texture;
 }
 
-/**
- * Returns a shared procedural normal map for the given panel profile.
- * Safe to call on every rebuild — same GPU texture is reused.
- * Callers may mutate .repeat / .rotation on the shared texture;
- * if concurrent different repeats are needed, use clonePanelNormalMap().
- */
 export function generatePanelNormalMap(profileId = 'awr') {
     const key = getPanelProfile(profileId).id;
-
     if (!normalMapCache.has(key)) {
         normalMapCache.set(key, createPanelNormalMapTexture(key));
     }
-
     return normalMapCache.get(key);
 }
 
-/**
- * Optional: independent UV state without a second canvas rasterization.
- * Clones the Three.js Texture wrapper; image data stays shared until dispose of clone.
- * Prefer generatePanelNormalMap + set repeat on material-specific clone only when needed.
- */
 export function clonePanelNormalMap(profileId = 'awr') {
     const base = generatePanelNormalMap(profileId);
     const cloned = base.clone();
@@ -127,6 +113,33 @@ export function clonePanelNormalMap(profileId = 'awr') {
         isProceduralClone: true
     };
     return cloned;
+}
+
+/**
+ * One Texture wrapper per (profile, slot). Independent .repeat.
+ * Canvas/GPU image stays shared via generatePanelNormalMap().
+ */
+export function getPanelNormalMapForUse(
+    profileId = 'awr',
+    slot = 'default',
+    repeatX = 1,
+    repeatY = 1
+) {
+    const profileKey = getPanelProfile(profileId).id;
+    const cacheKey = `${profileKey}:${slot}`;
+
+    let texture = slotMapCache.get(cacheKey);
+    if (!texture) {
+        texture = clonePanelNormalMap(profileKey);
+        texture.userData.slot = slot;
+        slotMapCache.set(cacheKey, texture);
+    }
+
+    texture.wrapS = THREE.RepeatWrapping;
+    texture.wrapT = THREE.RepeatWrapping;
+    texture.repeat.set(repeatX, repeatY);
+    texture.needsUpdate = true;
+    return texture;
 }
 
 export function applyPhysicalPanelUVs(geometry, widthM, heightM, profileId = 'awr') {
@@ -147,8 +160,12 @@ export function applyPhysicalPanelUVs(geometry, widthM, heightM, profileId = 'aw
     uvAttr.needsUpdate = true;
 }
 
-/** Dispose all cached procedural normal maps (app teardown only). */
 export function disposePanelNormalMaps() {
+    for (const texture of slotMapCache.values()) {
+        texture.dispose();
+    }
+    slotMapCache.clear();
+
     for (const texture of normalMapCache.values()) {
         texture.dispose();
     }
