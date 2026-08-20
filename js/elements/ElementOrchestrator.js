@@ -1,22 +1,22 @@
 function assertElementDefinition(definition) {
-    if (!definition || typeof definition !== 'object')
+    if (!definition || typeof definition !== 'object') {
         throw new TypeError('Element definition is required');
-    if (typeof definition.id !== 'string' || definition.id.trim() === '')
+    }
+    if (typeof definition.id !== 'string' || definition.id.trim() === '') {
         throw new TypeError('Element definition id is required');
+    }
 }
 function assertGeometryProvider(provider) {
-    if (!provider || typeof provider.create !== 'function')
+    if (!provider || typeof provider.create !== 'function') {
         throw new TypeError('Element geometry provider must provide create()');
+    }
 }
 function assertVisualProvider(provider) {
-    if (!provider || typeof provider.create !== 'function')
+    if (!provider || typeof provider.create !== 'function') {
         throw new TypeError('Element visual provider must provide create()');
+    }
 }
-export function createElementOrchestrator({
-    definition,
-    geometry,
-    visual
-}) {
+export function createElementOrchestrator({ definition, geometry, visual }) {
     assertElementDefinition(definition);
     assertGeometryProvider(geometry);
     assertVisualProvider(visual);
@@ -33,8 +33,9 @@ export function createElementOrchestrator({
         };
     }
     function update(instance, context) {
-        if (!instance)
+        if (!instance) {
             return create(context);
+        }
         const elementGeometry = geometry.create(context);
         const nextContext = {
             ...context,
@@ -42,15 +43,20 @@ export function createElementOrchestrator({
         };
         if (typeof visual.update === 'function') {
             const elementVisual = visual.update(instance.object, nextContext);
-            return {
+            const nextInstance = {
                 id: definition.id,
                 geometry: elementGeometry,
                 object: elementVisual || instance.object
             };
+            if (nextInstance.object !== instance.object && typeof visual.dispose === 'function') {
+                visual.dispose(instance);
+            }
+            return nextInstance;
         }
         const elementVisual = visual.create(nextContext);
-        if (instance.object && typeof visual.dispose === 'function')
-            visual.dispose(instance.object);
+        if (typeof visual.dispose === 'function') {
+            visual.dispose(instance);
+        }
         return {
             id: definition.id,
             geometry: elementGeometry,
@@ -58,8 +64,9 @@ export function createElementOrchestrator({
         };
     }
     function dispose(instance) {
-        if (!instance || typeof visual.dispose !== 'function')
+        if (!instance || typeof visual.dispose !== 'function') {
             return;
+        }
         visual.dispose(instance.object || instance);
     }
     return Object.freeze({

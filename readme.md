@@ -1,4 +1,3 @@
-mkdir -p /home/workdir/artifacts/ubuild && cat > /home/workdir/artifacts/ubuild/README.md << 'EOF'
 # U-Build — Interactive 3D Steel Building Configurator
 
 A browser-based 3D configurator that lets website visitors design a steel-frame building (dimensions, roof type, colors, openings, structural add-ons), render it live in Three.js, and request a direct quote.
@@ -28,22 +27,18 @@ The system ships as a single WordPress page template with native ES modules — 
 ## Architecture (Current)
 
 The application follows a strict unidirectional data & geometry pipeline:
-
-```
 UI / State
-    ↓
+↓
 UBuildRuntime (orchestrator)
-    ↓
+↓
 BuildingModel  →  BuildingGeometry  (Single Source of Truth)
-    ↓
+↓
 Element Orchestrators (Wall, Roof, Foundation, Structural, Openings, …)
-    ↓
+↓
 Materials / Textures / Colors
-    ↓
+↓
 Three.js Scene
-```
-
-### Key principles
+text### Key principles
 
 | Layer | Responsibility |
 |-------|----------------|
@@ -58,8 +53,6 @@ Geometry invariants are validated on every rebuild (`GeometryInvariants.js`).
 ---
 
 ## Project Structure
-
-```
 ubuild/
 ├── 3d-design-tool-new.php          # WordPress page template (production entry)
 ├── js/
@@ -102,9 +95,7 @@ ubuild/
 │   └── style.css
 ├── legacy/                         # Previous flat architecture (do not use)
 └── docs (*.md)                     # Architecture notes, roadmap, tests
-```
-
-> **Important:** `js/modules/` and `legacy/` are **LEGACY**. Production code lives only under `js/`.
+text> **Important:** `js/modules/` and `legacy/` are **LEGACY**. Production code lives only under `js/`.
 
 ---
 
@@ -145,82 +136,29 @@ window.UBuild = {
   resize(),                   // handle container resize
   dispose()                   // clean up everything
 };
-```
-
 Example:
-
-```js
-UBuild.update({
+JavaScriptUBuild.update({
   dimensions: { width: 18.288, length: 30.48, height: 4.8768 },
   roof: { type: 'gabled', pitchRatio: 0.25 }
 });
-```
 
----
+Regression & Quality
 
-## Regression & Quality
+Full checklist: U-Build — tests.md
+Migration stages: U-Build — Migration Roadmap.md
+Automated smoke tests: js/testing/RegressionSuite.js
 
-- Full checklist: `U-Build — tests.md`
-- Migration stages: `U-Build — Migration Roadmap.md`
-- Automated smoke tests: `js/testing/RegressionSuite.js`
 
-Run the regression suite from the browser console after the app has loaded:
+Known Limitations / Work in Progress
 
-```js
-// (suite is imported by the app or can be loaded manually)
-```
+Migration from the old flat architecture is ongoing (see Roadmap).
+GPU resource disposal on frequent rebuilds is improved but still monitored.
+Some visual constants (panel thickness, trim profiles) are still being centralized.
+Dynamic solar lighting & seasonal environment are present but may receive further polish.
 
----
 
-## Known Limitations / Work in Progress
-
-- Migration from the old flat architecture is ongoing (see Roadmap).
-- GPU resource disposal on frequent rebuilds is improved but still monitored.
-- Some visual constants (panel thickness, trim profiles) are still being centralized.
-- Dynamic solar lighting & seasonal environment are present but may receive further polish.
-
----
-
-## License
-
+License
 Proprietary / All rights reserved (unless otherwise stated by the owner).
 
----
-
-## Credits
-
-Built with [Three.js](https://threejs.org/).
-EOF
-echo "README created successfully" && wc -l /home/workdir/artifacts/ubuild/README.md && head -30 /home/workdir/artifacts/ubuild/README.md
-README created successfully
-191 /home/workdir/artifacts/ubuild/README.md
-# U-Build — Interactive 3D Steel Building Configurator
-
-A browser-based 3D configurator that lets website visitors design a steel-frame building (dimensions, roof type, colors, openings, structural add-ons), render it live in Three.js, and request a direct quote.
-
-The system ships as a single WordPress page template with native ES modules — **no build step, no bundler, no package manager**.
-
----
-
-## Features
-
-- Live parametric 3D model of a steel building
-- Roof types: Gabled, Left-sloped, Right-sloped
-- Configurable dimensions (width / length / height), pitch, overhangs
-- Wall & roof panel profiles (AWR, SSR24, Delta Span, Elite Rib, etc.)
-- Openings: windows, walk doors, overhead, bi-fold, hydraulic doors (drag & drop)
-- Structural elements: main frames, girts, purlins, end-wall columns
-- Trims, ridge, gutters + downspouts
-- Optional: wainscot, interior liner, mezzanine, crane, awnings, driveway, logo
-- Imperial / Metric unit toggle
-- Save / Load / Share via URL (`?config=...`)
-- Quote request via Gravity Forms (with canvas snapshot)
-- Inside View, Compare, Reset tools
-- Dynamic environment & solar lighting (date / time / location)
-
----
-
-## Architecture (Current)
-
-The application follows a strict unidirectional data & geometry pipeline:
-
+Credits
+Built with Three.js.
