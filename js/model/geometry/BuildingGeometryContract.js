@@ -1,14 +1,34 @@
 const REQUIRED_SECTIONS = Object.freeze([
-    'envelope',
+    'bounds',
     'walls',
-    'roof',
     'foundation',
+    'roof',
+    'panels',
     'openings',
-    'structural'
+    'frames',
+    'girts',
+    'purlins',
+    'endWallColumns',
+    'wainscot',
+    'trims',
+    'ridge',
+    'gutters',
+    'awnings',
+    'liner',
+    'mezzanine',
+    'crane',
+    'driveway',
+    'logo'
 ]);
 
-function assertObject(value, name) {
-    if (!value || typeof value !== 'object') {
+function assertObject(
+    value,
+    name
+) {
+    if (
+        !value ||
+        typeof value !== 'object'
+    ) {
         throw new TypeError(
             `${name} must be an object`
         );
@@ -19,10 +39,14 @@ function assertSection(
     data,
     name
 ) {
-    assertObject(
-        data[name],
-        `BuildingGeometry.${name}`
-    );
+    if (
+        data[name] === undefined ||
+        data[name] === null
+    ) {
+        throw new TypeError(
+            `BuildingGeometry.${name} is required`
+        );
+    }
 }
 
 function freezeDeep(value) {
@@ -49,6 +73,12 @@ function validateGeometry(data) {
         'BuildingGeometry'
     );
 
+    if (!data.model) {
+        throw new TypeError(
+            'BuildingGeometry.model is required'
+        );
+    }
+
     for (
         const section
         of REQUIRED_SECTIONS
@@ -56,12 +86,6 @@ function validateGeometry(data) {
         assertSection(
             data,
             section
-        );
-    }
-
-    if (!data.model) {
-        throw new TypeError(
-            'BuildingGeometry.model is required'
         );
     }
 
@@ -82,23 +106,61 @@ export function createBuildingGeometryContract(
 
         model: data.model,
 
-        envelope:
-            data.envelope,
+        bounds: data.bounds,
 
-        walls:
-            data.walls,
-
-        roof:
-            data.roof,
+        walls: data.walls,
 
         foundation:
             data.foundation,
 
+        roof: data.roof,
+
+        panels: data.panels,
+
         openings:
             data.openings,
 
-        structural:
-            data.structural
+        frames:
+            data.frames,
+
+        girts:
+            data.girts,
+
+        purlins:
+            data.purlins,
+
+        endWallColumns:
+            data.endWallColumns,
+
+        wainscot:
+            data.wainscot,
+
+        trims:
+            data.trims,
+
+        ridge:
+            data.ridge,
+
+        gutters:
+            data.gutters,
+
+        awnings:
+            data.awnings,
+
+        liner:
+            data.liner,
+
+        mezzanine:
+            data.mezzanine,
+
+        crane:
+            data.crane,
+
+        driveway:
+            data.driveway,
+
+        logo:
+            data.logo
     });
 }
 
