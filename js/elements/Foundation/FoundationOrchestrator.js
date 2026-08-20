@@ -11,11 +11,28 @@ function assertContext(context) {
         );
     }
 
-    if (!context.materials?.concrete) {
-        throw new Error(
-            'Concrete material is required'
+    if (!context.materials) {
+        throw new TypeError(
+            'Material system is required'
         );
     }
+}
+
+function resolveMaterial(context) {
+    if (typeof context.materials.get === 'function') {
+        return context.materials.get(
+            'concrete',
+            context.colors?.concrete || '#B8B8B8'
+        );
+    }
+
+    if (context.materials.concrete) {
+        return context.materials.concrete;
+    }
+
+    throw new Error(
+        'Concrete material is required'
+    );
 }
 
 function createMesh(context) {
@@ -26,6 +43,7 @@ function createMesh(context) {
     }
 
     const bounds = foundation.bounds;
+    const material = resolveMaterial(context);
 
     const geometry = new THREE.BoxGeometry(
         bounds.width,
@@ -35,7 +53,7 @@ function createMesh(context) {
 
     const mesh = new THREE.Mesh(
         geometry,
-        context.materials.concrete
+        material
     );
 
     mesh.name = 'foundation';
@@ -46,6 +64,9 @@ function createMesh(context) {
         bounds.center.z
     );
 
+    mesh.receiveShadow = true;
+    mesh.castShadow = true;
+
     return mesh;
 }
 
@@ -54,8 +75,7 @@ function updateMesh(mesh, context) {
         return createMesh(context);
     }
 
-    const foundation =
-        context.geometry.foundation;
+    const foundation = context.geometry.foundation;
 
     if (!foundation.enabled) {
         disposeMesh(mesh);
@@ -63,6 +83,7 @@ function updateMesh(mesh, context) {
     }
 
     const bounds = foundation.bounds;
+    const material = resolveMaterial(context);
 
     mesh.geometry.dispose();
 
@@ -71,6 +92,8 @@ function updateMesh(mesh, context) {
         bounds.height,
         bounds.length
     );
+
+    mesh.material = material;
 
     mesh.position.set(
         bounds.center.x,
@@ -95,13 +118,11 @@ export const FoundationOrchestrator = Object.freeze({
 
     create(context) {
         assertContext(context);
-
         return createMesh(context);
     },
 
     update(mesh, context) {
         assertContext(context);
-
         return updateMesh(
             mesh,
             context

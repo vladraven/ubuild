@@ -1,3 +1,4 @@
+// js/model/geometry/GeometryInvariants.js
 const EPSILON = 1e-9;
 
 function assertFinite(value, path) {
@@ -109,6 +110,10 @@ function assertEnvelope(
     model,
     envelope
 ) {
+    if (!envelope) {
+        throw new TypeError('BuildingEnvelope is required');
+    }
+
     assertBounds(
         envelope.bounds,
         'envelope.bounds'
@@ -157,18 +162,6 @@ function assertWall(
     if (!wall.corners) {
         throw new Error(
             `Missing wall corners: ${name}`
-        );
-    }
-
-    if (!wall.topEdge) {
-        throw new Error(
-            `Missing wall topEdge: ${name}`
-        );
-    }
-
-    if (!wall.bottomEdge) {
-        throw new Error(
-            `Missing wall bottomEdge: ${name}`
         );
     }
 }
@@ -347,15 +340,15 @@ function assertRoof(
     }
 
     assertClose(
-        roof.eaves.left.front.z,
-        roof.eaves.left.back.z,
-        'left eave orientation'
+        roof.eaves.left.front.x,
+        -envelope.width / 2 - model.roof.overhangs.left,
+        'left eave X position'
     );
 
     assertClose(
-        roof.eaves.right.front.z,
-        roof.eaves.right.back.z,
-        'right eave orientation'
+        roof.eaves.right.front.x,
+        envelope.width / 2 + model.roof.overhangs.right,
+        'right eave X position'
     );
 
     assertClose(
@@ -559,17 +552,15 @@ function assertStructural(
         const girt
         of geometry.girts
     ) {
-        for (const side of [
-            'front',
-            'back',
-            'left',
-            'right'
-        ]) {
-            if (!girt[side]) {
-                throw new Error(
-                    `Girt is missing ${side} line`
-                );
-            }
+        if (
+            !Array.isArray(girt.frontSegments) ||
+            !Array.isArray(girt.backSegments) ||
+            !Array.isArray(girt.leftSegments) ||
+            !Array.isArray(girt.rightSegments)
+        ) {
+            throw new Error(
+                'Girt is missing segments'
+            );
         }
     }
 

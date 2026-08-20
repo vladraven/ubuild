@@ -1,3 +1,5 @@
+// js/model/geometry/buildingGeometry.js
+
 import { createBuildingGeometryContract } from './BuildingGeometryContract.js';
 import { createBuildingEnvelope } from './BuildingEnvelope.js';
 import { createWallGeometry } from './WallGeometry.js';
@@ -11,30 +13,10 @@ import { createCraneGeometry } from './CraneGeometry.js';
 import { createDrivewayGeometry } from './DrivewayGeometry.js';
 import { createLinerGeometry } from './LinerGeometry.js';
 import { createGuttersGeometry } from './GuttersGeometry.js';
+import { createTrimsGeometry } from './TrimsGeometry.js';
 import { createPanelSystem } from '../panels/PanelSystem.js';
 import { createPanelGeometry } from '../panels/PanelGeometry.js';
 import { validateGeometryInvariants } from './GeometryInvariants.js';
-
-function createTrimsGeometry(roof, envelope) {
-    const eaves = [
-        { side: 'L', edge: roof.eaves.left.edge },
-        { side: 'R', edge: roof.eaves.right.edge }
-    ];
-
-    const rake = [
-        { side: 'F', edge: roof.edges.front },
-        { side: 'B', edge: roof.edges.back }
-    ];
-
-    const ridge = roof.ridge ? [{ edge: roof.ridge.edge }] : [];
-
-    return Object.freeze({
-        eaves: Object.freeze(eaves),
-        rake: Object.freeze(rake),
-        ridge: Object.freeze(ridge),
-        roofEdges: Object.freeze([roof.edges.front, roof.edges.back])
-    });
-}
 
 function createLogoGeometry(model, envelope) {
     const config = model.logo;
@@ -84,7 +66,7 @@ export function createBuildingGeometry(model, options = {}) {
     const driveway = createDrivewayGeometry(model, envelope);
     const liner = createLinerGeometry(model, envelope, openings);
     const gutters = createGuttersGeometry(model, envelope, roof);
-    const trims = createTrimsGeometry(roof, envelope);
+    const trims = createTrimsGeometry(model, envelope, roof);
     const logo = createLogoGeometry(model, envelope);
 
     const geometrySource = {

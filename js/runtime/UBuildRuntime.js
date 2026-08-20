@@ -6,7 +6,7 @@ import { createElementRegistry } from '../elements/ElementRegistry.js';
 
 import { WallOrchestrator } from '../elements/wall/WallOrchestrator.js';
 import { RoofOrchestrator } from '../elements/roof/RoofOrchestrator.js';
-import { FoundationOrchestrator } from '../elements/Foundation/FoundationOrchestrator.js';
+import { FoundationOrchestrator } from '../elements/foundation/FoundationOrchestrator.js';
 import { StructuralOrchestrator } from '../elements/structural/StructuralOrchestrator.js';
 import { OpeningOrchestrator } from '../elements/opening/OpeningOrchestrator.js';
 import { WainscotOrchestrator } from '../elements/wainscot/WainscotOrchestrator.js';
