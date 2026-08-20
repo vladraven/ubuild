@@ -39,6 +39,10 @@ import {
 } from './CraneGeometry.js';
 
 import {
+    createDrivewayGeometry
+} from './DrivewayGeometry.js';
+
+import {
     createPanelSystem
 } from '../panels/PanelSystem.js';
 
@@ -130,6 +134,12 @@ export function createBuildingGeometry(
             roof
         );
 
+    const driveway =
+        createDrivewayGeometry(
+            model,
+            envelope
+        );
+
     const geometrySource = {
         model,
 
@@ -146,13 +156,28 @@ export function createBuildingGeometry(
 
         openings,
 
-        ...structural,
+        frames:
+            structural.frames,
+
+        girts:
+            structural.girts,
+
+        purlins:
+            structural.purlins,
+
+        endWallColumns:
+            structural.endWallColumns,
+
+        structuralBounds:
+            structural.bounds,
 
         awnings,
 
         mezzanine,
 
-        crane
+        crane,
+
+        driveway
     };
 
     const panelSystem =
@@ -188,9 +213,6 @@ export function createBuildingGeometry(
 
             liner:
                 options.liner ?? null,
-
-            driveway:
-                options.driveway ?? null,
 
             logo:
                 options.logo ?? null
