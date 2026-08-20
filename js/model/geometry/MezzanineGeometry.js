@@ -105,6 +105,46 @@ function createColumnPositions(
     );
 }
 
+function createColumnAnchors(
+    positions,
+    height,
+    radius
+) {
+    return Object.freeze(
+        positions.map(
+            (position, index) =>
+                Object.freeze({
+                    id:
+                        `column-${index + 1}`,
+
+                    anchor:
+                        point(
+                            position.x,
+                            0,
+                            position.z
+                        ),
+
+                    base:
+                        point(
+                            position.x,
+                            0,
+                            position.z
+                        ),
+
+                    top:
+                        point(
+                            position.x,
+                            height,
+                            position.z
+                        ),
+
+                    height,
+                    radius
+                })
+        )
+    );
+}
+
 function validate(
     value,
     name
@@ -154,7 +194,12 @@ export function createMezzanineGeometry(
 
             bounds: null,
 
+            floor: null,
+
             columnPositions:
+                Object.freeze([]),
+
+            columns:
                 Object.freeze([]),
 
             color:
@@ -201,6 +246,10 @@ export function createMezzanineGeometry(
         config.columnSpacing ??
         6.096;
 
+    const columnRadius =
+        config.columnRadius ??
+        0.1;
+
     validate(
         width,
         'mezzanine.width'
@@ -224,6 +273,11 @@ export function createMezzanineGeometry(
     validate(
         columnSpacing,
         'mezzanine.columnSpacing'
+    );
+
+    validate(
+        columnRadius,
+        'mezzanine.columnRadius'
     );
 
     if (
@@ -251,12 +305,65 @@ export function createMezzanineGeometry(
         );
     }
 
+    const bounds =
+        createBounds(
+            width,
+            length,
+            height,
+            zOffset
+        );
+
     const columnPositions =
         createColumnPositions(
             width,
             length,
             columnSpacing
         );
+
+    const columnHeight =
+        height -
+        floorThickness;
+
+    const columns =
+        createColumnAnchors(
+            columnPositions,
+            columnHeight,
+            columnRadius
+        );
+
+    const floor =
+        Object.freeze({
+            anchor:
+                point(
+                    0,
+                    height -
+                        floorThickness,
+                    zOffset
+                ),
+
+            top:
+                point(
+                    0,
+                    height,
+                    zOffset
+                ),
+
+            bottom:
+                point(
+                    0,
+                    height -
+                        floorThickness,
+                    zOffset
+                ),
+
+            width,
+            length,
+
+            thickness:
+                floorThickness,
+
+            bounds
+        });
 
     return Object.freeze({
         enabled: true,
@@ -269,24 +376,22 @@ export function createMezzanineGeometry(
 
         floorThickness,
 
-        bounds:
-            createBounds(
-                width,
-                length,
-                height,
-                zOffset
-            ),
+        bounds,
+
+        floor,
 
         columnPositions,
 
-        column: Object.freeze({
-            radius:
-                config.columnRadius ??
-                0.1,
+        columns,
 
-            spacing:
-                columnSpacing
-        }),
+        column:
+            Object.freeze({
+                radius:
+                    columnRadius,
+
+                spacing:
+                    columnSpacing
+            }),
 
         color:
             config.color ??
