@@ -10,11 +10,6 @@ const PURLIN_BEAM = 0.08;
 const END_COLUMN_BEAM = 0.14;
 const CLEARANCE = 0.002;
 
-const END_FRAME_ROOF_CLEARANCE = 0.025;
-
-const PURLIN_END_CLEARANCE = 0.12;
-const PURLIN_ROOF_CLEARANCE = 0.035;
-
 function point(
     x,
     y,
@@ -103,8 +98,7 @@ function createFrame(
     roof,
     z,
     index,
-    wallThickness,
-    isEndFrame
+    wallThickness
 ) {
     const halfWidth =
         envelope.width / 2;
@@ -164,34 +158,6 @@ function createFrame(
                 z
             );
 
-        const endFrameDrop =
-            isEndFrame
-                ? (
-                    FRAME_BEAM / 2 +
-                    END_FRAME_ROOF_CLEARANCE
-                )
-                : 0;
-
-        const leftRafterStart =
-            isEndFrame
-                ? point(
-                    leftX,
-                    baseHeight -
-                        endFrameDrop,
-                    z
-                )
-                : leftTop;
-
-        const rightRafterEnd =
-            isEndFrame
-                ? point(
-                    rightX,
-                    baseHeight -
-                        endFrameDrop,
-                    z
-                )
-                : rightTop;
-
         return Object.freeze({
             index,
             position: z,
@@ -204,14 +170,14 @@ function createFrame(
 
             leftRafter:
                 line(
-                    leftRafterStart,
+                    leftTop,
                     ridge
                 ),
 
             rightRafter:
                 line(
                     ridge,
-                    rightRafterEnd
+                    rightTop
                 ),
 
             rightColumn:
@@ -233,25 +199,6 @@ function createFrame(
                 z
             );
 
-        const endFrameDrop =
-            isEndFrame
-                ? (
-                    FRAME_BEAM / 2 +
-                    END_FRAME_ROOF_CLEARANCE
-                )
-                : 0;
-
-        const rafterStart =
-            isEndFrame
-                ? point(
-                    leftX,
-                    baseHeight +
-                        roof.rise -
-                        endFrameDrop,
-                    z
-                )
-                : leftHighTop;
-
         return Object.freeze({
             index,
             position: z,
@@ -264,7 +211,7 @@ function createFrame(
 
             rafter:
                 line(
-                    rafterStart,
+                    leftHighTop,
                     rightTop
                 ),
 
@@ -284,25 +231,6 @@ function createFrame(
             z
         );
 
-    const endFrameDrop =
-        isEndFrame
-            ? (
-                FRAME_BEAM / 2 +
-                END_FRAME_ROOF_CLEARANCE
-            )
-            : 0;
-
-    const rafterEnd =
-        isEndFrame
-            ? point(
-                rightX,
-                baseHeight +
-                    roof.rise -
-                    endFrameDrop,
-                z
-            )
-            : rightHighTop;
-
     return Object.freeze({
         index,
         position: z,
@@ -316,7 +244,7 @@ function createFrame(
         rafter:
             line(
                 leftTop,
-                rafterEnd
+                rightHighTop
             ),
 
         rightColumn:
@@ -740,17 +668,20 @@ function createGirts(
     const baseHeight =
         envelope.height;
 
-    const maxHeight =
-        roof.type === 'gabled'
-            ? baseHeight +
-                roof.rise
-            : baseHeight;
+    /*
+     * Girts are wall members.
+     *
+     * They must stop at the top of the wall.
+     * They must NOT continue into the gable
+     * triangle.
+     */
+    const maxWallHeight =
+        baseHeight;
 
     const elevations =
         createPositions(
             spacing,
-            maxHeight -
-                spacing / 2,
+            maxWallHeight,
             spacing
         );
 
@@ -766,28 +697,42 @@ function createGirts(
                     elevation:
                         y,
 
+                    /*
+                     * FRONT:
+                     * restricted to wall height.
+                     */
+
                     frontSegments:
                         Object.freeze(
-                            createSideSegments(
-                                'F',
-                                y,
-                                envelope,
-                                roof,
-                                openings,
-                                wallThickness
-                            )
+                            y <= baseHeight
+                                ? createSideSegments(
+                                    'F',
+                                    y,
+                                    envelope,
+                                    roof,
+                                    openings,
+                                    wallThickness
+                                )
+                                : []
                         ),
+
+                    /*
+                     * BACK:
+                     * restricted to wall height.
+                     */
 
                     backSegments:
                         Object.freeze(
-                            createSideSegments(
-                                'B',
-                                y,
-                                envelope,
-                                roof,
-                                openings,
-                                wallThickness
-                            )
+                            y <= baseHeight
+                                ? createSideSegments(
+                                    'B',
+                                    y,
+                                    envelope,
+                                    roof,
+                                    openings,
+                                    wallThickness
+                                )
+                                : []
                         ),
 
                     leftSegments:
@@ -841,13 +786,12 @@ function createPurlins(
 
     const result = [];
 
-    /*
-     * Purlins must not reach the front/rear
-     * exterior faces.
-     *
-     * They terminate inside the structural
-     * frame instead.
-     */
+    const PURLIN_END_CLEARANCE =
+        0.12;
+
+    const PURLIN_ROOF_CLEARANCE =
+        0.035;
+
     const startZ =
         PURLIN_END_CLEARANCE;
 
@@ -863,10 +807,6 @@ function createPurlins(
         );
     }
 
-    /*
-     * The geometry is deliberately placed
-     * below the roof plane.
-     */
     const underRoof =
         PURLIN_BEAM / 2 +
         PURLIN_ROOF_CLEARANCE;
@@ -1073,89 +1013,6 @@ function createPurlins(
     );
 }
 
-function getRoofHeightAtX(
-    x,
-    envelope,
-    roof
-) {
-    const halfWidth =
-        envelope.width / 2;
-
-    const baseHeight =
-        envelope.height;
-
-    if (
-        roof.type === 'gabled'
-    ) {
-        const distance =
-            Math.abs(x);
-
-        const fraction =
-            Math.min(
-                1,
-                Math.max(
-                    0,
-                    distance /
-                        halfWidth
-                )
-            );
-
-        return (
-            baseHeight +
-            roof.rise *
-                (
-                    1 -
-                    fraction
-                )
-        );
-    }
-
-    if (
-        roof.type === 'left-sloped'
-    ) {
-        const t =
-            (
-                x +
-                halfWidth
-            ) /
-            envelope.width;
-
-        return (
-            baseHeight +
-            roof.rise *
-                (
-                    1 -
-                    Math.min(
-                        1,
-                        Math.max(
-                            0,
-                            t
-                        )
-                    )
-                )
-        );
-    }
-
-    const t =
-        (
-            x +
-            halfWidth
-        ) /
-        envelope.width;
-
-    return (
-        baseHeight +
-        roof.rise *
-            Math.min(
-                1,
-                Math.max(
-                    0,
-                    t
-                )
-            )
-    );
-}
-
 function createEndWallColumns(
     envelope,
     roof,
@@ -1185,20 +1042,11 @@ function createEndWallColumns(
         length -
         wallOffset;
 
-    const roofHeight =
-        getRoofHeightAtX(
-            quarterWidth,
-            envelope,
-            roof
-        );
-
     const topHeight =
-        Math.max(
-            baseHeight,
-            roofHeight -
-                END_COLUMN_BEAM / 2 -
-                0.02
-        );
+        roof.type === 'gabled'
+            ? baseHeight +
+                roof.rise / 2
+            : baseHeight;
 
     return Object.freeze([
         Object.freeze({
@@ -1320,9 +1168,6 @@ export function createStructuralGeometry(
             frameSpacing
         );
 
-    const frameCount =
-        framePositions.length;
-
     const frames =
         framePositions.map(
             (
@@ -1334,10 +1179,7 @@ export function createStructuralGeometry(
                     roof,
                     z,
                     index,
-                    wallThickness,
-                    index === 0 ||
-                    index ===
-                        frameCount - 1
+                    wallThickness
                 )
         );
 

@@ -123,6 +123,89 @@ function createProfileMesh(
     return mesh;
 }
 
+/**
+ * L-shaped corner (angle) trim — continuous vertical profile
+ * that wraps the outside corner of two walls.
+ * Matches legacy createCornerTrimGeo behaviour.
+ *
+ * sx, sz: outward wall direction signs for this corner
+ *   (e.g. FL: sx=-1, sz=-1 when front is -Z).
+ */
+function createCornerTrimMesh(corner, material) {
+    if (
+        !corner ||
+        !corner.edge ||
+        !corner.edge.start ||
+        !corner.edge.end
+    ) {
+        return null;
+    }
+
+    const start = corner.edge.start;
+    const end = corner.edge.end;
+    const colH = Math.abs(end.y - start.y);
+
+    if (colH <= 0.001) {
+        return null;
+    }
+
+    const tS = 0.10; // overall leg length (same as legacy TRIM_CONFIG.tS)
+    const t = 0.008; // metal thickness
+
+    // Outward signs; default to -1 if missing
+    const sx = corner.sx != null ? corner.sx : -1;
+    const sz = corner.sz != null ? corner.sz : -1;
+
+    // Arms of the L point inward from the exterior corner
+    // (dir = -outward), so the profile covers the outside faces.
+    const dirX = -sx;
+    const dirZ = -sz;
+
+    const shape = new THREE.Shape();
+    shape.moveTo(0, 0);
+    shape.lineTo(dirX * tS, 0);
+    shape.lineTo(dirX * tS, dirZ * t);
+    shape.lineTo(dirX * t, dirZ * t);
+    shape.lineTo(dirX * t, dirZ * tS);
+    shape.lineTo(0, dirZ * tS);
+    shape.closePath();
+
+    const geometry = new THREE.ExtrudeGeometry(shape, {
+        depth: colH,
+        bevelEnabled: false,
+        steps: 1,
+        curveSegments: 1
+    });
+
+    // Extrude is along +Z; rotate so extrusion becomes +Y (up the wall)
+    geometry.rotateX(-Math.PI / 2);
+
+    // Flip Z so the profile faces the correct exterior side
+    // (same post-process as legacy)
+    const pos = geometry.attributes.position;
+    for (let i = 0; i < pos.count; i++) {
+        pos.setZ(i, -pos.getZ(i));
+    }
+    pos.needsUpdate = true;
+    geometry.computeVertexNormals();
+
+    const mesh = new THREE.Mesh(geometry, material);
+    mesh.name = corner.id || 'corner-trim';
+
+    // Place at the base of the corner (y = 0), xz at wall corner
+    mesh.position.set(
+        start.x,
+        Math.min(start.y, end.y),
+        start.z
+    );
+
+    mesh.castShadow = true;
+    mesh.receiveShadow = true;
+    mesh.renderOrder = 8;
+
+    return mesh;
+}
+
 function createRidgeMesh(
     ridge,
     material
@@ -398,11 +481,9 @@ function createObject(
         of trimsData.corners
     ) {
         const mesh =
-            createProfileMesh(
-                corner.edge,
-                trimMaterial,
-                0.08,
-                0.08
+            createCornerTrimMesh(
+                corner,
+                trimMaterial
             );
 
         if (mesh) {

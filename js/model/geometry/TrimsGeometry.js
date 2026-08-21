@@ -386,11 +386,18 @@ export function createTrimsGeometry(
 
     /*
      * CORNER TRIMS
+     *
+     * L-shaped angle trims that wrap the outside
+     * corner of the walls. sx / sz indicate the
+     * outward wall directions so the L opens
+     * correctly (matches legacy createCornerTrimGeo).
      */
 
     const corners = [
         Object.freeze({
             id: 'corner-FL',
+            sx: -1,
+            sz: -1, // front is -Z in new coord (z=0)
 
             edge: segment(
                 point(
@@ -409,6 +416,8 @@ export function createTrimsGeometry(
 
         Object.freeze({
             id: 'corner-FR',
+            sx: 1,
+            sz: -1,
 
             edge: segment(
                 point(
@@ -427,6 +436,8 @@ export function createTrimsGeometry(
 
         Object.freeze({
             id: 'corner-BL',
+            sx: -1,
+            sz: 1,
 
             edge: segment(
                 point(
@@ -445,6 +456,8 @@ export function createTrimsGeometry(
 
         Object.freeze({
             id: 'corner-BR',
+            sx: 1,
+            sz: 1,
 
             edge: segment(
                 point(
