@@ -7,6 +7,8 @@ const BEAM = Object.freeze({
     endColumn: 0.12
 });
 
+const STRUCTURAL_INSET = 0.08;
+
 function assertContext(context) {
     if (!context || typeof context !== 'object') {
         throw new TypeError('Element context is required');
@@ -421,22 +423,9 @@ function createColumnInnerFlange(
             material
         );
 
-    /*
-     * The inner flange is placed immediately
-     * inside the structural reference axis.
-     *
-     * LEFT:
-     *      flange -> +X
-     *
-     * RIGHT:
-     *      flange -> -X
-     */
-
     mesh.position.set(
         sign *
-            (
-                flangeThickness / 2
-            ),
+            (flangeThickness / 2),
         height / 2,
         0
     );
@@ -485,23 +474,6 @@ function createColumnOuterFlange(
             material
         );
 
-    /*
-     * The flange follows the OUTER edge
-     * of the tapered web.
-     *
-     * LEFT:
-     *
-     *       /
-     *      /
-     *     /
-     *
-     * RIGHT:
-     *
-     *     \
-     *      \
-     *       \
-     */
-
     mesh.position.set(
         sign *
             (
@@ -513,13 +485,6 @@ function createColumnOuterFlange(
         height / 2,
         0
     );
-
-    /*
-     * Do not mirror a finished mesh.
-     *
-     * Explicitly assign the correct rotation
-     * for each handedness.
-     */
 
     mesh.rotation.z =
         sign > 0
@@ -546,54 +511,37 @@ function createSolidColumn(
         return null;
     }
 
-    const start =
+    const rawStart =
         new THREE.Vector3(
             lineSeg.start.x,
             lineSeg.start.y,
             lineSeg.start.z
         );
 
-    const end =
+    const rawEnd =
         new THREE.Vector3(
             lineSeg.end.x,
             lineSeg.end.y,
             lineSeg.end.z
         );
 
-    const direction =
-        end.clone().sub(start);
+    const start =
+        rawStart.y <= rawEnd.y
+            ? rawStart
+            : rawEnd;
+
+    const end =
+        rawStart.y <= rawEnd.y
+            ? rawEnd
+            : rawStart;
 
     const height =
-        direction.length();
+        end.y -
+        start.y;
 
     if (height <= 0.001) {
         return null;
     }
-
-    const dBottom =
-        dimensions.dBottom;
-
-    const dTop =
-        dimensions.dTop;
-
-    const flangeWidth =
-        dimensions.flangeWidth;
-
-    const flangeThickness =
-        dimensions.flangeThickness;
-
-    const webThickness =
-        dimensions.webThickness;
-
-    /*
-     * The handedness is determined ONLY by
-     * the column identity.
-     *
-     * LEFT  = +X
-     * RIGHT = -X
-     *
-     * There is deliberately no scale.x = -1.
-     */
 
     const sign =
         side === 'left'
@@ -603,8 +551,8 @@ function createSolidColumn(
     const shape =
         createColumnShape(
             sign,
-            dBottom,
-            dTop,
+            dimensions.dBottom,
+            dimensions.dTop,
             height
         );
 
@@ -612,7 +560,7 @@ function createSolidColumn(
         createColumnWeb(
             shape,
             material,
-            webThickness
+            dimensions.webThickness
         );
 
     const innerFlange =
@@ -620,19 +568,19 @@ function createSolidColumn(
             sign,
             height,
             material,
-            flangeWidth,
-            flangeThickness
+            dimensions.flangeWidth,
+            dimensions.flangeThickness
         );
 
     const outerFlange =
         createColumnOuterFlange(
             sign,
-            dBottom,
-            dTop,
+            dimensions.dBottom,
+            dimensions.dTop,
             height,
             material,
-            flangeWidth,
-            flangeThickness
+            dimensions.flangeWidth,
+            dimensions.flangeThickness
         );
 
     const group =
@@ -647,66 +595,270 @@ function createSolidColumn(
         outerFlange
     );
 
-    /*
-     * CRITICAL:
-     *
-     * The structural line is the mounting axis.
-     *
-     * We do NOT center the bounding box.
-     *
-     * We do NOT shift the complete profile
-     * by dTop / 2.
-     *
-     * We do NOT mirror the group.
-     */
-
     group.position.copy(
         start
     );
 
     /*
-     * Current structural columns are vertical.
+     * The profile is already handed correctly.
      *
-     * Only compensate for an actual non-vertical
-     * structural line.
+     * Do not mirror the group.
      *
-     * There is intentionally NO rotation around
-     * the Y axis. That was one of the causes of
-     * the apparent mirrored/turned second column.
+     * Do not rotate around Y.
      */
 
-    const vertical =
-        new THREE.Vector3(
-            0,
-            height,
-            0
-        );
+    group.traverse(
+        child => {
+            if (!child.isMesh) {
+                return;
+            }
 
-    const actual =
-        direction.clone();
+            child.castShadow = true;
+            child.receiveShadow = true;
+        }
+    );
 
-    const horizontal =
-        new THREE.Vector3(
-            actual.x,
-            0,
-            actual.z
-        );
+    return group;
+}
+
+function moveLineZ(
+    lineSeg,
+    delta
+) {
+    if (
+        !lineSeg ||
+        !lineSeg.start ||
+        !lineSeg.end
+    ) {
+        return null;
+    }
+
+    return {
+        start: {
+            x: lineSeg.start.x,
+            y: lineSeg.start.y,
+            z: lineSeg.start.z + delta
+        },
+        end: {
+            x: lineSeg.end.x,
+            y: lineSeg.end.y,
+            z: lineSeg.end.z + delta
+        }
+    };
+}
+
+function createFrameGroup(
+    frame,
+    frameIndex,
+    frameCount,
+    material,
+    columnDimensions
+) {
+    const group =
+        new THREE.Group();
+
+    group.name =
+        `frame-${frame.index}`;
+
+    /*
+     * The first and last frame are boundary frames.
+     *
+     * The column profile has a physical depth
+     * along Z because its flange is extruded.
+     *
+     * Therefore moving the frame by only INSET
+     * is insufficient: the flange would still
+     * intersect the front/back wall.
+     *
+     * Keep the complete frame coherent and move
+     * it inward by the wall inset plus half of
+     * the actual flange depth.
+     */
+
+    let frameOffsetZ = 0;
 
     if (
-        horizontal.lengthSq() >
-        0.00000001
+        frameIndex === 0
     ) {
-        const quaternion =
-            new THREE.Quaternion();
+        frameOffsetZ =
+            STRUCTURAL_INSET +
+            columnDimensions.flangeWidth / 2;
+    } else if (
+        frameIndex === frameCount - 1
+    ) {
+        frameOffsetZ =
+            -(
+                STRUCTURAL_INSET +
+                columnDimensions.flangeWidth / 2
+            );
+    }
 
-        quaternion.setFromUnitVectors(
-            vertical.normalize(),
-            actual.normalize()
-        );
+    /*
+     * LEFT COLUMN
+     */
 
-        group.quaternion.copy(
-            quaternion
-        );
+    if (
+        frame.leftColumn
+    ) {
+        const columnLine =
+            frameOffsetZ !== 0
+                ? moveLineZ(
+                    frame.leftColumn,
+                    frameOffsetZ
+                )
+                : frame.leftColumn;
+
+        const column =
+            createSolidColumn(
+                columnLine,
+                material,
+                'left',
+                columnDimensions
+            );
+
+        if (column) {
+            group.add(
+                column
+            );
+        }
+    }
+
+    /*
+     * LEFT RAFTER
+     */
+
+    if (
+        frame.leftRafter
+    ) {
+        const rafterLine =
+            frameOffsetZ !== 0
+                ? moveLineZ(
+                    frame.leftRafter,
+                    frameOffsetZ
+                )
+                : frame.leftRafter;
+
+        const offset =
+            getRoofInteriorOffset(
+                rafterLine,
+                BEAM.frame
+            );
+
+        const beam =
+            createBeam(
+                rafterLine,
+                material,
+                BEAM.frame,
+                offset
+            );
+
+        if (beam) {
+            group.add(
+                beam
+            );
+        }
+    }
+
+    /*
+     * RIGHT RAFTER
+     */
+
+    if (
+        frame.rightRafter
+    ) {
+        const rafterLine =
+            frameOffsetZ !== 0
+                ? moveLineZ(
+                    frame.rightRafter,
+                    frameOffsetZ
+                )
+                : frame.rightRafter;
+
+        const offset =
+            getRoofInteriorOffset(
+                rafterLine,
+                BEAM.frame
+            );
+
+        const beam =
+            createBeam(
+                rafterLine,
+                material,
+                BEAM.frame,
+                offset
+            );
+
+        if (beam) {
+            group.add(
+                beam
+            );
+        }
+    }
+
+    /*
+     * RIGHT COLUMN
+     */
+
+    if (
+        frame.rightColumn
+    ) {
+        const columnLine =
+            frameOffsetZ !== 0
+                ? moveLineZ(
+                    frame.rightColumn,
+                    frameOffsetZ
+                )
+                : frame.rightColumn;
+
+        const column =
+            createSolidColumn(
+                columnLine,
+                material,
+                'right',
+                columnDimensions
+            );
+
+        if (column) {
+            group.add(
+                column
+            );
+        }
+    }
+
+    /*
+     * SINGLE-SLOPE RAFTER
+     */
+
+    if (
+        frame.rafter
+    ) {
+        const rafterLine =
+            frameOffsetZ !== 0
+                ? moveLineZ(
+                    frame.rafter,
+                    frameOffsetZ
+                )
+                : frame.rafter;
+
+        const offset =
+            getRoofInteriorOffset(
+                rafterLine,
+                BEAM.frame
+            );
+
+        const beam =
+            createBeam(
+                rafterLine,
+                material,
+                BEAM.frame,
+                offset
+            );
+
+        if (beam) {
+            group.add(
+                beam
+            );
+        }
     }
 
     return group;
@@ -745,157 +897,34 @@ function createObject(
             context
         );
 
+    const frames =
+        context.structuralGeometry
+            .frames ||
+        [];
+
     /*
      * MAIN FRAMES
      */
 
     if (
-        vis.frames !== false &&
-        context.structuralGeometry.frames
+        vis.frames !== false
     ) {
         for (
-            const frame
-            of context.structuralGeometry.frames
+            let frameIndex = 0;
+            frameIndex < frames.length;
+            frameIndex++
         ) {
+            const frame =
+                frames[frameIndex];
+
             const group =
-                new THREE.Group();
-
-            group.name =
-                `frame-${frame.index}`;
-
-            /*
-             * LEFT MAIN COLUMN
-             */
-
-            if (
-                frame.leftColumn
-            ) {
-                const column =
-                    createSolidColumn(
-                        frame.leftColumn,
-                        material,
-                        'left',
-                        columnDimensions
-                    );
-
-                if (column) {
-                    group.add(
-                        column
-                    );
-                }
-            }
-
-            /*
-             * LEFT RAFTER
-             *
-             * Unchanged structural behavior.
-             */
-
-            if (
-                frame.leftRafter
-            ) {
-                const offset =
-                    getRoofInteriorOffset(
-                        frame.leftRafter,
-                        BEAM.frame
-                    );
-
-                const beam =
-                    createBeam(
-                        frame.leftRafter,
-                        material,
-                        BEAM.frame,
-                        offset
-                    );
-
-                if (beam) {
-                    group.add(
-                        beam
-                    );
-                }
-            }
-
-            /*
-             * RIGHT RAFTER
-             *
-             * Unchanged structural behavior.
-             */
-
-            if (
-                frame.rightRafter
-            ) {
-                const offset =
-                    getRoofInteriorOffset(
-                        frame.rightRafter,
-                        BEAM.frame
-                    );
-
-                const beam =
-                    createBeam(
-                        frame.rightRafter,
-                        material,
-                        BEAM.frame,
-                        offset
-                    );
-
-                if (beam) {
-                    group.add(
-                        beam
-                    );
-                }
-            }
-
-            /*
-             * RIGHT MAIN COLUMN
-             */
-
-            if (
-                frame.rightColumn
-            ) {
-                const column =
-                    createSolidColumn(
-                        frame.rightColumn,
-                        material,
-                        'right',
-                        columnDimensions
-                    );
-
-                if (column) {
-                    group.add(
-                        column
-                    );
-                }
-            }
-
-            /*
-             * SINGLE-SLOPE RAFTER
-             *
-             * Unchanged.
-             */
-
-            if (
-                frame.rafter
-            ) {
-                const offset =
-                    getRoofInteriorOffset(
-                        frame.rafter,
-                        BEAM.frame
-                    );
-
-                const beam =
-                    createBeam(
-                        frame.rafter,
-                        material,
-                        BEAM.frame,
-                        offset
-                    );
-
-                if (beam) {
-                    group.add(
-                        beam
-                    );
-                }
-            }
+                createFrameGroup(
+                    frame,
+                    frameIndex,
+                    frames.length,
+                    material,
+                    columnDimensions
+                );
 
             root.add(
                 group
@@ -905,8 +934,6 @@ function createObject(
 
     /*
      * GIRTS
-     *
-     * Unchanged.
      */
 
     if (
@@ -955,8 +982,6 @@ function createObject(
 
     /*
      * PURLINS
-     *
-     * Unchanged.
      */
 
     if (
@@ -1026,8 +1051,6 @@ function createObject(
 
     /*
      * END WALL COLUMNS
-     *
-     * Unchanged.
      */
 
     if (
