@@ -1,8 +1,5 @@
 import * as THREE from 'three';
-import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { createBuildingModel } from '../model/buildingModel.js';
-import { createReferenceModelsOrchestrator } from '../elements/referenceModels/ReferenceModelsOrchestrator.js';
-import { createReferenceModelInteraction } from '../interaction/ReferenceModelInteraction.js';
 import { createBuildingGeometry } from '../model/geometry/buildingGeometry.js';
 import { createElementRegistry } from '../elements/ElementRegistry.js';
 import { WallOrchestrator } from '../elements/wall/WallOrchestrator.js';
@@ -40,7 +37,9 @@ function assertContainer(container) {
 
 function createScene() {
     const scene = new THREE.Scene();
+    // Background & fog are driven by EnvironmentSystem (season / time / weather)
     scene.background = new THREE.Color(0x76b6e4);
+    scene.fog = new THREE.FogExp2(0x76b6e4, 0.0008);
     return scene;
 }
 
@@ -351,32 +350,6 @@ export function createUBuildRuntime({
         onUpdate: render
     });
 
-    const gltfLoader = new GLTFLoader();
-    const referenceModels = createReferenceModelsOrchestrator();
-    scene.add(referenceModels.group);
-    const referenceModelInteraction = createReferenceModelInteraction({
-        camera,
-        domElement: renderer.domElement,
-        group: referenceModels.group,
-        onDragEnd: render
-    });
-    const referenceModelsApi = Object.freeze({
-        toggle(fileName, enabled, onLoaded) {
-            const themeUri = (window.ConfiguratorData && window.ConfiguratorData.themeUri) || '';
-            referenceModels.toggleModel(fileName, enabled, gltfLoader, themeUri, buildingGeometry.bounds, () => {
-                render();
-                if (typeof onLoaded === 'function') onLoaded();
-            });
-        },
-        clearAll() {
-            [...referenceModels.group.children].forEach((child) => referenceModels.group.remove(child));
-            render();
-        },
-        get group() {
-            return referenceModels.group;
-        }
-    });
-
     const openingInteraction = createOpeningInteraction({
         camera,
         domElement: renderer.domElement,
@@ -402,7 +375,15 @@ export function createUBuildRuntime({
     function updateLightingAndEnvironment() {
         const solarState = getSolarState(lightingConfig);
         lightingSystem.update(solarState, buildingGeometry.bounds);
+        environmentSystem.update({
+            date: lightingConfig.date,
+            solar: solarState,
+            phase: solarState.phase
+        });
         environmentSystem.updateBounds(buildingGeometry.bounds);
+        if (typeof environmentSystem.applyToScene === 'function') {
+            environmentSystem.applyToScene(scene);
+        }
     }
 
     function resize() {
@@ -483,7 +464,6 @@ export function createUBuildRuntime({
         updateLightingAndEnvironment();
         resize();
         autoFrame();
-        cameraControls.setAutoRotate(true);
         return api;
     }
 
@@ -492,8 +472,6 @@ export function createUBuildRuntime({
         disposed = true;
         cameraControls.dispose();
         openingInteraction.dispose();
-        referenceModelInteraction.dispose();
-        referenceModels.dispose();
         registry.disposeAll(currentInstances);
         lightingSystem.dispose();
         environmentSystem.dispose();
@@ -518,7 +496,6 @@ export function createUBuildRuntime({
         lighting: lightingSystem,
         controls: cameraControls,
         interaction: openingInteraction,
-        referenceModels: referenceModelsApi,
         materials,
         registry,
         root: buildingRoot,
