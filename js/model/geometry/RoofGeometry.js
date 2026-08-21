@@ -4,14 +4,14 @@ const ROOF_TYPES = Object.freeze([
     'right-sloped'
 ]);
 
+const ROOF_SURFACE_CLEARANCE = 0.015;
+
 function assertFinite(
     value,
     name
 ) {
     if (
-        !Number.isFinite(
-            value
-        )
+        !Number.isFinite(value)
     ) {
         throw new TypeError(
             `${name} must be a finite number`
@@ -88,46 +88,31 @@ function bounds(
 ) {
     const xs =
         points.map(
-            value =>
-                value.x
+            value => value.x
         );
 
     const ys =
         points.map(
-            value =>
-                value.y
+            value => value.y
         );
 
     const zs =
         points.map(
-            value =>
-                value.z
+            value => value.z
         );
 
     const min =
         point(
-            Math.min(
-                ...xs
-            ),
-            Math.min(
-                ...ys
-            ),
-            Math.min(
-                ...zs
-            )
+            Math.min(...xs),
+            Math.min(...ys),
+            Math.min(...zs)
         );
 
     const max =
         point(
-            Math.max(
-                ...xs
-            ),
-            Math.max(
-                ...ys
-            ),
-            Math.max(
-                ...zs
-            )
+            Math.max(...xs),
+            Math.max(...ys),
+            Math.max(...zs)
         );
 
     return Object.freeze({
@@ -176,15 +161,9 @@ function createGabledRakes(
 ) {
     return Object.freeze([
         Object.freeze({
-            id:
-                'front-left',
-
-            side:
-                'front',
-
-            slope:
-                'left',
-
+            id: 'front-left',
+            side: 'front',
+            slope: 'left',
             edge:
                 edge(
                     leftFront,
@@ -193,15 +172,9 @@ function createGabledRakes(
         }),
 
         Object.freeze({
-            id:
-                'front-right',
-
-            side:
-                'front',
-
-            slope:
-                'right',
-
+            id: 'front-right',
+            side: 'front',
+            slope: 'right',
             edge:
                 edge(
                     ridgeFront,
@@ -210,15 +183,9 @@ function createGabledRakes(
         }),
 
         Object.freeze({
-            id:
-                'back-left',
-
-            side:
-                'back',
-
-            slope:
-                'left',
-
+            id: 'back-left',
+            side: 'back',
+            slope: 'left',
             edge:
                 edge(
                     leftBack,
@@ -227,15 +194,9 @@ function createGabledRakes(
         }),
 
         Object.freeze({
-            id:
-                'back-right',
-
-            side:
-                'back',
-
-            slope:
-                'right',
-
+            id: 'back-right',
+            side: 'back',
+            slope: 'right',
             edge:
                 edge(
                     ridgeBack,
@@ -253,15 +214,9 @@ function createMonoSlopeRakes(
 ) {
     return Object.freeze([
         Object.freeze({
-            id:
-                'front',
-
-            side:
-                'front',
-
-            slope:
-                null,
-
+            id: 'front',
+            side: 'front',
+            slope: null,
             edge:
                 edge(
                     leftFront,
@@ -270,15 +225,9 @@ function createMonoSlopeRakes(
         }),
 
         Object.freeze({
-            id:
-                'back',
-
-            side:
-                'back',
-
-            slope:
-                null,
-
+            id: 'back',
+            side: 'back',
+            slope: null,
             edge:
                 edge(
                     leftBack,
@@ -353,6 +302,17 @@ function createRoof(
         length +
         overhangs.back;
 
+    /*
+     * The roof surface must sit slightly above
+     * the wall top. Otherwise the two surfaces
+     * occupy the same mathematical plane and
+     * produce z-fighting.
+     */
+
+    const roofBaseHeight =
+        height +
+        ROOF_SURFACE_CLEARANCE;
+
     let leftY;
     let rightY;
 
@@ -360,14 +320,14 @@ function createRoof(
         type === 'gabled'
     ) {
         leftY =
-            height -
+            roofBaseHeight -
             (
                 overhangs.left *
                 pitchRatio
             );
 
         rightY =
-            height -
+            roofBaseHeight -
             (
                 overhangs.right *
                 pitchRatio
@@ -376,14 +336,14 @@ function createRoof(
         type === 'left-sloped'
     ) {
         leftY =
-            height -
+            roofBaseHeight -
             (
                 overhangs.left *
                 pitchRatio
             );
 
         rightY =
-            height +
+            roofBaseHeight +
             rise +
             (
                 overhangs.right *
@@ -391,7 +351,7 @@ function createRoof(
             );
     } else {
         leftY =
-            height +
+            roofBaseHeight +
             rise +
             (
                 overhangs.left *
@@ -399,7 +359,7 @@ function createRoof(
             );
 
         rightY =
-            height -
+            roofBaseHeight -
             (
                 overhangs.right *
                 pitchRatio
@@ -446,7 +406,8 @@ function createRoof(
         type === 'gabled'
             ? point(
                 0,
-                height + rise,
+                roofBaseHeight +
+                    rise,
                 frontZ
             )
             : null;
@@ -455,7 +416,8 @@ function createRoof(
         type === 'gabled'
             ? point(
                 0,
-                height + rise,
+                roofBaseHeight +
+                    rise,
                 backZ
             )
             : null;
@@ -464,8 +426,7 @@ function createRoof(
         type === 'gabled'
             ? [
                 {
-                    id:
-                        'left',
+                    id: 'left',
 
                     corners: [
                         leftFront,
@@ -476,8 +437,7 @@ function createRoof(
                 },
 
                 {
-                    id:
-                        'right',
+                    id: 'right',
 
                     corners: [
                         ridgeFront,
@@ -489,8 +449,7 @@ function createRoof(
             ]
             : [
                 {
-                    id:
-                        type,
+                    id: type,
 
                     corners: [
                         leftFront,
@@ -566,6 +525,9 @@ function createRoof(
         pitchAngle,
 
         rise,
+
+        surfaceClearance:
+            ROOF_SURFACE_CLEARANCE,
 
         overhangs:
             Object.freeze({

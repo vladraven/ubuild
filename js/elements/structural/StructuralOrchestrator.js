@@ -8,23 +8,42 @@ const BEAM = Object.freeze({
 });
 
 const STRUCTURAL_INSET = 0.08;
+const ROOF_BEAM_CLEARANCE = 0.015;
 
 function assertContext(context) {
-    if (!context || typeof context !== 'object') {
-        throw new TypeError('Element context is required');
+    if (
+        !context ||
+        typeof context !== 'object'
+    ) {
+        throw new TypeError(
+            'Element context is required'
+        );
     }
 
-    if (!context.structuralGeometry) {
-        throw new TypeError('Structural geometry is required');
+    if (
+        !context.structuralGeometry
+    ) {
+        throw new TypeError(
+            'Structural geometry is required'
+        );
     }
 
-    if (!context.materials) {
-        throw new TypeError('Material system is required');
+    if (
+        !context.materials
+    ) {
+        throw new TypeError(
+            'Material system is required'
+        );
     }
 }
 
-function resolveMaterial(context) {
-    if (typeof context.materials.get === 'function') {
+function resolveMaterial(
+    context
+) {
+    if (
+        typeof context.materials.get ===
+        'function'
+    ) {
         return context.materials.get(
             'structuralSteel',
             context.colors?.frame
@@ -65,18 +84,29 @@ function createBeam(
             lineSeg.end.z
         );
 
-    if (offset) {
-        start.add(offset);
-        end.add(offset);
+    if (
+        offset
+    ) {
+        start.add(
+            offset
+        );
+
+        end.add(
+            offset
+        );
     }
 
     const direction =
-        end.clone().sub(start);
+        end.clone().sub(
+            start
+        );
 
     const length =
         direction.length();
 
-    if (length <= 0.001) {
+    if (
+        length <= 0.001
+    ) {
         return null;
     }
 
@@ -117,8 +147,9 @@ function createBeam(
     return mesh;
 }
 
-function getRoofInteriorOffset(
+function createRoofBeam(
     lineSeg,
+    material,
     thickness
 ) {
     if (
@@ -129,49 +160,167 @@ function getRoofInteriorOffset(
         return null;
     }
 
-    const direction =
+    const start =
         new THREE.Vector3(
-            lineSeg.end.x -
-                lineSeg.start.x,
-            lineSeg.end.y -
-                lineSeg.start.y,
-            lineSeg.end.z -
-                lineSeg.start.z
+            lineSeg.start.x,
+            lineSeg.start.y,
+            lineSeg.start.z
+        );
+
+    const end =
+        new THREE.Vector3(
+            lineSeg.end.x,
+            lineSeg.end.y,
+            lineSeg.end.z
+        );
+
+    const direction =
+        end.clone().sub(
+            start
         );
 
     const length =
         direction.length();
 
-    if (length <= 0.001) {
+    if (
+        length <= 0.001
+    ) {
         return null;
     }
 
     direction.normalize();
 
-    let normal =
+    /*
+     * Roof frame geometry lies in the X/Y plane
+     * and runs along the roof slope.
+     *
+     * local Z = roof slope
+     * local Y = building longitudinal axis
+     * local X = roof normal
+     */
+
+    const longitudinal =
         new THREE.Vector3(
-            -direction.y,
-            direction.x,
-            0
+            0,
+            0,
+            1
         );
 
-    if (normal.y > 0) {
+    let normal =
+        new THREE.Vector3()
+            .crossVectors(
+                longitudinal,
+                direction
+            )
+            .normalize();
+
+    /*
+     * We always want the normal pointing
+     * toward the exterior/top side of the roof.
+     *
+     * The structural beam must move in the
+     * opposite direction.
+     */
+
+    if (
+        normal.y > 0
+    ) {
         normal.negate();
     }
 
-    normal.normalize();
+    const inward =
+        normal.clone()
+            .multiplyScalar(
+                thickness / 2 +
+                ROOF_BEAM_CLEARANCE
+            );
 
-    if (normal.y >= 0) {
-        normal.set(
-            0,
-            -1,
-            0
-        );
-    }
-
-    return normal.multiplyScalar(
-        thickness / 2 + 0.015
+    start.add(
+        inward
     );
+
+    end.add(
+        inward
+    );
+
+    /*
+     * Recalculate the basis after the offset.
+     */
+
+    const zAxis =
+        end.clone().sub(
+            start
+        ).normalize();
+
+    const yAxis =
+        longitudinal.clone();
+
+    const xAxis =
+        new THREE.Vector3()
+            .crossVectors(
+                yAxis,
+                zAxis
+            )
+            .normalize();
+
+    /*
+     * Correct handedness.
+     */
+
+    const correctedYAxis =
+        new THREE.Vector3()
+            .crossVectors(
+                zAxis,
+                xAxis
+            )
+            .normalize();
+
+    const matrix =
+        new THREE.Matrix4();
+
+    matrix.makeBasis(
+        xAxis,
+        correctedYAxis,
+        zAxis
+    );
+
+    const geometry =
+        new THREE.BoxGeometry(
+            thickness,
+            thickness,
+            length
+        );
+
+    geometry.applyMatrix4(
+        new THREE.Matrix4()
+            .copy(matrix)
+    );
+
+    /*
+     * BoxGeometry is now already oriented
+     * in world-space basis.
+     *
+     * Therefore the mesh itself stays
+     * unrotated.
+     */
+
+    const mesh =
+        new THREE.Mesh(
+            geometry,
+            material
+        );
+
+    mesh.position.copy(
+        start
+            .clone()
+            .add(end)
+            .multiplyScalar(0.5)
+    );
+
+    mesh.castShadow = true;
+    mesh.receiveShadow = true;
+
+    return mesh;
 }
 
 function getPurlinOffset(
@@ -191,8 +340,10 @@ function getPurlinOffset(
         new THREE.Vector3(
             lineSeg.end.x -
                 lineSeg.start.x,
+
             lineSeg.end.y -
                 lineSeg.start.y,
+
             lineSeg.end.z -
                 lineSeg.start.z
         );
@@ -200,7 +351,9 @@ function getPurlinOffset(
     const length =
         direction.length();
 
-    if (length <= 0.001) {
+    if (
+        length <= 0.001
+    ) {
         return null;
     }
 
@@ -230,20 +383,26 @@ function getPurlinOffset(
                 0
             );
 
-        if (normal.y > 0) {
+        if (
+            normal.y > 0
+        ) {
             normal.negate();
         }
 
         normal.normalize();
 
         return normal.multiplyScalar(
-            thickness / 2 + 0.015
+            thickness / 2 +
+            ROOF_BEAM_CLEARANCE
         );
     }
 
     return new THREE.Vector3(
         0,
-        -(thickness / 2 + 0.015),
+        -(
+            thickness / 2 +
+            ROOF_BEAM_CLEARANCE
+        ),
         0
     );
 }
@@ -304,31 +463,41 @@ function getColumnDimensions(
 
     return Object.freeze({
         dBottom:
-            Number.isFinite(dBottom) &&
+            Number.isFinite(
+                dBottom
+            ) &&
             dBottom > 0
                 ? dBottom
                 : 0.20,
 
         dTop:
-            Number.isFinite(dTop) &&
+            Number.isFinite(
+                dTop
+            ) &&
             dTop > 0
                 ? dTop
                 : 0.60,
 
         flangeWidth:
-            Number.isFinite(flangeWidth) &&
+            Number.isFinite(
+                flangeWidth
+            ) &&
             flangeWidth > 0
                 ? flangeWidth
                 : 0.20,
 
         flangeThickness:
-            Number.isFinite(flangeThickness) &&
+            Number.isFinite(
+                flangeThickness
+            ) &&
             flangeThickness > 0
                 ? flangeThickness
                 : 0.012,
 
         webThickness:
-            Number.isFinite(webThickness) &&
+            Number.isFinite(
+                webThickness
+            ) &&
             webThickness > 0
                 ? webThickness
                 : 0.008
@@ -378,10 +547,17 @@ function createColumnWeb(
         new THREE.ExtrudeGeometry(
             shape,
             {
-                depth: webThickness,
-                bevelEnabled: false,
-                curveSegments: 1,
-                steps: 1
+                depth:
+                    webThickness,
+
+                bevelEnabled:
+                    false,
+
+                curveSegments:
+                    1,
+
+                steps:
+                    1
             }
         );
 
@@ -425,8 +601,13 @@ function createColumnInnerFlange(
 
     mesh.position.set(
         sign *
-            (flangeThickness / 2),
+            (
+                flangeThickness /
+                2
+            ),
+
         height / 2,
+
         0
     );
 
@@ -482,7 +663,9 @@ function createColumnOuterFlange(
                     dTop
                 ) / 2
             ),
+
         height / 2,
+
         0
     );
 
@@ -539,7 +722,9 @@ function createSolidColumn(
         end.y -
         start.y;
 
-    if (height <= 0.001) {
+    if (
+        height <= 0.001
+    ) {
         return null;
     }
 
@@ -599,22 +784,19 @@ function createSolidColumn(
         start
     );
 
-    /*
-     * The profile is already handed correctly.
-     *
-     * Do not mirror the group.
-     *
-     * Do not rotate around Y.
-     */
-
     group.traverse(
         child => {
-            if (!child.isMesh) {
+            if (
+                !child.isMesh
+            ) {
                 return;
             }
 
-            child.castShadow = true;
-            child.receiveShadow = true;
+            child.castShadow =
+                true;
+
+            child.receiveShadow =
+                true;
         }
     );
 
@@ -637,12 +819,17 @@ function moveLineZ(
         start: {
             x: lineSeg.start.x,
             y: lineSeg.start.y,
-            z: lineSeg.start.z + delta
+            z:
+                lineSeg.start.z +
+                delta
         },
+
         end: {
             x: lineSeg.end.x,
             y: lineSeg.end.y,
-            z: lineSeg.end.z + delta
+            z:
+                lineSeg.end.z +
+                delta
         }
     };
 }
@@ -660,21 +847,6 @@ function createFrameGroup(
     group.name =
         `frame-${frame.index}`;
 
-    /*
-     * The first and last frame are boundary frames.
-     *
-     * The column profile has a physical depth
-     * along Z because its flange is extruded.
-     *
-     * Therefore moving the frame by only INSET
-     * is insufficient: the flange would still
-     * intersect the front/back wall.
-     *
-     * Keep the complete frame coherent and move
-     * it inward by the wall inset plus half of
-     * the actual flange depth.
-     */
-
     let frameOffsetZ = 0;
 
     if (
@@ -682,20 +854,19 @@ function createFrameGroup(
     ) {
         frameOffsetZ =
             STRUCTURAL_INSET +
-            columnDimensions.flangeWidth / 2;
+            columnDimensions.flangeWidth /
+                2;
     } else if (
-        frameIndex === frameCount - 1
+        frameIndex ===
+        frameCount - 1
     ) {
         frameOffsetZ =
             -(
                 STRUCTURAL_INSET +
-                columnDimensions.flangeWidth / 2
+                columnDimensions.flangeWidth /
+                    2
             );
     }
-
-    /*
-     * LEFT COLUMN
-     */
 
     if (
         frame.leftColumn
@@ -716,16 +887,14 @@ function createFrameGroup(
                 columnDimensions
             );
 
-        if (column) {
+        if (
+            column
+        ) {
             group.add(
                 column
             );
         }
     }
-
-    /*
-     * LEFT RAFTER
-     */
 
     if (
         frame.leftRafter
@@ -738,30 +907,21 @@ function createFrameGroup(
                 )
                 : frame.leftRafter;
 
-        const offset =
-            getRoofInteriorOffset(
+        const beam =
+            createRoofBeam(
                 rafterLine,
+                material,
                 BEAM.frame
             );
 
-        const beam =
-            createBeam(
-                rafterLine,
-                material,
-                BEAM.frame,
-                offset
-            );
-
-        if (beam) {
+        if (
+            beam
+        ) {
             group.add(
                 beam
             );
         }
     }
-
-    /*
-     * RIGHT RAFTER
-     */
 
     if (
         frame.rightRafter
@@ -774,30 +934,21 @@ function createFrameGroup(
                 )
                 : frame.rightRafter;
 
-        const offset =
-            getRoofInteriorOffset(
+        const beam =
+            createRoofBeam(
                 rafterLine,
+                material,
                 BEAM.frame
             );
 
-        const beam =
-            createBeam(
-                rafterLine,
-                material,
-                BEAM.frame,
-                offset
-            );
-
-        if (beam) {
+        if (
+            beam
+        ) {
             group.add(
                 beam
             );
         }
     }
-
-    /*
-     * RIGHT COLUMN
-     */
 
     if (
         frame.rightColumn
@@ -818,16 +969,14 @@ function createFrameGroup(
                 columnDimensions
             );
 
-        if (column) {
+        if (
+            column
+        ) {
             group.add(
                 column
             );
         }
     }
-
-    /*
-     * SINGLE-SLOPE RAFTER
-     */
 
     if (
         frame.rafter
@@ -840,21 +989,16 @@ function createFrameGroup(
                 )
                 : frame.rafter;
 
-        const offset =
-            getRoofInteriorOffset(
+        const beam =
+            createRoofBeam(
                 rafterLine,
+                material,
                 BEAM.frame
             );
 
-        const beam =
-            createBeam(
-                rafterLine,
-                material,
-                BEAM.frame,
-                offset
-            );
-
-        if (beam) {
+        if (
+            beam
+        ) {
             group.add(
                 beam
             );
@@ -882,7 +1026,7 @@ function createObject(
             context
         );
 
-    const vis =
+    const visibility =
         context.model?.visibility ||
         {};
 
@@ -902,25 +1046,18 @@ function createObject(
             .frames ||
         [];
 
-    /*
-     * MAIN FRAMES
-     */
-
     if (
-        vis.frames !== false
+        visibility.frames !== false
     ) {
         for (
-            let frameIndex = 0;
-            frameIndex < frames.length;
-            frameIndex++
+            let index = 0;
+            index < frames.length;
+            index++
         ) {
-            const frame =
-                frames[frameIndex];
-
             const group =
                 createFrameGroup(
-                    frame,
-                    frameIndex,
+                    frames[index],
+                    index,
                     frames.length,
                     material,
                     columnDimensions
@@ -932,17 +1069,15 @@ function createObject(
         }
     }
 
-    /*
-     * GIRTS
-     */
-
     if (
-        vis.girts !== false &&
-        context.structuralGeometry.girts
+        visibility.girts !== false &&
+        context.structuralGeometry
+            .girts
     ) {
         for (
             const girt
-            of context.structuralGeometry.girts
+            of context.structuralGeometry
+                .girts
         ) {
             const sideKeys = [
                 'frontSegments',
@@ -970,7 +1105,9 @@ function createObject(
                             BEAM.girt
                         );
 
-                    if (beam) {
+                    if (
+                        beam
+                    ) {
                         root.add(
                             beam
                         );
@@ -980,17 +1117,15 @@ function createObject(
         }
     }
 
-    /*
-     * PURLINS
-     */
-
     if (
-        vis.purlins !== false &&
-        context.structuralGeometry.purlins
+        visibility.purlins !== false &&
+        context.structuralGeometry
+            .purlins
     ) {
         for (
             const purlin
-            of context.structuralGeometry.purlins
+            of context.structuralGeometry
+                .purlins
         ) {
             if (
                 purlin.planes
@@ -1016,7 +1151,9 @@ function createObject(
                             offset
                         );
 
-                    if (beam) {
+                    if (
+                        beam
+                    ) {
                         root.add(
                             beam
                         );
@@ -1040,7 +1177,9 @@ function createObject(
                         offset
                     );
 
-                if (beam) {
+                if (
+                    beam
+                ) {
                     root.add(
                         beam
                     );
@@ -1049,12 +1188,8 @@ function createObject(
         }
     }
 
-    /*
-     * END WALL COLUMNS
-     */
-
     if (
-        vis.endWallColumns !== false &&
+        visibility.endWallColumns !== false &&
         context.structuralGeometry
             .endWallColumns
     ) {
@@ -1077,13 +1212,17 @@ function createObject(
                     BEAM.endColumn
                 );
 
-            if (left) {
+            if (
+                left
+            ) {
                 root.add(
                     left
                 );
             }
 
-            if (right) {
+            if (
+                right
+            ) {
                 root.add(
                     right
                 );
@@ -1097,13 +1236,17 @@ function createObject(
 function disposeObject(
     object
 ) {
-    if (!object) {
+    if (
+        !object
+    ) {
         return;
     }
 
     object.traverse(
         child => {
-            if (!child.isMesh) {
+            if (
+                !child.isMesh
+            ) {
                 return;
             }
 
@@ -1120,12 +1263,11 @@ function disposeObject(
         object.children.slice();
 
     for (
-        let i = 0;
-        i < children.length;
-        i++
+        const child
+        of children
     ) {
         object.remove(
-            children[i]
+            child
         );
     }
 
@@ -1146,7 +1288,9 @@ export const StructuralOrchestrator =
             object,
             context
         ) {
-            if (!object) {
+            if (
+                !object
+            ) {
                 return createObject(
                     context
                 );

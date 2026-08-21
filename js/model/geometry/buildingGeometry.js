@@ -20,7 +20,13 @@ import { validateGeometryInvariants } from './GeometryInvariants.js';
 
 function createLogoGeometry(model, envelope) {
     const config = model.logo;
-    if (!config || config.enabled === false) {
+    // Respect visibility.logo as well as logo.enabled (legacy toggle).
+    const visible =
+        config &&
+        config.enabled !== false &&
+        model.visibility?.logo !== false;
+
+    if (!visible) {
         return Object.freeze({
             enabled: false,
             position: null,
@@ -29,17 +35,34 @@ function createLogoGeometry(model, envelope) {
         });
     }
 
+    const logoWidth = config.width || 1.0;
+    const logoHeight = config.height || 0.33;
+    const plateThick = config.thickness || 0.08;
+    const margin = config.margin || 0.15;
+    const wallThickness = model.walls?.thickness || 0.15;
+
+    // Envelope: Z from 0 (front) to length (back). Place logo outside the
+    // front face, same relative placement as legacy (under the eave).
+    const halfPlateH = (logoHeight + 0.12) / 2;
+    const targetY = Math.max(
+        envelope.height - margin - halfPlateH,
+        logoHeight / 2 + 0.5
+    );
+
     return Object.freeze({
         enabled: true,
-        width: config.width || 3.0,
-        height: config.height || 1.0,
-        thickness: config.thickness || 0.05,
+        width: logoWidth,
+        height: logoHeight,
+        thickness: plateThick,
         position: {
             x: 0,
-            y: envelope.height * 0.75,
-            z: envelope.bounds.min.z - 0.03
+            y: targetY,
+            // Front is z = min.z = 0; sit just outside the wall outer face.
+            z: envelope.bounds.min.z - wallThickness - plateThick / 2
         },
-        rotation: { x: 0, y: 0, z: 0 },
+        // Plane default faces +Z (into the building); rotate so the logo
+        // faces outward toward -Z (camera looking at the front elevation).
+        rotation: { x: 0, y: Math.PI, z: 0 },
         bounds: null
     });
 }

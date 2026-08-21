@@ -64,6 +64,45 @@ export function createFoundationGeometry(
         max.z
     );
 
+    // Side labels (Front / Back / Left / Right) — restored from legacy.
+    // Envelope: X ∈ [-halfW, halfW], Z ∈ [0, length]. Labels sit outside
+    // the footprint so they remain readable from the default exterior view.
+    const labelOffset = 8;
+    const labelY = 0.05;
+    const centerX = (min.x + max.x) / 2;
+    const centerZ = (min.z + max.z) / 2;
+
+    const labels = Object.freeze({
+        F: Object.freeze({
+            text: 'Front',
+            x: centerX,
+            y: labelY,
+            z: min.z - labelOffset,
+            rotation: Object.freeze([-Math.PI / 2, 0, 0])
+        }),
+        B: Object.freeze({
+            text: 'Back',
+            x: centerX,
+            y: labelY,
+            z: max.z + labelOffset,
+            rotation: Object.freeze([-Math.PI / 2, 0, Math.PI])
+        }),
+        R: Object.freeze({
+            text: 'Right',
+            x: max.x + labelOffset,
+            y: labelY,
+            z: centerZ,
+            rotation: Object.freeze([-Math.PI / 2, 0, Math.PI / 2])
+        }),
+        L: Object.freeze({
+            text: 'Left',
+            x: min.x - labelOffset,
+            y: labelY,
+            z: centerZ,
+            rotation: Object.freeze([-Math.PI / 2, 0, -Math.PI / 2])
+        })
+    });
+
     return Object.freeze({
         enabled,
         height,
@@ -112,6 +151,8 @@ export function createFoundationGeometry(
                     max.z
                 )
             )
-        })
+        }),
+
+        labels
     });
 }

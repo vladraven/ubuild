@@ -1,7 +1,17 @@
 import * as THREE from 'three';
 
-const LOGO_URL =
-    'https://ubuildsb.com/wp-content/themes/U-Build/js/U-build-logo.png';
+// Prefer theme-local asset (no CORS). Fall back to absolute production URL.
+function resolveLogoUrl() {
+    const themeUri =
+        (typeof window !== 'undefined' &&
+            window.ConfiguratorData &&
+            window.ConfiguratorData.themeUri) ||
+        '';
+    if (themeUri) {
+        return `${String(themeUri).replace(/\/$/, '')}/js/U-build-logo.png`;
+    }
+    return 'https://ubuildsb.com/wp-content/themes/U-Build/js/U-build-logo.png';
+}
 
 const LOGO_WIDTH = 1.0;
 const LOGO_HEIGHT = 0.33;
@@ -35,50 +45,47 @@ function assertContext(context) {
     }
 }
 
+function applyTextureColorEncoding(texture) {
+    // Three r0.136 uses .encoding / sRGBEncoding.
+    // Newer Three uses .colorSpace / SRGBColorSpace.
+    if ('colorSpace' in texture && THREE.SRGBColorSpace !== undefined) {
+        texture.colorSpace = THREE.SRGBColorSpace;
+    } else if ('encoding' in texture && THREE.sRGBEncoding !== undefined) {
+        texture.encoding = THREE.sRGBEncoding;
+    }
+    texture.needsUpdate = true;
+}
+
 function loadLogoTexture() {
     if (logoTexture) {
         return logoTexture;
     }
 
-    const loader =
-        new THREE.TextureLoader();
+    const url = resolveLogoUrl();
+    const loader = new THREE.TextureLoader();
 
-    logoTexture =
-        loader.load(
-            LOGO_URL,
-            texture => {
-                texture.colorSpace =
-                    THREE.SRGBColorSpace;
+    logoTexture = loader.load(
+        url,
+        texture => {
+            applyTextureColorEncoding(texture);
+        },
+        undefined,
+        error => {
+            console.error(
+                'UBuild logo texture failed to load:',
+                url,
+                error
+            );
+        }
+    );
 
-                texture.needsUpdate = true;
-            },
-            undefined,
-            error => {
-                console.error(
-                    'UBuild logo texture failed to load:',
-                    LOGO_URL,
-                    error
-                );
-            }
-        );
+    applyTextureColorEncoding(logoTexture);
 
-    logoTexture.colorSpace =
-        THREE.SRGBColorSpace;
-
-    logoTexture.wrapS =
-        THREE.ClampToEdgeWrapping;
-
-    logoTexture.wrapT =
-        THREE.ClampToEdgeWrapping;
-
-    logoTexture.minFilter =
-        THREE.LinearMipmapLinearFilter;
-
-    logoTexture.magFilter =
-        THREE.LinearFilter;
-
-    logoTexture.generateMipmaps =
-        true;
+    logoTexture.wrapS = THREE.ClampToEdgeWrapping;
+    logoTexture.wrapT = THREE.ClampToEdgeWrapping;
+    logoTexture.minFilter = THREE.LinearMipmapLinearFilter;
+    logoTexture.magFilter = THREE.LinearFilter;
+    logoTexture.generateMipmaps = true;
 
     return logoTexture;
 }
