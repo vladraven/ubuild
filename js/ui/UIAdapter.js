@@ -33,28 +33,51 @@ export function createUIAdapter(runtime){
             if(el&&el.type==='checkbox')el.checked=checked;
         }
     }
+    function formatPitchRatio(ratio){
+        const pitch12=Number(ratio)*12;
+        const formatted=parseFloat(pitch12.toFixed(1)).toString();
+        return `${formatted}:12`;
+    }
+    function parsePitchInput(raw){
+        if(raw===undefined||raw===null)return NaN;
+        const str=String(raw).trim().replace(/:12$/i,'').trim();
+        const num=parseFloat(str);
+        if(!Number.isFinite(num))return NaN;
+        // If the control is a range slider whose max is a small ratio (≤2),
+        // treat the value as pitchRatio directly. Otherwise treat as rise-over-12.
+        return num;
+    }
     function getPitchLimits(){
         const constraints=window.ConfiguratorBackendConstraints||{};
         const profile=String(runtime.model.roof?.profile||'awr').toLowerCase();
-        let min=Number(constraints.pitch_min??0.25);
-        let max=Number(constraints.pitch_awr_max??constraints.pitch_awr??1);
-        let step=Number(constraints.pitch_step??1/12);
+        const roofType=String(runtime.model.roof?.type||'gabled').toLowerCase();
+        // Prefer live DOM attributes (set by PHP) when available, then backend constraints.
+        const pitchEl=document.getElementById('inputPitch');
+        let min=Number(pitchEl?.min);
+        let max=Number(pitchEl?.max);
+        let step=Number(pitchEl?.step);
+        if(!Number.isFinite(min)||min<0)min=Number(constraints.pitch_min??0);
+        if(!Number.isFinite(max)||max<=0)max=Number(constraints.pitch_awr_max??constraints.pitch_awr??1);
+        if(!Number.isFinite(step)||step<=0)step=Number(constraints.pitch_step??0.001);
         if(profile.includes('ssr')||profile.includes('snap')){
             min=Number(constraints.pitch_ssr24_min??min);
             max=Number(constraints.pitch_ssr24_max??constraints.pitch_ssr24??max);
             step=Number(constraints.pitch_ssr24_step??step);
         }
-        if(!Number.isFinite(min)||min<=0)min=0.25;
+        // Legacy behaviour: single-slope roofs are limited to a shallower max pitch.
+        if(roofType==='left-sloped'||roofType==='right-sloped'){
+            max=Math.min(max,Number(constraints.pitch_sloped_max??0.1667));
+        }
+        if(!Number.isFinite(min)||min<0)min=0;
         if(!Number.isFinite(max)||max<=min)max=1;
-        if(!Number.isFinite(step)||step<=0)step=1/12;
+        if(!Number.isFinite(step)||step<=0)step=0.001;
         return {min,max,step};
     }
     function updatePitchControls(){
-        const ratio=Number(runtime.model.roof?.pitchRatio??2/12);
+        const ratio=Number(runtime.model.roof?.pitchRatio??0.05);
         const limits=getPitchLimits();
         const value=Math.max(limits.min,Math.min(limits.max,ratio));
-        const pitch12=value*12;
-        setElementVal(['#inputPitch','#valPitch','#roof-pitch','#slider-pitch','#val-pitch'],Number(pitch12.toFixed(2)));
+        // Range slider always stores the pure pitch ratio (rise / run).
         for(const selector of ['#inputPitch','#roof-pitch','#slider-pitch']){
             const el=document.querySelector(selector);
             if(!el)continue;
@@ -65,17 +88,30 @@ export function createUIAdapter(runtime){
                 el.value=value;
             }
         }
+        // Text / number inputs show the conventional "X:12" notation.
+        const formatted=formatPitchRatio(value);
+        setElementVal(['#valPitch','#val-pitch'],formatted);
         const minLabel=document.querySelector('#lblMinPitch');
         const maxLabel=document.querySelector('#lblMaxPitch');
-        if(minLabel)minLabel.textContent=`${(limits.min*12).toFixed(1).replace('.0','')}:12`;
-        if(maxLabel)maxLabel.textContent=`${(limits.max*12).toFixed(1).replace('.0','')}:12`;
+        if(minLabel)minLabel.textContent=formatPitchRatio(limits.min);
+        if(maxLabel)maxLabel.textContent=formatPitchRatio(limits.max);
     }
     function updateInputsFromModel(){
         const model=runtime.model;
         const d=model.dimensions;
-        setElementVal(['#inputW','#valW','#input-width','#slider-width','#val-width','#building-width','#width-ft'],toDisplay(d.width));
-        setElementVal(['#inputL','#valL','#input-length','#slider-length','#val-length','#building-length','#length-ft'],toDisplay(d.length));
-        setElementVal(['#inputH','#valH','#input-height','#slider-height','#val-height','#building-height','#height-ft'],toDisplay(d.height));
+        // Keep data-current-m authoritative in metres for unit-switch logic.
+        const setDim=(sliderId,valId,meters)=>{
+            const display=toDisplay(meters);
+            setElementVal([`#${sliderId}`,`#${valId}`],display);
+            const slider=document.getElementById(sliderId);
+            if(slider)slider.setAttribute('data-current-m',meters);
+        };
+        setDim('inputW','valW',d.width);
+        setDim('inputL','valL',d.length);
+        setDim('inputH','valH',d.height);
+        setElementVal(['#input-width','#slider-width','#val-width','#building-width','#width-ft'],toDisplay(d.width));
+        setElementVal(['#input-length','#slider-length','#val-length','#building-length','#length-ft'],toDisplay(d.length));
+        setElementVal(['#input-height','#slider-height','#val-height','#building-height','#height-ft'],toDisplay(d.height));
         document.querySelectorAll('.value-unit,.unit-label').forEach(el=>el.textContent=isImperial?'ft':'m');
         updatePitchControls();
         const roofType=model.roof?.type||'gabled';
@@ -152,11 +188,35 @@ export function createUIAdapter(runtime){
     function handleDimensionChange(prop,value){
         const meters=toMeters(value);
         if(meters<=0)return;
+        // Prefer backend constraints / data-m-max when present, else model LIMITS.
+        const constraints=window.ConfiguratorBackendConstraints||{};
+        const limitMap={width:'max_width',length:'max_length',height:'max_height'};
         const limits=(getBuildingModelLimits()[prop])||{};
+        let maxM=typeof limits.max==='number'?limits.max:Infinity;
+        let minM=typeof limits.min==='number'?limits.min:0;
+        if(limitMap[prop]&&Number.isFinite(Number(constraints[limitMap[prop]]))){
+            maxM=Number(constraints[limitMap[prop]]);
+        }
+        // Also honour the slider's own data-m-max if tighter.
+        const sliderId=prop==='width'?'inputW':prop==='length'?'inputL':prop==='height'?'inputH':null;
+        if(sliderId){
+            const slider=document.getElementById(sliderId);
+            if(slider){
+                const dm=parseFloat(slider.getAttribute('data-m-max'));
+                if(Number.isFinite(dm)&&dm<maxM)maxM=dm;
+                const dmin=parseFloat(slider.getAttribute('data-m-min'));
+                if(Number.isFinite(dmin)&&dmin>minM)minM=dmin;
+            }
+        }
         let clamped=meters;
         let violated=false;
-        if(typeof limits.min==='number'&&clamped<limits.min){clamped=limits.min;violated=true;}
-        if(typeof limits.max==='number'&&clamped>limits.max){clamped=limits.max;violated=true;}
+        if(clamped<minM){clamped=minM;violated=true;}
+        if(clamped>maxM){clamped=maxM;violated=true;}
+        // Keep data-current-m in sync for legacy-style unit switching.
+        if(sliderId){
+            const slider=document.getElementById(sliderId);
+            if(slider)slider.setAttribute('data-current-m',clamped);
+        }
         update({dimensions:{...runtime.model.dimensions,[prop]:clamped}});
         if(violated){
             const unit=isImperial?'ft':'m';
@@ -164,12 +224,21 @@ export function createUIAdapter(runtime){
             showDimensionToast(`Maximum ${prop} reached (${display} ${unit}).`);
         }
     }
-    function handlePitchChange(value){
-        const pitch12=parseFloat(value);
-        if(!Number.isFinite(pitch12))return;
+    function handlePitchChange(rawValue,fromSlider){
         const limits=getPitchLimits();
-        const clamped=Math.max(limits.min*12,Math.min(limits.max*12,pitch12));
-        update({roof:{...runtime.model.roof,pitchRatio:clamped/12}});
+        let ratio;
+        if(fromSlider){
+            // Slider always emits the pure pitch ratio.
+            ratio=parseFloat(rawValue);
+        }else{
+            // Text input is conventionally "X:12" (or just the rise number).
+            const rise=parsePitchInput(rawValue);
+            if(!Number.isFinite(rise))return;
+            ratio=rise/12;
+        }
+        if(!Number.isFinite(ratio))return;
+        const clamped=Math.max(limits.min,Math.min(limits.max,ratio));
+        update({roof:{...runtime.model.roof,pitchRatio:clamped}});
     }
     function bindDimension(ids,prop){
         const elements=document.querySelectorAll(ids);
@@ -179,17 +248,29 @@ export function createUIAdapter(runtime){
         });
     }
     function bindPitch(){
-        const elements=document.querySelectorAll('#inputPitch,#valPitch,#roof-pitch,#slider-pitch,#val-pitch,select[name="roof-pitch"]');
-        elements.forEach(el=>{
-            el.addEventListener('input',e=>handlePitchChange(e.target.value));
-            el.addEventListener('change',e=>handlePitchChange(e.target.value));
+        // Range slider → pitch ratio
+        document.querySelectorAll('#inputPitch,#roof-pitch,#slider-pitch').forEach(el=>{
+            el.addEventListener('input',e=>handlePitchChange(e.target.value,true));
+            el.addEventListener('change',e=>handlePitchChange(e.target.value,true));
+        });
+        // Text / number → "X:12" notation
+        document.querySelectorAll('#valPitch,#val-pitch,select[name="roof-pitch"]').forEach(el=>{
+            el.addEventListener('input',e=>handlePitchChange(e.target.value,false));
+            el.addEventListener('change',e=>handlePitchChange(e.target.value,false));
         });
         const roofProfile=document.querySelector('#roofProfile');
-        if(roofProfile)roofProfile.addEventListener('change',updatePitchControls);
+        if(roofProfile)roofProfile.addEventListener('change',()=>{
+            // Profile change may alter max pitch; re-clamp after model update.
+            updatePitchControls();
+        });
     }
     function bindRoofControls(){
         const roofType=document.querySelector('#roofType');
-        if(roofType)roofType.addEventListener('change',e=>update({roof:{...runtime.model.roof,type:e.target.value}}));
+        if(roofType)roofType.addEventListener('change',e=>{
+            update({roof:{...runtime.model.roof,type:e.target.value}});
+            // Single-slope roofs have a tighter pitch limit (legacy behaviour).
+            updatePitchControls();
+        });
         const roofProfile=document.querySelector('#roofProfile');
         if(roofProfile)roofProfile.addEventListener('change',e=>update({roof:{...runtime.model.roof,profile:e.target.value}}));
         const wallProfile=document.querySelector('#wallProfile');
@@ -227,18 +308,67 @@ export function createUIAdapter(runtime){
             el.addEventListener('change',e=>runtime.update({...runtime.model,visibility:{...runtime.model.visibility,[key]:e.target.checked}}));
         });
     }
+    function syncDistSlidersToUnit(){
+        // Restore legacy dist-slider behaviour: min/max/step and displayed
+        // value are expressed in the currently selected unit, while the
+        // authoritative value stays in metres on data-current-m (or the model).
+        document.querySelectorAll('.dist-slider').forEach(slider=>{
+            const mMin=parseFloat(slider.getAttribute('data-m-min'));
+            const mMax=parseFloat(slider.getAttribute('data-m-max'));
+            const mStep=parseFloat(slider.getAttribute('data-m-step'));
+            let currentM=parseFloat(slider.getAttribute('data-current-m'));
+            if(!Number.isFinite(currentM)){
+                // Fall back to model dimensions when data-current-m is absent.
+                const id=slider.id||'';
+                if(id.includes('W')||id.includes('width'))currentM=runtime.model.dimensions.width;
+                else if(id.includes('L')||id.includes('length'))currentM=runtime.model.dimensions.length;
+                else if(id.includes('H')||id.includes('height'))currentM=runtime.model.dimensions.height;
+                else currentM=toMeters(slider.value);
+            }
+            if(Number.isFinite(mMin))slider.min=isImperial?(mMin*M_TO_FT).toFixed(2):mMin.toFixed(2);
+            if(Number.isFinite(mMax))slider.max=isImperial?(mMax*M_TO_FT).toFixed(2):mMax.toFixed(2);
+            if(Number.isFinite(mStep))slider.step=isImperial?(mStep*M_TO_FT).toFixed(2):mStep.toFixed(2);
+            if(Number.isFinite(currentM)){
+                const display=isImperial?currentM*M_TO_FT:currentM;
+                slider.value=display.toFixed(2);
+                slider.setAttribute('data-current-m',currentM);
+                const targetId=slider.getAttribute('data-target');
+                if(targetId){
+                    const target=document.getElementById(targetId);
+                    if(target)target.value=display.toFixed(isImperial?1:2);
+                }
+            }
+        });
+        // Update the "(Max: …)" labels next to the dimension controls.
+        const constraints=window.ConfiguratorBackendConstraints||{};
+        const pairs=[
+            {lbl:'#lblMaxW',mKey:'max_width',fallback:91.44},
+            {lbl:'#lblMaxL',mKey:'max_length',fallback:36.576},
+            {lbl:'#lblMaxH',mKey:'max_height',fallback:9.144}
+        ];
+        for(const {lbl,mKey,fallback} of pairs){
+            const el=document.querySelector(lbl);
+            if(!el)continue;
+            const mVal=Number(constraints[mKey]??fallback);
+            el.textContent=isImperial?(mVal*M_TO_FT).toFixed(1):mVal.toFixed(2);
+        }
+    }
     function bindUnits(){
         const toggle=document.querySelector('#unitToggle,#unit-toggle,#unit-switch,[data-unit],.btn-unit-toggle');
         if(!toggle)return;
+        const apply=()=>{
+            syncDistSlidersToUnit();
+            updateInputsFromModel();
+        };
         toggle.addEventListener('change',e=>{
             isImperial=e.target.getAttribute('data-unit')?e.target.getAttribute('data-unit')==='imperial':!e.target.checked;
-            updateInputsFromModel();
+            apply();
         });
         toggle.addEventListener('click',()=>{
             if(toggle.type==='checkbox')return;
             const requested=toggle.getAttribute('data-unit');
             isImperial=requested?requested==='imperial':!isImperial;
-            updateInputsFromModel();
+            apply();
         });
     }
     function bindReferenceModels(){
@@ -577,6 +707,9 @@ function bindInsideView(){
         bindUnits();
         bindReferenceModels();
         bindActions();
+        // Ensure slider ranges & max labels match the current unit system
+        // and that pitch controls are correctly formatted before first paint.
+        syncDistSlidersToUnit();
         updateInputsFromModel();
     }
     return Object.freeze({init,updateInputsFromModel,toDisplay,toMeters,saveDesign,renderGallery,renderCompare});
