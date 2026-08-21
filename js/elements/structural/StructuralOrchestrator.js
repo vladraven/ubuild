@@ -10,7 +10,20 @@ const BEAM = Object.freeze({
 const STRUCTURAL_INSET = 0.08;
 const ROOF_BEAM_CLEARANCE = 0.015;
 
-function assertContext(context) {
+function isFiniteVector(
+    vector
+) {
+    return (
+        vector &&
+        Number.isFinite(vector.x) &&
+        Number.isFinite(vector.y) &&
+        Number.isFinite(vector.z)
+    );
+}
+
+function assertContext(
+    context
+) {
     if (
         !context ||
         typeof context !== 'object'
@@ -72,20 +85,28 @@ function createBeam(
 
     const start =
         new THREE.Vector3(
-            lineSeg.start.x,
-            lineSeg.start.y,
-            lineSeg.start.z
+            Number(lineSeg.start.x),
+            Number(lineSeg.start.y),
+            Number(lineSeg.start.z)
         );
 
     const end =
         new THREE.Vector3(
-            lineSeg.end.x,
-            lineSeg.end.y,
-            lineSeg.end.z
+            Number(lineSeg.end.x),
+            Number(lineSeg.end.y),
+            Number(lineSeg.end.z)
         );
 
     if (
-        offset
+        !isFiniteVector(start) ||
+        !isFiniteVector(end)
+    ) {
+        return null;
+    }
+
+    if (
+        offset &&
+        isFiniteVector(offset)
     ) {
         start.add(
             offset
@@ -105,6 +126,7 @@ function createBeam(
         direction.length();
 
     if (
+        !Number.isFinite(length) ||
         length <= 0.001
     ) {
         return null;
@@ -112,10 +134,28 @@ function createBeam(
 
     direction.normalize();
 
+    if (
+        !isFiniteVector(direction)
+    ) {
+        return null;
+    }
+
+    const safeThickness =
+        Number(thickness);
+
+    if (
+        !Number.isFinite(
+            safeThickness
+        ) ||
+        safeThickness <= 0
+    ) {
+        return null;
+    }
+
     const geometry =
         new THREE.BoxGeometry(
-            thickness,
-            thickness,
+            safeThickness,
+            safeThickness,
             length
         );
 
@@ -147,6 +187,121 @@ function createBeam(
     return mesh;
 }
 
+function getRoofInteriorNormal(
+    lineSeg
+) {
+    if (
+        !lineSeg ||
+        !lineSeg.start ||
+        !lineSeg.end
+    ) {
+        return null;
+    }
+
+    const start =
+        new THREE.Vector3(
+            Number(lineSeg.start.x),
+            Number(lineSeg.start.y),
+            Number(lineSeg.start.z)
+        );
+
+    const end =
+        new THREE.Vector3(
+            Number(lineSeg.end.x),
+            Number(lineSeg.end.y),
+            Number(lineSeg.end.z)
+        );
+
+    if (
+        !isFiniteVector(start) ||
+        !isFiniteVector(end)
+    ) {
+        return null;
+    }
+
+    const direction =
+        end.clone().sub(
+            start
+        );
+
+    const length =
+        direction.length();
+
+    if (
+        !Number.isFinite(length) ||
+        length <= 0.001
+    ) {
+        return null;
+    }
+
+    direction.normalize();
+
+    /*
+     * Roof beams run in X/Y.
+     * Building longitudinal axis is Z.
+     *
+     * Cross product gives a normal to
+     * the roof plane.
+     */
+
+    const longitudinal =
+        new THREE.Vector3(
+            0,
+            0,
+            1
+        );
+
+    let normal =
+        new THREE.Vector3()
+            .crossVectors(
+                longitudinal,
+                direction
+            );
+
+    const normalLength =
+        normal.length();
+
+    if (
+        !Number.isFinite(
+            normalLength
+        ) ||
+        normalLength <= 0.000001
+    ) {
+        /*
+         * This can only happen for a beam
+         * parallel to the building length.
+         *
+         * Such a beam is horizontal rather
+         * than a sloped rafter. Use vertical
+         * inward direction instead.
+         */
+
+        normal.set(
+            0,
+            -1,
+            0
+        );
+
+        return normal;
+    }
+
+    normal.normalize();
+
+    if (
+        normal.y > 0
+    ) {
+        normal.negate();
+    }
+
+    if (
+        !isFiniteVector(normal)
+    ) {
+        return null;
+    }
+
+    return normal;
+}
+
 function createRoofBeam(
     lineSeg,
     material,
@@ -162,17 +317,24 @@ function createRoofBeam(
 
     const start =
         new THREE.Vector3(
-            lineSeg.start.x,
-            lineSeg.start.y,
-            lineSeg.start.z
+            Number(lineSeg.start.x),
+            Number(lineSeg.start.y),
+            Number(lineSeg.start.z)
         );
 
     const end =
         new THREE.Vector3(
-            lineSeg.end.x,
-            lineSeg.end.y,
-            lineSeg.end.z
+            Number(lineSeg.end.x),
+            Number(lineSeg.end.y),
+            Number(lineSeg.end.z)
         );
+
+    if (
+        !isFiniteVector(start) ||
+        !isFiniteVector(end)
+    ) {
+        return null;
+    }
 
     const direction =
         end.clone().sub(
@@ -183,6 +345,7 @@ function createRoofBeam(
         direction.length();
 
     if (
+        !Number.isFinite(length) ||
         length <= 0.001
     ) {
         return null;
@@ -190,50 +353,48 @@ function createRoofBeam(
 
     direction.normalize();
 
-    /*
-     * Roof frame geometry lies in the X/Y plane
-     * and runs along the roof slope.
-     *
-     * local Z = roof slope
-     * local Y = building longitudinal axis
-     * local X = roof normal
-     */
-
-    const longitudinal =
-        new THREE.Vector3(
-            0,
-            0,
-            1
+    const normal =
+        getRoofInteriorNormal(
+            lineSeg
         );
 
-    let normal =
-        new THREE.Vector3()
-            .crossVectors(
-                longitudinal,
-                direction
-            )
-            .normalize();
-
-    /*
-     * We always want the normal pointing
-     * toward the exterior/top side of the roof.
-     *
-     * The structural beam must move in the
-     * opposite direction.
-     */
-
     if (
-        normal.y > 0
+        !normal
     ) {
-        normal.negate();
+        return null;
     }
 
+    const safeThickness =
+        Number(thickness);
+
+    if (
+        !Number.isFinite(
+            safeThickness
+        ) ||
+        safeThickness <= 0
+    ) {
+        return null;
+    }
+
+    /*
+     * Move the complete beam inward so
+     * that its exterior face is below
+     * the roof plane.
+     */
+
     const inward =
-        normal.clone()
+        normal
+            .clone()
             .multiplyScalar(
-                thickness / 2 +
+                safeThickness / 2 +
                 ROOF_BEAM_CLEARANCE
             );
+
+    if (
+        !isFiniteVector(inward)
+    ) {
+        return null;
+    }
 
     start.add(
         inward
@@ -243,66 +404,30 @@ function createRoofBeam(
         inward
     );
 
-    /*
-     * Recalculate the basis after the offset.
-     */
-
-    const zAxis =
-        end.clone().sub(
-            start
-        ).normalize();
-
-    const yAxis =
-        longitudinal.clone();
-
-    const xAxis =
-        new THREE.Vector3()
-            .crossVectors(
-                yAxis,
-                zAxis
-            )
-            .normalize();
+    if (
+        !isFiniteVector(start) ||
+        !isFiniteVector(end)
+    ) {
+        return null;
+    }
 
     /*
-     * Correct handedness.
+     * Standard BoxGeometry.
+     *
+     * Z axis follows the beam.
+     *
+     * We deliberately do not construct
+     * a custom matrix here. This avoids
+     * degenerate Matrix4 bases and NaN
+     * propagation.
      */
-
-    const correctedYAxis =
-        new THREE.Vector3()
-            .crossVectors(
-                zAxis,
-                xAxis
-            )
-            .normalize();
-
-    const matrix =
-        new THREE.Matrix4();
-
-    matrix.makeBasis(
-        xAxis,
-        correctedYAxis,
-        zAxis
-    );
 
     const geometry =
         new THREE.BoxGeometry(
-            thickness,
-            thickness,
+            safeThickness,
+            safeThickness,
             length
         );
-
-    geometry.applyMatrix4(
-        new THREE.Matrix4()
-            .copy(matrix)
-    );
-
-    /*
-     * BoxGeometry is now already oriented
-     * in world-space basis.
-     *
-     * Therefore the mesh itself stays
-     * unrotated.
-     */
 
     const mesh =
         new THREE.Mesh(
@@ -315,6 +440,15 @@ function createRoofBeam(
             .clone()
             .add(end)
             .multiplyScalar(0.5)
+    );
+
+    mesh.quaternion.setFromUnitVectors(
+        new THREE.Vector3(
+            0,
+            0,
+            1
+        ),
+        direction
     );
 
     mesh.castShadow = true;
@@ -352,6 +486,7 @@ function getPurlinOffset(
         direction.length();
 
     if (
+        !Number.isFinite(length) ||
         length <= 0.001
     ) {
         return null;
@@ -362,18 +497,17 @@ function getPurlinOffset(
     if (
         roofType === 'gabled'
     ) {
+        const dx =
+            lineSeg.start.x -
+            lineSeg.end.x;
+
+        const dy =
+            lineSeg.start.y -
+            lineSeg.end.y;
+
         const roofSlope =
-            Math.abs(
-                lineSeg.start.x
-            ) > 0.001
-                ? (
-                    lineSeg.start.y -
-                    lineSeg.end.y
-                ) /
-                (
-                    lineSeg.start.x -
-                    lineSeg.end.x
-                )
+            Math.abs(dx) > 0.001
+                ? dy / dx
                 : 0;
 
         let normal =
@@ -387,6 +521,25 @@ function getPurlinOffset(
             normal.y > 0
         ) {
             normal.negate();
+        }
+
+        const normalLength =
+            normal.length();
+
+        if (
+            !Number.isFinite(
+                normalLength
+            ) ||
+            normalLength <= 0.000001
+        ) {
+            return new THREE.Vector3(
+                0,
+                -(
+                    thickness / 2 +
+                    ROOF_BEAM_CLEARANCE
+                ),
+                0
+            );
         }
 
         normal.normalize();
@@ -605,9 +758,7 @@ function createColumnInnerFlange(
                 flangeThickness /
                 2
             ),
-
         height / 2,
-
         0
     );
 
@@ -663,9 +814,7 @@ function createColumnOuterFlange(
                     dTop
                 ) / 2
             ),
-
         height / 2,
-
         0
     );
 
@@ -708,6 +857,13 @@ function createSolidColumn(
             lineSeg.end.z
         );
 
+    if (
+        !isFiniteVector(rawStart) ||
+        !isFiniteVector(rawEnd)
+    ) {
+        return null;
+    }
+
     const start =
         rawStart.y <= rawEnd.y
             ? rawStart
@@ -723,6 +879,7 @@ function createSolidColumn(
         start.y;
 
     if (
+        !Number.isFinite(height) ||
         height <= 0.001
     ) {
         return null;
@@ -1278,7 +1435,9 @@ export const StructuralOrchestrator =
     Object.freeze({
         id: 'structural',
 
-        create(context) {
+        create(
+            context
+        ) {
             return createObject(
                 context
             );
@@ -1305,7 +1464,9 @@ export const StructuralOrchestrator =
             );
         },
 
-        dispose(object) {
+        dispose(
+            object
+        ) {
             disposeObject(
                 object
             );

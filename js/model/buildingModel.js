@@ -166,7 +166,7 @@ const DEFAULTS = Object.freeze({
         width: 1.0,
         height: 0.33,
         thickness: 0.08,
-        margin: 0.15
+        margin: 0.5
     }),
 
     visibility: Object.freeze({
