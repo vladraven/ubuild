@@ -8,7 +8,11 @@ const TEXTURE_NAMES = Object.freeze([
     'glass',
     'ceiling',
     'interiorWall',
-    'mezzanine'
+    'mezzanine',
+    'springGround',
+    'summerGround',
+    'fallGround',
+    'winterGround'
 ]);
 
 const DEFAULT_TEXTURES = Object.freeze({
@@ -17,136 +21,137 @@ const DEFAULT_TEXTURES = Object.freeze({
         normalMap: null,
         bumpMap: null,
         roughnessMap: null,
-        repeat: Object.freeze({
-            x: 1,
-            y: 1
-        }),
+        repeat: Object.freeze({ x: 1, y: 1 }),
         rotation: 0,
         physicalWidth: 1,
         physicalHeight: 1
     }),
-
     wainscotPanel: Object.freeze({
         colorMap: null,
         normalMap: null,
         bumpMap: null,
         roughnessMap: null,
-        repeat: Object.freeze({
-            x: 1,
-            y: 1
-        }),
+        repeat: Object.freeze({ x: 1, y: 1 }),
         rotation: 0,
         physicalWidth: 1,
         physicalHeight: 1
     }),
-
     roofPanel: Object.freeze({
         colorMap: null,
         normalMap: null,
         bumpMap: null,
         roughnessMap: null,
-        repeat: Object.freeze({
-            x: 1,
-            y: 1
-        }),
+        repeat: Object.freeze({ x: 1, y: 1 }),
         rotation: 0,
         physicalWidth: 1,
         physicalHeight: 1
     }),
-
     trim: Object.freeze({
         colorMap: null,
         normalMap: null,
         bumpMap: null,
         roughnessMap: null,
-        repeat: Object.freeze({
-            x: 1,
-            y: 1
-        }),
+        repeat: Object.freeze({ x: 1, y: 1 }),
         rotation: 0,
         physicalWidth: 1,
         physicalHeight: 1
     }),
-
     steel: Object.freeze({
         colorMap: null,
         normalMap: null,
         bumpMap: null,
         roughnessMap: null,
-        repeat: Object.freeze({
-            x: 1,
-            y: 1
-        }),
+        repeat: Object.freeze({ x: 1, y: 1 }),
         rotation: 0,
         physicalWidth: 1,
         physicalHeight: 1
     }),
-
     concrete: Object.freeze({
         colorMap: null,
         normalMap: null,
         bumpMap: null,
         roughnessMap: null,
-        repeat: Object.freeze({
-            x: 1,
-            y: 1
-        }),
+        repeat: Object.freeze({ x: 1, y: 1 }),
         rotation: 0,
         physicalWidth: 1,
         physicalHeight: 1
     }),
-
     glass: Object.freeze({
         colorMap: null,
         normalMap: null,
         bumpMap: null,
         roughnessMap: null,
-        repeat: Object.freeze({
-            x: 1,
-            y: 1
-        }),
+        repeat: Object.freeze({ x: 1, y: 1 }),
         rotation: 0,
         physicalWidth: 1,
         physicalHeight: 1
     }),
-
     ceiling: Object.freeze({
         colorMap: null,
         normalMap: null,
         bumpMap: null,
         roughnessMap: null,
-        repeat: Object.freeze({
-            x: 1,
-            y: 1
-        }),
+        repeat: Object.freeze({ x: 1, y: 1 }),
         rotation: 0,
         physicalWidth: 1,
         physicalHeight: 1
     }),
-
     interiorWall: Object.freeze({
         colorMap: null,
         normalMap: null,
         bumpMap: null,
         roughnessMap: null,
-        repeat: Object.freeze({
-            x: 1,
-            y: 1
-        }),
+        repeat: Object.freeze({ x: 1, y: 1 }),
         rotation: 0,
         physicalWidth: 1,
         physicalHeight: 1
     }),
-
     mezzanine: Object.freeze({
         colorMap: null,
         normalMap: null,
         bumpMap: null,
         roughnessMap: null,
-        repeat: Object.freeze({
-            x: 1,
-            y: 1
-        }),
+        repeat: Object.freeze({ x: 1, y: 1 }),
+        rotation: 0,
+        physicalWidth: 1,
+        physicalHeight: 1
+    }),
+    springGround: Object.freeze({
+        colorMap: '/js/environment/spring.jpg',
+        normalMap: null,
+        bumpMap: '/js/environment/spring.jpg',
+        roughnessMap: null,
+        repeat: Object.freeze({ x: 80, y: 80 }),
+        rotation: 0,
+        physicalWidth: 1,
+        physicalHeight: 1
+    }),
+    summerGround: Object.freeze({
+        colorMap: '/js/environment/summer.jpg',
+        normalMap: null,
+        bumpMap: 'js/environment/summer.jpg',
+        roughnessMap: null,
+        repeat: Object.freeze({ x: 80, y: 80 }),
+        rotation: 0,
+        physicalWidth: 1,
+        physicalHeight: 1
+    }),
+    fallGround: Object.freeze({
+        colorMap: '/js/environment/fall.jpg',
+        normalMap: null,
+        bumpMap: '/js/environment/fall.jpg',
+        roughnessMap: null,
+        repeat: Object.freeze({ x: 80, y: 80 }),
+        rotation: 0,
+        physicalWidth: 1,
+        physicalHeight: 1
+    }),
+    winterGround: Object.freeze({
+        colorMap: '/js/environment/winter.jpg',
+        normalMap: null,
+        bumpMap: '/js/environment/winter.jpg',
+        roughnessMap: null,
+        repeat: Object.freeze({ x: 80, y: 80 }),
         rotation: 0,
         physicalWidth: 1,
         physicalHeight: 1
@@ -157,46 +162,26 @@ function clone(value) {
     if (Array.isArray(value)) {
         return value.map(clone);
     }
-
     if (value && typeof value === 'object') {
         return Object.fromEntries(
-            Object.entries(value).map(
-                ([key, item]) => [
-                    key,
-                    clone(item)
-                ]
-            )
+            Object.entries(value).map(([key, item]) => [
+                key,
+                clone(item)
+            ])
         );
     }
-
     return value;
 }
 
-function assertPositive(
-    value,
-    name
-) {
-    if (
-        !Number.isFinite(value) ||
-        value <= 0
-    ) {
-        throw new RangeError(
-            `${name} must be greater than zero`
-        );
+function assertPositive(value, name) {
+    if (!Number.isFinite(value) || value <= 0) {
+        throw new RangeError(`${name} must be greater than zero`);
     }
 }
 
-function validateTextureDefinition(
-    definition,
-    name
-) {
-    if (
-        !definition ||
-        typeof definition !== 'object'
-    ) {
-        throw new TypeError(
-            `Invalid texture definition: ${name}`
-        );
+function validateTextureDefinition(definition, name) {
+    if (!definition || typeof definition !== 'object') {
+        throw new TypeError(`Invalid texture definition: ${name}`);
     }
 
     assertPositive(
@@ -209,13 +194,8 @@ function validateTextureDefinition(
         `${name}.physicalHeight`
     );
 
-    if (
-        !definition.repeat ||
-        typeof definition.repeat !== 'object'
-    ) {
-        throw new TypeError(
-            `${name}.repeat is required`
-        );
+    if (!definition.repeat || typeof definition.repeat !== 'object') {
+        throw new TypeError(`${name}.repeat is required`);
     }
 
     assertPositive(
@@ -228,34 +208,19 @@ function validateTextureDefinition(
         `${name}.repeat.y`
     );
 
-    if (
-        !Number.isFinite(
-            definition.rotation
-        )
-    ) {
-        throw new TypeError(
-            `${name}.rotation must be finite`
-        );
+    if (!Number.isFinite(definition.rotation)) {
+        throw new TypeError(`${name}.rotation must be finite`);
     }
 }
 
-function merge(
-    base,
-    override
-) {
+function merge(base, override) {
     const result = clone(base);
 
-    if (
-        !override ||
-        typeof override !== 'object'
-    ) {
+    if (!override || typeof override !== 'object') {
         return result;
     }
 
-    for (
-        const [key, value]
-        of Object.entries(override)
-    ) {
+    for (const [key, value] of Object.entries(override)) {
         if (
             value &&
             typeof value === 'object' &&
@@ -276,14 +241,10 @@ function merge(
     return result;
 }
 
-export function createTextureCatalog(
-    overrides = {}
-) {
+export function createTextureCatalog(overrides = {}) {
     const catalog = {};
 
-    for (
-        const name of TEXTURE_NAMES
-    ) {
+    for (const name of TEXTURE_NAMES) {
         const definition = merge(
             DEFAULT_TEXTURES[name],
             overrides[name]
@@ -302,13 +263,8 @@ export function createTextureCatalog(
     return Object.freeze(catalog);
 }
 
-export function getTextureDefinition(
-    catalog,
-    name
-) {
-    if (
-        !TEXTURE_NAMES.includes(name)
-    ) {
+export function getTextureDefinition(catalog, name) {
+    if (!TEXTURE_NAMES.includes(name)) {
         throw new RangeError(
             `Unknown texture: ${name}`
         );
