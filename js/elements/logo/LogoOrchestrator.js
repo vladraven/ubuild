@@ -11,36 +11,28 @@ let logoTexture = null;
 
 function assertContext(context) {
     if (!context || typeof context !== 'object') {
-        throw new TypeError('Element context is required');
-    }
-
-    if (!context.geometry?.logo) {
-        throw new TypeError('Logo geometry is required');
-    }
-
-    if (!context.materials) {
-        throw new TypeError('Material system is required');
-    }
-}
-
-function getMaterial(
-    context,
-    name,
-    fallback
-) {
-    if (
-        typeof context.materials.get === 'function'
-    ) {
-        return context.materials.get(
-            name,
-            fallback
+        throw new TypeError(
+            'Element context is required'
         );
     }
 
-    return (
-        context.materials[name] ||
-        fallback
-    );
+    if (!context.geometry) {
+        throw new TypeError(
+            'Building geometry is required'
+        );
+    }
+
+    if (!context.geometry.logo) {
+        throw new TypeError(
+            'Logo geometry is required'
+        );
+    }
+
+    if (!context.materials) {
+        throw new TypeError(
+            'Material system is required'
+        );
+    }
 }
 
 function loadLogoTexture() {
@@ -53,7 +45,21 @@ function loadLogoTexture() {
 
     logoTexture =
         loader.load(
-            LOGO_URL
+            LOGO_URL,
+            texture => {
+                texture.colorSpace =
+                    THREE.SRGBColorSpace;
+
+                texture.needsUpdate = true;
+            },
+            undefined,
+            error => {
+                console.error(
+                    'UBuild logo texture failed to load:',
+                    LOGO_URL,
+                    error
+                );
+            }
         );
 
     logoTexture.colorSpace =
@@ -66,7 +72,7 @@ function loadLogoTexture() {
         THREE.ClampToEdgeWrapping;
 
     logoTexture.minFilter =
-        THREE.LinearFilter;
+        THREE.LinearMipmapLinearFilter;
 
     logoTexture.magFilter =
         THREE.LinearFilter;
@@ -75,6 +81,27 @@ function loadLogoTexture() {
         true;
 
     return logoTexture;
+}
+
+function getMaterial(
+    context,
+    name,
+    fallback
+) {
+    if (
+        typeof context.materials.get ===
+        'function'
+    ) {
+        return context.materials.get(
+            name,
+            fallback
+        );
+    }
+
+    return (
+        context.materials[name] ||
+        fallback
+    );
 }
 
 function createPlate(
@@ -115,8 +142,7 @@ function createFrame(
     const material =
         getMaterial(
             context,
-            'trim',
-            context.materials.trimMetal ||
+            'trimMetal',
             '#FFFFFF'
         );
 
@@ -195,8 +221,17 @@ function createObject(
     root.name =
         'logo';
 
+    /*
+     * Legacy behavior:
+     *
+     * If geometry.logo exists,
+     * create the logo.
+     *
+     * Do not make creation depend
+     * on model.logo.enabled.
+     */
+
     if (
-        !logoData.enabled ||
         !logoData.position
     ) {
         return root;
@@ -216,8 +251,14 @@ function createObject(
         createLogoMesh();
 
     root.add(
-        plate,
-        frame,
+        plate
+    );
+
+    root.add(
+        frame
+    );
+
+    root.add(
         image
     );
 
@@ -234,30 +275,19 @@ function createObject(
     );
 
     if (
-        Number.isFinite(
-            logoData.rotationY
-        )
+        logoData.rotation
     ) {
-        root.rotation.y =
-            logoData.rotationY;
-    }
-
-    if (
-        Number.isFinite(
-            logoData.rotationX
-        )
-    ) {
-        root.rotation.x =
-            logoData.rotationX;
-    }
-
-    if (
-        Number.isFinite(
-            logoData.rotationZ
-        )
-    ) {
-        root.rotation.z =
-            logoData.rotationZ;
+        root.rotation.set(
+            Number(
+                logoData.rotation.x
+            ) || 0,
+            Number(
+                logoData.rotation.y
+            ) || 0,
+            Number(
+                logoData.rotation.z
+            ) || 0
+        );
     }
 
     root.traverse(
@@ -272,23 +302,6 @@ function createObject(
     );
 
     return root;
-}
-
-function disposeMaterial(
-    material
-) {
-    if (!material) {
-        return;
-    }
-
-    if (
-        material.map &&
-        material.map !== logoTexture
-    ) {
-        material.map.dispose();
-    }
-
-    material.dispose();
 }
 
 function disposeObject(
@@ -319,13 +332,30 @@ function disposeObject(
                         child.material
                     )
                 ) {
-                    child.material.forEach(
-                        disposeMaterial
-                    );
+                    for (
+                        const material
+                        of child.material
+                    ) {
+                        if (
+                            material.map &&
+                            material.map !==
+                                logoTexture
+                        ) {
+                            material.map.dispose();
+                        }
+
+                        material.dispose();
+                    }
                 } else {
-                    disposeMaterial(
-                        child.material
-                    );
+                    if (
+                        child.material.map &&
+                        child.material.map !==
+                            logoTexture
+                    ) {
+                        child.material.map.dispose();
+                    }
+
+                    child.material.dispose();
                 }
 
                 child.material = null;
@@ -337,12 +367,11 @@ function disposeObject(
         object.children.slice();
 
     for (
-        let i = 0;
-        i < children.length;
-        i++
+        const child
+        of children
     ) {
         object.remove(
-            children[i]
+            child
         );
     }
 
