@@ -41,11 +41,47 @@ function createLogoGeometry(model, envelope) {
     const margin = config.margin || 0.15;
     const wallThickness = model.walls?.thickness || 0.15;
 
-    // Envelope: Z from 0 (front) to length (back). Place logo outside the
-    // front face, same relative placement as legacy (under the eave).
+    // Plate half-height including frame extra (matches legacy).
     const halfPlateH = (logoHeight + 0.12) / 2;
+    const halfPlateW = (logoWidth + 0.12) / 2;
+
+    const height = envelope.height;
+    const halfW = envelope.width / 2;
+    const roof = model.roof || {};
+    const roofType = roof.type || 'gabled';
+    const pitchRatio = Number(roof.pitchRatio) || 0;
+
+    // Calculate available roof height at the left/right edges of the logo
+    // (same logic as legacy) so the plate sits under the sloping roof,
+    // not just under the eave line.
+    let roofHAtLeftCorner = height;
+    let roofHAtRightCorner = height;
+
+    if (roofType === 'gabled') {
+        roofHAtLeftCorner =
+            height + (halfW - halfPlateW) * pitchRatio;
+        roofHAtRightCorner = roofHAtLeftCorner;
+    } else if (roofType === 'left-sloped') {
+        roofHAtLeftCorner =
+            height + (halfW - halfPlateW) * pitchRatio;
+        roofHAtRightCorner =
+            height + (halfW + halfPlateW) * pitchRatio;
+    } else if (roofType === 'right-sloped') {
+        roofHAtLeftCorner =
+            height + (halfW + halfPlateW) * pitchRatio;
+        roofHAtRightCorner =
+            height + (halfW - halfPlateW) * pitchRatio;
+    }
+
+    const minAvailableRoofH = Math.min(
+        roofHAtLeftCorner,
+        roofHAtRightCorner
+    );
+
+    // Place top of plate just under the roof surface with margin.
+    const maxTopY = minAvailableRoofH - margin;
     const targetY = Math.max(
-        envelope.height - margin - halfPlateH,
+        maxTopY - halfPlateH,
         logoHeight / 2 + 0.5
     );
 

@@ -10,15 +10,10 @@ const PURLIN_BEAM = 0.08;
 const END_COLUMN_BEAM = 0.14;
 const CLEARANCE = 0.002;
 
-/*
- * Additional clearance for the structural members
- * belonging to the front and rear roof frames.
- *
- * The structural line represents the center of a
- * BoxGeometry. Therefore the complete beam extends
- * FRAME_BEAM / 2 above that line.
- */
 const END_FRAME_ROOF_CLEARANCE = 0.025;
+
+const PURLIN_END_CLEARANCE = 0.12;
+const PURLIN_ROOF_CLEARANCE = 0.035;
 
 function point(
     x,
@@ -169,14 +164,6 @@ function createFrame(
                 z
             );
 
-        /*
-         * Internal frames must reach the roof
-         * exactly as before.
-         *
-         * Only the front and rear frames need
-         * to be lowered because their beam body
-         * is directly exposed at the roof edge.
-         */
         const endFrameDrop =
             isEndFrame
                 ? (
@@ -246,16 +233,21 @@ function createFrame(
                 z
             );
 
+        const endFrameDrop =
+            isEndFrame
+                ? (
+                    FRAME_BEAM / 2 +
+                    END_FRAME_ROOF_CLEARANCE
+                )
+                : 0;
+
         const rafterStart =
             isEndFrame
                 ? point(
                     leftX,
                     baseHeight +
                         roof.rise -
-                        (
-                            FRAME_BEAM / 2 +
-                            END_FRAME_ROOF_CLEARANCE
-                        ),
+                        endFrameDrop,
                     z
                 )
                 : leftHighTop;
@@ -292,16 +284,21 @@ function createFrame(
             z
         );
 
+    const endFrameDrop =
+        isEndFrame
+            ? (
+                FRAME_BEAM / 2 +
+                END_FRAME_ROOF_CLEARANCE
+            )
+            : 0;
+
     const rafterEnd =
         isEndFrame
             ? point(
                 rightX,
                 baseHeight +
                     roof.rise -
-                    (
-                        FRAME_BEAM / 2 +
-                        END_FRAME_ROOF_CLEARANCE
-                    ),
+                    endFrameDrop,
                 z
             )
             : rightHighTop;
@@ -844,9 +841,35 @@ function createPurlins(
 
     const result = [];
 
+    /*
+     * Purlins must not reach the front/rear
+     * exterior faces.
+     *
+     * They terminate inside the structural
+     * frame instead.
+     */
+    const startZ =
+        PURLIN_END_CLEARANCE;
+
+    const endZ =
+        length -
+        PURLIN_END_CLEARANCE;
+
+    if (
+        endZ <= startZ
+    ) {
+        return Object.freeze(
+            result
+        );
+    }
+
+    /*
+     * The geometry is deliberately placed
+     * below the roof plane.
+     */
     const underRoof =
         PURLIN_BEAM / 2 +
-        CLEARANCE;
+        PURLIN_ROOF_CLEARANCE;
 
     if (
         roof.type === 'gabled'
@@ -873,15 +896,18 @@ function createPurlins(
 
             const xLeft =
                 -halfWidth +
-                t * halfWidth;
+                t *
+                    halfWidth;
 
             const xRight =
                 halfWidth -
-                t * halfWidth;
+                t *
+                    halfWidth;
 
             const roofY =
                 baseHeight +
-                t * rise;
+                t *
+                    rise;
 
             const y =
                 roofY -
@@ -899,12 +925,12 @@ function createPurlins(
                                     point(
                                         xLeft,
                                         y,
-                                        0
+                                        startZ
                                     ),
                                     point(
                                         xLeft,
                                         y,
-                                        length
+                                        endZ
                                     )
                                 ),
 
@@ -913,12 +939,12 @@ function createPurlins(
                                     point(
                                         xRight,
                                         y,
-                                        0
+                                        startZ
                                     ),
                                     point(
                                         xRight,
                                         y,
-                                        length
+                                        endZ
                                     )
                                 )
                         })
@@ -956,7 +982,8 @@ function createPurlins(
             const roofY =
                 baseHeight +
                 rise -
-                t * rise;
+                t *
+                    rise;
 
             const y =
                 roofY -
@@ -972,12 +999,12 @@ function createPurlins(
                             point(
                                 x,
                                 y,
-                                0
+                                startZ
                             ),
                             point(
                                 x,
                                 y,
-                                length
+                                endZ
                             )
                         )
                 })
@@ -1011,7 +1038,8 @@ function createPurlins(
 
             const roofY =
                 baseHeight +
-                t * rise;
+                t *
+                    rise;
 
             const y =
                 roofY -
@@ -1027,12 +1055,12 @@ function createPurlins(
                             point(
                                 x,
                                 y,
-                                0
+                                startZ
                             ),
                             point(
                                 x,
                                 y,
-                                length
+                                endZ
                             )
                         )
                 })
