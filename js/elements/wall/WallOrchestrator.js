@@ -44,6 +44,11 @@ function getWallMaterial(context) {
     return context.materials.wallMetal || context.materials.wall;
 }
 
+/**
+ * Build extruded wall mesh.
+ * Corner strategy: front/back span full width; left/right span full length and
+ * overlap the front/back thickness so outer faces meet without a visible gap.
+ */
 function createWallMeshWithHoles(
     wallData,
     openings,
@@ -54,11 +59,52 @@ function createWallMeshWithHoles(
 ) {
     const shape = new THREE.Shape();
     const sideCode = SIDE_MAP[wallKey];
+    const t = wallData.thickness;
+    // Small overlap so adjacent walls share a solid corner volume
+    const overlap = Math.max(0.001, t * 0.5);
 
-    wallData.shapePoints.forEach((p, idx) => {
+    let points = wallData.shapePoints;
+    if (sideCode === 'L' || sideCode === 'R') {
+        // Extend along building length past front/back faces
+        points = [
+            { x: -overlap, y: points[0].y },
+            { x: envelope.length + overlap, y: points[1].y },
+            { x: envelope.length + overlap, y: points[2].y },
+            { x: -overlap, y: points[3].y }
+        ];
+    } else if (sideCode === 'F' || sideCode === 'B') {
+        // Extend past side faces so corner is closed from both directions
+        const halfW = envelope.width / 2;
+        // shapePoints for F/B use x as width axis
+        const ys = points.map((p) => p.y);
+        // Keep original Y profile (gabled peak etc.) but expand min/max X slightly
+        points = points.map((p) => {
+            if (p.x <= 0) return { x: -halfW - overlap, y: p.y };
+            if (p.x > 0 && Math.abs(p.x) < 1e-6) return p;
+            // peak at x=0 stays; extremes push outward
+            if (Math.abs(p.x - halfW) < 1e-6 || p.x >= halfW - 1e-6) {
+                return { x: halfW + overlap, y: p.y };
+            }
+            if (Math.abs(p.x + halfW) < 1e-6 || p.x <= -halfW + 1e-6) {
+                return { x: -halfW - overlap, y: p.y };
+            }
+            return p;
+        });
+        // Simpler reliable expansion for rectangle-like and gable shapes:
+        points = wallData.shapePoints.map((p) => {
+            let x = p.x;
+            if (x <= -halfW + 1e-6) x = -halfW - overlap;
+            else if (x >= halfW - 1e-6) x = halfW + overlap;
+            return { x, y: p.y };
+        });
+        void ys;
+    }
+
+    points.forEach((p, idx) => {
         if (idx === 0) shape.moveTo(p.x, p.y);
         else shape.lineTo(p.x, p.y);
     });
+    shape.closePath();
 
     openings
         .filter((op) => op.side === sideCode)
@@ -85,29 +131,34 @@ function createWallMeshWithHoles(
         });
 
     const geometry = new THREE.ExtrudeGeometry(shape, {
-        depth: wallData.thickness,
+        depth: t,
         bevelEnabled: false
     });
 
     applyPhysicalPanelUVs(
         geometry,
         envelope.width,
-        wallData.height,
+        wallData.height ?? envelope.height,
         profileId
     );
 
     const mesh = new THREE.Mesh(geometry, material);
     mesh.name = `wall-mesh-${sideCode}`;
 
-    const t = wallData.thickness;
-    if (sideCode === 'F') mesh.position.set(0, 0, 0);
-    else if (sideCode === 'B') mesh.position.set(0, 0, envelope.length - t);
-    else if (sideCode === 'L') mesh.position.set(-envelope.width / 2 + t, 0, 0);
-    else if (sideCode === 'R')
+    // Place so OUTER face sits on the building envelope outer plane
+    if (sideCode === 'F') {
+        mesh.position.set(0, 0, 0);
+    } else if (sideCode === 'B') {
+        mesh.position.set(0, 0, envelope.length - t);
+    } else if (sideCode === 'L') {
+        // After Y=-90°, local +Z maps to world -X; outer face at x = -width/2
+        mesh.position.set(-envelope.width / 2 + t, 0, 0);
+        mesh.rotation.y = -Math.PI / 2;
+    } else if (sideCode === 'R') {
+        // After Y=+90°, outer face at x = +width/2
         mesh.position.set(envelope.width / 2 - t, 0, envelope.length);
-
-    if (sideCode === 'L') mesh.rotation.y = -Math.PI / 2;
-    if (sideCode === 'R') mesh.rotation.y = Math.PI / 2;
+        mesh.rotation.y = Math.PI / 2;
+    }
 
     mesh.castShadow = true;
     mesh.receiveShadow = true;

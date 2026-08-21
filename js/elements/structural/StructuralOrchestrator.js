@@ -1,5 +1,13 @@
 import * as THREE from 'three';
 
+/** Beam cross-section sizes (meters). Keep in sync with StructuralGeometry clearances. */
+const BEAM = Object.freeze({
+    frame: 0.16,
+    girt: 0.07,
+    purlin: 0.07,
+    endColumn: 0.12
+});
+
 function assertContext(context) {
     if (!context || typeof context !== 'object') {
         throw new TypeError('Element context is required');
@@ -59,7 +67,7 @@ function createObject(context) {
 
             for (const key of ['leftColumn', 'leftRafter', 'rightRafter', 'rightColumn', 'rafter']) {
                 if (frame[key]) {
-                    const beam = createBeam(frame[key], material, 0.18);
+                    const beam = createBeam(frame[key], material, BEAM.frame);
                     if (beam) group.add(beam);
                 }
             }
@@ -73,7 +81,7 @@ function createObject(context) {
             sideKeys.forEach((sideKey) => {
                 const segs = girt[sideKey] || [];
                 segs.forEach((seg) => {
-                    const beam = createBeam(seg, material, 0.08);
+                    const beam = createBeam(seg, material, BEAM.girt);
                     if (beam) root.add(beam);
                 });
             });
@@ -84,11 +92,11 @@ function createObject(context) {
         for (const purlin of context.structuralGeometry.purlins) {
             if (purlin.planes) {
                 for (const l of Object.values(purlin.planes)) {
-                    const beam = createBeam(l, material, 0.08);
+                    const beam = createBeam(l, material, BEAM.purlin);
                     if (beam) root.add(beam);
                 }
             } else if (purlin.plane) {
-                const beam = createBeam(purlin.plane, material, 0.08);
+                const beam = createBeam(purlin.plane, material, BEAM.purlin);
                 if (beam) root.add(beam);
             }
         }
@@ -96,8 +104,8 @@ function createObject(context) {
 
     if (vis.endWallColumns !== false && context.structuralGeometry.endWallColumns) {
         for (const col of context.structuralGeometry.endWallColumns) {
-            const leftCol = createBeam(col.left, material, 0.14);
-            const rightCol = createBeam(col.right, material, 0.14);
+            const leftCol = createBeam(col.left, material, BEAM.endColumn);
+            const rightCol = createBeam(col.right, material, BEAM.endColumn);
             if (leftCol) root.add(leftCol);
             if (rightCol) root.add(rightCol);
         }
