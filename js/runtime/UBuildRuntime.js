@@ -1,5 +1,8 @@
 import * as THREE from 'three';
+import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { createBuildingModel } from '../model/buildingModel.js';
+import { createReferenceModelsOrchestrator } from '../elements/referenceModels/ReferenceModelsOrchestrator.js';
+import { createReferenceModelInteraction } from '../interaction/ReferenceModelInteraction.js';
 import { createBuildingGeometry } from '../model/geometry/buildingGeometry.js';
 import { createElementRegistry } from '../elements/ElementRegistry.js';
 import { WallOrchestrator } from '../elements/wall/WallOrchestrator.js';
@@ -80,9 +83,7 @@ function createRenderer(container) {
 }
 
 function isManagedProceduralTexture(texture) {
-    if (!texture) {
-        return true;
-    }
+    if (!texture) return true;
     const data = texture.userData || {};
     return data.isSharedProcedural === true || data.isProceduralClone === true;
 }
@@ -91,43 +92,48 @@ function assignTextureMaps(material, textureBundle) {
     if (!material || !textureBundle || typeof textureBundle !== 'object') {
         return;
     }
+
     const incoming = {
         map: textureBundle.colorMap,
         normalMap: textureBundle.normalMap,
         bumpMap: textureBundle.bumpMap,
         roughnessMap: textureBundle.roughnessMap
     };
+
     for (const slot of Object.keys(incoming)) {
-        if (incoming[slot] === undefined) {
-            continue;
-        }
+        if (incoming[slot] === undefined) continue;
+
         const prev = material[slot];
         const next = incoming[slot];
-        if (prev && prev !== next && !isManagedProceduralTexture(prev)) {
+
+        if (
+            prev &&
+            prev !== next &&
+            !isManagedProceduralTexture(prev)
+        ) {
             prev.dispose();
         }
+
         material[slot] = next;
     }
+
     material.needsUpdate = true;
 }
 
 function createRuntimeMaterialSystem(
     paletteOverrides = {},
     catalogOverrides = {},
-    textureCatalogOverrides = {},
-    onTextureLoaded = null,
-    onTextureError = null
+    textureCatalogOverrides = {}
 ) {
     const catalog = createMaterialCatalog(catalogOverrides);
     const palette = createColorPalette(paletteOverrides);
     const textureCatalog = createTextureCatalog(textureCatalogOverrides);
     const textureManager = createTextureManager({
         loader: new THREE.TextureLoader(),
-        catalog: textureCatalog,
-        onTextureLoaded,
-        onTextureError
+        catalog: textureCatalog
     });
     const materialsMap = new Map();
+
     const materialColors = Object.freeze({
         steel: 'steel',
         structuralSteel: 'steel',
@@ -141,6 +147,7 @@ function createRuntimeMaterialSystem(
         interiorWall: 'interiorWall',
         mezzanine: 'mezzanine'
     });
+
     const materialTextures = Object.freeze({
         wallMetal: 'wallPanel',
         wainscotMetal: 'wainscotPanel',
@@ -159,6 +166,7 @@ function createRuntimeMaterialSystem(
         const colorName = materialColors[name] || 'steel';
         const color = colorOverride || palette[colorName] || palette.wall;
         const key = `${name}_${color}`;
+
         if (materialsMap.has(key)) {
             const material = materialsMap.get(key);
             if (textureOverride && typeof textureOverride === 'object') {
@@ -166,8 +174,10 @@ function createRuntimeMaterialSystem(
             }
             return material;
         }
+
         const definition = catalog[name] || catalog.steel;
         const material = createMaterial(definition, color);
+
         let textureBundle = null;
         if (typeof textureOverride === 'string') {
             textureBundle = textureManager.get(textureOverride);
@@ -175,13 +185,13 @@ function createRuntimeMaterialSystem(
             textureBundle = textureOverride;
         } else {
             const textureName = materialTextures[name];
-            if (textureName) {
-                textureBundle = textureManager.get(textureName);
-            }
+            if (textureName) textureBundle = textureManager.get(textureName);
         }
+
         if (textureBundle) {
             assignTextureMaps(material, textureBundle);
         }
+
         materialsMap.set(key, material);
         return material;
     }
@@ -261,15 +271,7 @@ function createRegistry() {
     return registry;
 }
 
-function createContext({
-    model,
-    geometry,
-    materials,
-    colors,
-    scene,
-    camera,
-    renderer
-}) {
+function createContext({ model, geometry, materials, colors, scene, camera, renderer }) {
     return {
         model,
         geometry,
@@ -290,9 +292,7 @@ function createContext({
 
 function addInstances(root, instances) {
     for (const [id, instance] of instances) {
-        if (!instance) {
-            continue;
-        }
+        if (!instance) continue;
         const object = instance.object ?? instance;
         if (object?.isObject3D) {
             object.name = id;
@@ -302,9 +302,7 @@ function addInstances(root, instances) {
 }
 
 function clearRoot(root) {
-    if (!root) {
-        return;
-    }
+    if (!root) return;
     const children = root.children.slice();
     for (let i = 0; i < children.length; i++) {
         root.remove(children[i]);
@@ -318,39 +316,17 @@ export function createUBuildRuntime({
     lighting = {}
 } = {}) {
     assertContainer(container);
+
     let buildingModel = createBuildingModel(model);
     let buildingGeometry = createBuildingGeometry(buildingModel);
     const scene = createScene();
     const camera = createCamera(container, buildingGeometry);
     const renderer = createRenderer(container);
-    let disposed = false;
-
-    function render() {
-        if (!disposed) {
-            renderer.render(scene, camera);
-        }
-    }
-
-    let colors = createColorsFromModel(buildingModel);
-    const materials = createRuntimeMaterialSystem(
-        colors,
-        {},
-        {},
-        () => {
-            render();
-        },
-        (error, url) => {
-            console.error(`Texture failed to load: ${url}`, error);
-        }
-    );
-
-    const environmentSystem = createEnvironmentSystem({
-        ...environment,
-        textureManager: materials.textureManager
-    });
+    const environmentSystem = createEnvironmentSystem(environment);
     scene.add(environmentSystem.group);
-
     const lightingSystem = createLightingSystem(scene);
+    let colors = createColorsFromModel(buildingModel);
+    const materials = createRuntimeMaterialSystem(colors);
     const registry = createRegistry();
     const buildingRoot = new THREE.Group();
     buildingRoot.name = 'u-build-building';
@@ -365,14 +341,40 @@ export function createUBuildRuntime({
         camera,
         renderer
     });
-
     let currentInstances = registry.createAll(context);
     addInstances(buildingRoot, currentInstances);
+    let disposed = false;
 
     const cameraControls = createCameraControls({
         camera,
         domElement: renderer.domElement,
         onUpdate: render
+    });
+
+    const gltfLoader = new GLTFLoader();
+    const referenceModels = createReferenceModelsOrchestrator();
+    scene.add(referenceModels.group);
+    const referenceModelInteraction = createReferenceModelInteraction({
+        camera,
+        domElement: renderer.domElement,
+        group: referenceModels.group,
+        onDragEnd: render
+    });
+    const referenceModelsApi = Object.freeze({
+        toggle(fileName, enabled, onLoaded) {
+            const themeUri = (window.ConfiguratorData && window.ConfiguratorData.themeUri) || '';
+            referenceModels.toggleModel(fileName, enabled, gltfLoader, themeUri, buildingGeometry.bounds, () => {
+                render();
+                if (typeof onLoaded === 'function') onLoaded();
+            });
+        },
+        clearAll() {
+            [...referenceModels.group.children].forEach((child) => referenceModels.group.remove(child));
+            render();
+        },
+        get group() {
+            return referenceModels.group;
+        }
     });
 
     const openingInteraction = createOpeningInteraction({
@@ -382,17 +384,10 @@ export function createUBuildRuntime({
         onOpeningChange(change) {
             const nextOpenings = buildingModel.openings.map((opening) =>
                 opening.id === change.id
-                    ? {
-                        ...opening,
-                        x: change.x,
-                        yOff: change.yOff
-                    }
+                    ? { ...opening, x: change.x, yOff: change.yOff }
                     : opening
             );
-            update({
-                ...buildingModel,
-                openings: nextOpenings
-            });
+            update({ ...buildingModel, openings: nextOpenings });
         }
     });
 
@@ -406,19 +401,12 @@ export function createUBuildRuntime({
 
     function updateLightingAndEnvironment() {
         const solarState = getSolarState(lightingConfig);
-        lightingSystem.update(
-            solarState,
-            buildingGeometry.bounds
-        );
-        environmentSystem.updateBounds(
-            buildingGeometry.bounds
-        );
+        lightingSystem.update(solarState, buildingGeometry.bounds);
+        environmentSystem.updateBounds(buildingGeometry.bounds);
     }
 
     function resize() {
-        if (disposed) {
-            return;
-        }
+        if (disposed) return;
         const width = Math.max(container.clientWidth, 1);
         const height = Math.max(container.clientHeight, 1);
         camera.aspect = width / height;
@@ -427,19 +415,16 @@ export function createUBuildRuntime({
         render();
     }
 
+    function render() {
+        if (!disposed) renderer.render(scene, camera);
+    }
+
     function update(nextModel) {
-        if (disposed) {
-            throw new Error('UBuild runtime is disposed');
-        }
+        if (disposed) throw new Error('UBuild runtime is disposed');
 
         const nextBuildingModel = createBuildingModel(nextModel);
-        const nextBuildingGeometry = createBuildingGeometry(
-            nextBuildingModel
-        );
-        const nextColors = createColorsFromModel(
-            nextBuildingModel
-        );
-
+        const nextBuildingGeometry = createBuildingGeometry(nextBuildingModel);
+        const nextColors = createColorsFromModel(nextBuildingModel);
         const nextContext = createContext({
             model: nextBuildingModel,
             geometry: nextBuildingGeometry,
@@ -450,16 +435,10 @@ export function createUBuildRuntime({
             renderer
         });
 
-        const nextInstances = registry.updateAll(
-            currentInstances,
-            nextContext
-        );
+        const nextInstances = registry.updateAll(currentInstances, nextContext);
 
         clearRoot(buildingRoot);
-        addInstances(
-            buildingRoot,
-            nextInstances
-        );
+        addInstances(buildingRoot, nextInstances);
 
         buildingModel = nextBuildingModel;
         buildingGeometry = nextBuildingGeometry;
@@ -468,51 +447,26 @@ export function createUBuildRuntime({
 
         updateLightingAndEnvironment();
         render();
-
         return buildingModel;
     }
 
     function autoFrame() {
-        cameraControls.frameBounds(
-            buildingGeometry.bounds
-        );
+        cameraControls.frameBounds(buildingGeometry.bounds);
         render();
     }
 
     function setDateTimeLocation(config = {}) {
-        if (disposed) {
-            throw new Error('UBuild runtime is disposed');
-        }
-
-        if (config.date !== undefined) {
-            lightingConfig.date = config.date;
-        }
-
-        if (config.time !== undefined) {
-            lightingConfig.time = config.time;
-        }
-
-        if (config.timezone !== undefined) {
-            lightingConfig.timezone = config.timezone;
-        }
-
-        if (config.latitude !== undefined) {
-            lightingConfig.latitude = config.latitude;
-        }
-
-        if (config.longitude !== undefined) {
-            lightingConfig.longitude = config.longitude;
-        }
-
+        if (disposed) throw new Error('UBuild runtime is disposed');
+        if (config.date !== undefined) lightingConfig.date = config.date;
+        if (config.time !== undefined) lightingConfig.time = config.time;
+        if (config.timezone !== undefined) lightingConfig.timezone = config.timezone;
+        if (config.latitude !== undefined) lightingConfig.latitude = config.latitude;
+        if (config.longitude !== undefined) lightingConfig.longitude = config.longitude;
         environmentSystem.update({
             date: lightingConfig.date,
             hemisphere:
                 config.hemisphere ||
-                (
-                    lightingConfig.latitude >= 0
-                        ? 'north'
-                        : 'south'
-                ),
+                (lightingConfig.latitude >= 0 ? 'north' : 'south'),
             weather: config.weather || 'clear',
             location: {
                 latitude: lightingConfig.latitude,
@@ -520,44 +474,34 @@ export function createUBuildRuntime({
                 timezone: lightingConfig.timezone
             }
         });
-
         updateLightingAndEnvironment();
         render();
     }
 
     function start() {
-        if (disposed) {
-            throw new Error('UBuild runtime is disposed');
-        }
-
+        if (disposed) throw new Error('UBuild runtime is disposed');
         updateLightingAndEnvironment();
         resize();
         autoFrame();
-
+        cameraControls.setAutoRotate(true);
         return api;
     }
 
     function dispose() {
-        if (disposed) {
-            return;
-        }
-
+        if (disposed) return;
         disposed = true;
         cameraControls.dispose();
         openingInteraction.dispose();
-        registry.disposeAll(
-            currentInstances
-        );
+        referenceModelInteraction.dispose();
+        referenceModels.dispose();
+        registry.disposeAll(currentInstances);
         lightingSystem.dispose();
         environmentSystem.dispose();
         materials.dispose();
         disposePanelNormalMaps();
         renderer.dispose();
         renderer.domElement.remove();
-        window.removeEventListener(
-            'resize',
-            resize
-        );
+        window.removeEventListener('resize', resize);
     }
 
     const api = Object.freeze({
@@ -574,6 +518,7 @@ export function createUBuildRuntime({
         lighting: lightingSystem,
         controls: cameraControls,
         interaction: openingInteraction,
+        referenceModels: referenceModelsApi,
         materials,
         registry,
         root: buildingRoot,
@@ -586,10 +531,6 @@ export function createUBuildRuntime({
         dispose
     });
 
-    window.addEventListener(
-        'resize',
-        resize
-    );
-
+    window.addEventListener('resize', resize);
     return api;
 }

@@ -8,6 +8,14 @@ export function createCameraControls({camera,domElement,onUpdate}){
     const target=new THREE.Vector3(0,2,0);
     const spherical=new THREE.Spherical();
     let insideView=false;
+    // Restored: legacy scene.js enabled OrbitControls.autoRotate on load
+    // (a slow idle spin showcasing the building) and turned it off on the
+    // first user interaction. The refactor dropped this entirely - there
+    // was no autoRotate concept and no animation loop to drive it, since
+    // this renderer is render-on-demand rather than continuous rAF.
+    let autoRotate=false;
+    const autoRotateSpeed=0.2; // matches legacy controls.autoRotateSpeed
+    let rafId=null;
     spherical.setFromVector3(camera.position.clone().sub(target));
     function syncFromCamera(){
         spherical.setFromVector3(camera.position.clone().sub(target));
@@ -24,6 +32,7 @@ export function createCameraControls({camera,domElement,onUpdate}){
         return {position:camera.position.clone(),target:target.clone()};
     }
     function setInsideView(value,position,newTarget){
+        setAutoRotate(false);
         insideView=Boolean(value);
         if(position)camera.position.copy(position);
         if(newTarget)target.copy(newTarget);
@@ -40,6 +49,7 @@ export function createCameraControls({camera,domElement,onUpdate}){
         pointerButton=e.button;
         startPointer.set(e.clientX,e.clientY);
         prevPointer.set(e.clientX,e.clientY);
+        setAutoRotate(false);
     }
     function onPointerMove(e){
         if(!isPointerDown)return;
@@ -86,6 +96,7 @@ export function createCameraControls({camera,domElement,onUpdate}){
     }
     function onWheel(e){
         e.preventDefault();
+        setAutoRotate(false);
         if(insideView){
             const direction=new THREE.Vector3();
             camera.getWorldDirection(direction);
@@ -108,6 +119,21 @@ export function createCameraControls({camera,domElement,onUpdate}){
         camera.lookAt(target);
         if(typeof onUpdate==='function')onUpdate();
     }
+    function stepAutoRotate(){
+        if(!autoRotate)return;
+        spherical.theta-=autoRotateSpeed*0.01;
+        updateCameraPosition();
+        rafId=requestAnimationFrame(stepAutoRotate);
+    }
+    function setAutoRotate(value){
+        autoRotate=Boolean(value);
+        if(autoRotate){
+            if(rafId===null)rafId=requestAnimationFrame(stepAutoRotate);
+        }else if(rafId!==null){
+            cancelAnimationFrame(rafId);
+            rafId=null;
+        }
+    }
     domElement.addEventListener('pointerdown',onPointerDown);
     window.addEventListener('pointermove',onPointerMove);
     window.addEventListener('pointerup',onPointerUp);
@@ -126,11 +152,12 @@ export function createCameraControls({camera,domElement,onUpdate}){
         updateCameraPosition();
     }
     function dispose(){
+        setAutoRotate(false);
         domElement.removeEventListener('pointerdown',onPointerDown);
         window.removeEventListener('pointermove',onPointerMove);
         window.removeEventListener('pointerup',onPointerUp);
         domElement.removeEventListener('wheel',onWheel);
         domElement.removeEventListener('contextmenu',onContextMenu);
     }
-    return Object.freeze({target,frameBounds,updateCameraPosition,setView,getView,setInsideView,dispose});
+    return Object.freeze({target,frameBounds,updateCameraPosition,setView,getView,setInsideView,setAutoRotate,get autoRotate(){return autoRotate;},dispose});
 }

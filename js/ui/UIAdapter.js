@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { serializeModelToURL } from '../integration/URLSerializer.js';
 import { submitToGravityForms } from '../integration/GravityFormsAdapter.js';
+import { getBuildingModelDefaults, getBuildingModelLimits } from '../model/buildingModel.js';
 const M_TO_FT=3.28084;
 const FT_TO_M=0.3048;
 const SAVED_DESIGNS_KEY='ubuild_saved_designs';
@@ -107,6 +108,43 @@ export function createUIAdapter(runtime){
             }
         }
     }
+    let dimensionToastEl=null;
+    let dimensionToastTimer=null;
+    function showDimensionToast(message){
+        // Restored: legacy checkAspectRatioViolations()/showAspectRatioToast()
+        // clamped out-of-range width/height to the system max and warned
+        // the user with a Bootstrap toast. The refactor's handleDimensionChange
+        // instead let createBuildingModel() throw an uncaught error on
+        // out-of-range input, silently leaving the model unchanged with zero
+        // user feedback.
+        if(!dimensionToastEl){
+            let container=document.getElementById('toast-container');
+            if(!container){
+                container=document.createElement('div');
+                container.id='toast-container';
+                container.className='toast-container position-fixed bottom-0 end-0 p-3';
+                container.style.zIndex='999999';
+                document.body.appendChild(container);
+            }
+            container.insertAdjacentHTML('beforeend',`
+                <div id="dimension-limit-toast" class="toast align-items-center text-white bg-dark border-warning shadow" role="alert" aria-live="assertive" aria-atomic="true">
+                    <div class="d-flex">
+                        <div class="toast-body small"><span id="dimension-limit-toast-text"></span></div>
+                        <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
+                    </div>
+                </div>`);
+            dimensionToastEl=document.getElementById('dimension-limit-toast');
+        }
+        const textEl=document.getElementById('dimension-limit-toast-text');
+        if(textEl)textEl.textContent=message;
+        if(window.bootstrap&&window.bootstrap.Toast){
+            window.bootstrap.Toast.getOrCreateInstance(dimensionToastEl,{delay:4000}).show();
+        }else{
+            dimensionToastEl.classList.add('show');
+            clearTimeout(dimensionToastTimer);
+            dimensionToastTimer=setTimeout(()=>dimensionToastEl.classList.remove('show'),4000);
+        }
+    }
     function update(patch){
         runtime.update({...runtime.model,...patch});
         updateInputsFromModel();
@@ -114,7 +152,17 @@ export function createUIAdapter(runtime){
     function handleDimensionChange(prop,value){
         const meters=toMeters(value);
         if(meters<=0)return;
-        update({dimensions:{...runtime.model.dimensions,[prop]:meters}});
+        const limits=(getBuildingModelLimits()[prop])||{};
+        let clamped=meters;
+        let violated=false;
+        if(typeof limits.min==='number'&&clamped<limits.min){clamped=limits.min;violated=true;}
+        if(typeof limits.max==='number'&&clamped>limits.max){clamped=limits.max;violated=true;}
+        update({dimensions:{...runtime.model.dimensions,[prop]:clamped}});
+        if(violated){
+            const unit=isImperial?'ft':'m';
+            const display=toDisplay(clamped);
+            showDimensionToast(`Maximum ${prop} reached (${display} ${unit}).`);
+        }
     }
     function handlePitchChange(value){
         const pitch12=parseFloat(value);
@@ -191,6 +239,32 @@ export function createUIAdapter(runtime){
             const requested=toggle.getAttribute('data-unit');
             isImperial=requested?requested==='imperial':!isImperial;
             updateInputsFromModel();
+        });
+    }
+    function bindReferenceModels(){
+        // Restores legacy external-references-models.js checkbox wiring,
+        // which was left completely disconnected in the refactor (the
+        // ReferenceModelsOrchestrator existed but nothing ever called it).
+        const bc=window.ConfiguratorBackendConstraints||{};
+        const modelMapping=[
+            {id:'refVehicle',key:'allow_vehicle'},
+            {id:'refForklift',key:'allow_forklift'},
+            {id:'refAirplane',key:'allow_airplane'},
+            {id:'refTruck',key:'allow_truck'}
+        ];
+        modelMapping.forEach(item=>{
+            const checkbox=document.getElementById(item.id);
+            if(!checkbox)return;
+            const isAllowed=bc[item.key]!==undefined?Boolean(bc[item.key]):true;
+            const container=checkbox.closest('.form-check');
+            if(container)container.style.display=isAllowed?'block':'none';
+            if(!isAllowed)checkbox.checked=false;
+        });
+        document.querySelectorAll('.ref-model-checkbox').forEach(cb=>{
+            cb.addEventListener('change',e=>{
+                const fileName=e.target.value;
+                runtime.referenceModels.toggle(fileName,e.target.checked);
+            });
         });
     }
     function getSavedDesigns(){
@@ -426,12 +500,24 @@ function bindInsideView(){
         const reset=document.getElementById('btnReset');
         if(reset)reset.addEventListener('click',e=>{
             e.preventDefault();
+            // Legacy initResetFeature() reset the ENTIRE design (dimensions,
+            // roof, colors, wainscot, overhangs, mezzanine/crane/driveway,
+            // openings, reference models) after a confirm() prompt - not
+            // just the camera. That got reduced to a camera-only reset
+            // during the refactor; restored here using the model's own
+            // defaults instead of re-scraping the DOM like legacy did.
+            if(!window.confirm('Are you sure you want to reset the current design?'))return;
+
             const toggle=document.getElementById('viewInsideToggle');
             if(toggle)toggle.checked=false;
-            if(savedOutsidePosition&&runtime.camera)runtime.camera.position.copy(savedOutsidePosition);
-            if(savedOutsideTarget&&runtime.controls)runtime.controls.target.copy(savedOutsideTarget);
             savedOutsidePosition=null;
             savedOutsideTarget=null;
+
+            document.querySelectorAll('.ref-model-checkbox').forEach(cb=>{cb.checked=false;});
+            if(runtime.referenceModels)runtime.referenceModels.clearAll();
+
+            runtime.update(getBuildingModelDefaults());
+            updateInputsFromModel();
             runtime.autoFrame();
         });
     }
@@ -453,7 +539,29 @@ function bindInsideView(){
         const quote=document.querySelector('#custom-gform-submit,#btn-quote-submit');
         if(quote)quote.addEventListener('click',e=>{
             e.preventDefault();
-            submitToGravityForms({formId:4,snapshotFieldId:15,specFieldId:16,model:runtime.model,geometry:runtime.geometry,renderer:runtime.renderer});
+            const shareUrl=`${window.location.origin}${window.location.pathname}?config=${serializeModelToURL(runtime.model)}`;
+            submitToGravityForms({
+                formId:4,
+                snapshotFieldId:15,
+                specFieldId:16,
+                model:runtime.model,
+                geometry:runtime.geometry,
+                renderer:runtime.renderer,
+                fieldMap:{widthFieldId:13,lengthFieldId:14,heightFieldId:12,urlFieldId:10,shareUrl}
+            });
+        });
+        const quoteModal=document.getElementById('quoteModal');
+        if(quoteModal)quoteModal.addEventListener('show.bs.modal',()=>{
+            // Legacy populated the thumbnail preview when the Bootstrap
+            // modal opened (show.bs.modal), not only on final submit.
+            const thumbImg=document.getElementById('summary-building-thumb');
+            const fallbackIcon=document.getElementById('summary-building-fallback');
+            if(thumbImg&&runtime.renderer&&runtime.scene&&runtime.camera){
+                runtime.renderer.render(runtime.scene,runtime.camera);
+                thumbImg.src=runtime.renderer.domElement.toDataURL('image/jpeg',0.85);
+                thumbImg.style.display='block';
+                if(fallbackIcon)fallbackIcon.style.display='none';
+            }
         });
     }
     function init(){
@@ -467,6 +575,7 @@ function bindInsideView(){
         bindColors();
         bindVisibility();
         bindUnits();
+        bindReferenceModels();
         bindActions();
         updateInputsFromModel();
     }

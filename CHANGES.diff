@@ -1,0 +1,521 @@
+diff --git a/js/integration/GravityFormsAdapter.js b/js/integration/GravityFormsAdapter.js
+index 7958dd1..3e8bca2 100644
+--- a/js/integration/GravityFormsAdapter.js
++++ b/js/integration/GravityFormsAdapter.js
+@@ -16,23 +16,61 @@ export function formatBuildingSpecificationText(model, geometry) {
+     const hFt = (m.height * 3.28084).toFixed(1);
+ 
+     const lines = [
+-        '--- U-BUILD SPECIFICATION ---',
+-        `Dimensions: ${wFt}ft x ${lFt}ft x ${hFt}ft (${m.width.toFixed(2)}m x ${m.length.toFixed(2)}m x ${m.height.toFixed(2)}m)`,
+-        `Roof Type: ${model.roof.type}`,
+-        `Roof Pitch: ${(model.roof.pitchRatio * 12).toFixed(1)}:12`,
++        '--- MAIN PARAMETERS ---',
++        `Width (W): ${wFt}ft (${m.width.toFixed(2)}m)`,
++        `Length (L): ${lFt}ft (${m.length.toFixed(2)}m)`,
++        `Height (H): ${hFt}ft (${m.height.toFixed(2)}m)`,
++        `Roof Type: ${model.roof.type} (Pitch: ${(model.roof.pitchRatio * 12).toFixed(1)}:12)`,
+         `Overhangs: Front=${model.roof.overhangs.front}m, Back=${model.roof.overhangs.back}m, Left=${model.roof.overhangs.left}m, Right=${model.roof.overhangs.right}m`,
+-        `Wall Panels: ${model.panels.profile}`,
+-        `Openings Count: ${model.openings.length}`
++        `Wainscot: ${model.panels.wainscotHeight > 0 ? model.panels.wainscotHeight.toFixed(2) + 'm' : 'None'}`,
++        ''
+     ];
+ 
+-    model.openings.forEach((op, i) => {
+-        lines.push(`  [${i + 1}] ${op.type} (${op.side}-Wall) W:${(op.width * 3.28084).toFixed(1)}ft H:${(op.height * 3.28084).toFixed(1)}ft`);
+-    });
++    // Restored: legacy setupQuoteModal() included colors, additional
++    // elements (interior walls / ceiling / mezzanine / crane) and awning
++    // state in the quote summary text. The refactored version dropped all
++    // of this and only listed dimensions/roof/openings.
++    lines.push('--- COLORS ---');
++    if (model.colors) {
++        lines.push(`Roof: ${model.colors.roof || 'N/A'}`);
++        lines.push(`Walls: ${model.colors.wall || 'N/A'}`);
++        lines.push(`Trim: ${model.colors.eaveTrim || model.colors.trim || 'N/A'}`);
++        lines.push(`Wainscot: ${model.colors.wainscot || 'N/A'}`);
++    }
++    lines.push('');
++
++    lines.push('--- ADDITIONAL ELEMENTS ---');
++    lines.push(`Interior Walls: ${model.liner && model.liner.enabled ? 'Yes' : 'No'}`);
++    lines.push(`Mezzanine: ${model.mezzanine && model.mezzanine.enabled ? 'Yes' : 'No'}`);
++    lines.push(`Crane: ${model.crane && model.crane.enabled ? 'Yes' : 'No'}`);
++    lines.push(`Driveway: ${model.driveway && model.driveway.enabled ? 'Yes' : 'No'}`);
++    lines.push('');
++
++    if (model.awnings) {
++        const sideNames = { front: 'Front', back: 'Back', left: 'Left', right: 'Right' };
++        const activeAwnings = Object.entries(model.awnings).filter(([, a]) => a && a.active);
++        if (activeAwnings.length) {
++            lines.push('--- AWNINGS (LEAN-TOS) ---');
++            activeAwnings.forEach(([side, a]) => {
++                lines.push(`${sideNames[side] || side} Awning: Drop=${a.drop}m, Depth=${a.depth}m, Pitch=${a.pitch}`);
++            });
++            lines.push('');
++        }
++    }
++
++    lines.push(`Wall Panels: ${model.panels.profile}`);
++    lines.push(`Openings Count: ${model.openings.length}`);
++    if (model.openings.length) {
++        lines.push('--- OPENINGS (Windows/Doors) ---');
++        model.openings.forEach((op, i) => {
++            lines.push(`  [${i + 1}] ${op.type} (${op.side}-Wall) W:${(op.width * 3.28084).toFixed(1)}ft H:${(op.height * 3.28084).toFixed(1)}ft`);
++        });
++    }
+ 
+     return lines.join('\n');
+ }
+ 
+-export function submitToGravityForms({ formId, snapshotFieldId, specFieldId, model, geometry, renderer }) {
++export function submitToGravityForms({ formId, snapshotFieldId, specFieldId, model, geometry, renderer, fieldMap }) {
+     const form = document.getElementById(`gform_${formId}`);
+     if (!form) return false;
+ 
+@@ -45,5 +83,22 @@ export function submitToGravityForms({ formId, snapshotFieldId, specFieldId, mod
+     const inputSpecs = document.getElementById(`input_${formId}_${specFieldId}`);
+     if (inputSpecs) inputSpecs.value = specs;
+ 
++    // Restored: legacy also populated dedicated per-dimension fields and a
++    // shareable config URL field (input_4_10/12/13/14) on the same form -
++    // the refactor only ever wrote the snapshot + spec-text fields, so
++    // those Gravity Forms fields were silently left blank.
++    if (fieldMap) {
++        const m = model.dimensions;
++        const setField = (fieldId, value) => {
++            if (fieldId === undefined || fieldId === null) return;
++            const el = document.getElementById(`input_${formId}_${fieldId}`);
++            if (el) el.value = value;
++        };
++        setField(fieldMap.widthFieldId, m.width.toFixed(2) + 'm');
++        setField(fieldMap.lengthFieldId, m.length.toFixed(2) + 'm');
++        setField(fieldMap.heightFieldId, m.height.toFixed(2) + 'm');
++        setField(fieldMap.urlFieldId, fieldMap.shareUrl || '');
++    }
++
+     return true;
+ }
+\ No newline at end of file
+diff --git a/js/interaction/CameraControls.js b/js/interaction/CameraControls.js
+index be3bfab..3618074 100644
+--- a/js/interaction/CameraControls.js
++++ b/js/interaction/CameraControls.js
+@@ -8,6 +8,14 @@ export function createCameraControls({camera,domElement,onUpdate}){
+     const target=new THREE.Vector3(0,2,0);
+     const spherical=new THREE.Spherical();
+     let insideView=false;
++    // Restored: legacy scene.js enabled OrbitControls.autoRotate on load
++    // (a slow idle spin showcasing the building) and turned it off on the
++    // first user interaction. The refactor dropped this entirely - there
++    // was no autoRotate concept and no animation loop to drive it, since
++    // this renderer is render-on-demand rather than continuous rAF.
++    let autoRotate=false;
++    const autoRotateSpeed=0.2; // matches legacy controls.autoRotateSpeed
++    let rafId=null;
+     spherical.setFromVector3(camera.position.clone().sub(target));
+     function syncFromCamera(){
+         spherical.setFromVector3(camera.position.clone().sub(target));
+@@ -24,6 +32,7 @@ export function createCameraControls({camera,domElement,onUpdate}){
+         return {position:camera.position.clone(),target:target.clone()};
+     }
+     function setInsideView(value,position,newTarget){
++        setAutoRotate(false);
+         insideView=Boolean(value);
+         if(position)camera.position.copy(position);
+         if(newTarget)target.copy(newTarget);
+@@ -40,6 +49,7 @@ export function createCameraControls({camera,domElement,onUpdate}){
+         pointerButton=e.button;
+         startPointer.set(e.clientX,e.clientY);
+         prevPointer.set(e.clientX,e.clientY);
++        setAutoRotate(false);
+     }
+     function onPointerMove(e){
+         if(!isPointerDown)return;
+@@ -86,6 +96,7 @@ export function createCameraControls({camera,domElement,onUpdate}){
+     }
+     function onWheel(e){
+         e.preventDefault();
++        setAutoRotate(false);
+         if(insideView){
+             const direction=new THREE.Vector3();
+             camera.getWorldDirection(direction);
+@@ -108,6 +119,21 @@ export function createCameraControls({camera,domElement,onUpdate}){
+         camera.lookAt(target);
+         if(typeof onUpdate==='function')onUpdate();
+     }
++    function stepAutoRotate(){
++        if(!autoRotate)return;
++        spherical.theta-=autoRotateSpeed*0.01;
++        updateCameraPosition();
++        rafId=requestAnimationFrame(stepAutoRotate);
++    }
++    function setAutoRotate(value){
++        autoRotate=Boolean(value);
++        if(autoRotate){
++            if(rafId===null)rafId=requestAnimationFrame(stepAutoRotate);
++        }else if(rafId!==null){
++            cancelAnimationFrame(rafId);
++            rafId=null;
++        }
++    }
+     domElement.addEventListener('pointerdown',onPointerDown);
+     window.addEventListener('pointermove',onPointerMove);
+     window.addEventListener('pointerup',onPointerUp);
+@@ -126,11 +152,12 @@ export function createCameraControls({camera,domElement,onUpdate}){
+         updateCameraPosition();
+     }
+     function dispose(){
++        setAutoRotate(false);
+         domElement.removeEventListener('pointerdown',onPointerDown);
+         window.removeEventListener('pointermove',onPointerMove);
+         window.removeEventListener('pointerup',onPointerUp);
+         domElement.removeEventListener('wheel',onWheel);
+         domElement.removeEventListener('contextmenu',onContextMenu);
+     }
+-    return Object.freeze({target,frameBounds,updateCameraPosition,setView,getView,setInsideView,dispose});
++    return Object.freeze({target,frameBounds,updateCameraPosition,setView,getView,setInsideView,setAutoRotate,get autoRotate(){return autoRotate;},dispose});
+ }
+\ No newline at end of file
+diff --git a/js/runtime/UBuildRuntime.js b/js/runtime/UBuildRuntime.js
+index c9f2698..46c4e04 100644
+--- a/js/runtime/UBuildRuntime.js
++++ b/js/runtime/UBuildRuntime.js
+@@ -1,5 +1,8 @@
+ import * as THREE from 'three';
++import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
+ import { createBuildingModel } from '../model/buildingModel.js';
++import { createReferenceModelsOrchestrator } from '../elements/referenceModels/ReferenceModelsOrchestrator.js';
++import { createReferenceModelInteraction } from '../interaction/ReferenceModelInteraction.js';
+ import { createBuildingGeometry } from '../model/geometry/buildingGeometry.js';
+ import { createElementRegistry } from '../elements/ElementRegistry.js';
+ import { WallOrchestrator } from '../elements/wall/WallOrchestrator.js';
+@@ -348,6 +351,32 @@ export function createUBuildRuntime({
+         onUpdate: render
+     });
+ 
++    const gltfLoader = new GLTFLoader();
++    const referenceModels = createReferenceModelsOrchestrator();
++    scene.add(referenceModels.group);
++    const referenceModelInteraction = createReferenceModelInteraction({
++        camera,
++        domElement: renderer.domElement,
++        group: referenceModels.group,
++        onDragEnd: render
++    });
++    const referenceModelsApi = Object.freeze({
++        toggle(fileName, enabled, onLoaded) {
++            const themeUri = (window.ConfiguratorData && window.ConfiguratorData.themeUri) || '';
++            referenceModels.toggleModel(fileName, enabled, gltfLoader, themeUri, buildingGeometry.bounds, () => {
++                render();
++                if (typeof onLoaded === 'function') onLoaded();
++            });
++        },
++        clearAll() {
++            [...referenceModels.group.children].forEach((child) => referenceModels.group.remove(child));
++            render();
++        },
++        get group() {
++            return referenceModels.group;
++        }
++    });
++
+     const openingInteraction = createOpeningInteraction({
+         camera,
+         domElement: renderer.domElement,
+@@ -454,6 +483,7 @@ export function createUBuildRuntime({
+         updateLightingAndEnvironment();
+         resize();
+         autoFrame();
++        cameraControls.setAutoRotate(true);
+         return api;
+     }
+ 
+@@ -462,6 +492,8 @@ export function createUBuildRuntime({
+         disposed = true;
+         cameraControls.dispose();
+         openingInteraction.dispose();
++        referenceModelInteraction.dispose();
++        referenceModels.dispose();
+         registry.disposeAll(currentInstances);
+         lightingSystem.dispose();
+         environmentSystem.dispose();
+@@ -486,6 +518,7 @@ export function createUBuildRuntime({
+         lighting: lightingSystem,
+         controls: cameraControls,
+         interaction: openingInteraction,
++        referenceModels: referenceModelsApi,
+         materials,
+         registry,
+         root: buildingRoot,
+diff --git a/js/ui/UIAdapter.js b/js/ui/UIAdapter.js
+index 370b91b..26cf470 100644
+--- a/js/ui/UIAdapter.js
++++ b/js/ui/UIAdapter.js
+@@ -1,6 +1,7 @@
+ import * as THREE from 'three';
+ import { serializeModelToURL } from '../integration/URLSerializer.js';
+ import { submitToGravityForms } from '../integration/GravityFormsAdapter.js';
++import { getBuildingModelDefaults, getBuildingModelLimits } from '../model/buildingModel.js';
+ const M_TO_FT=3.28084;
+ const FT_TO_M=0.3048;
+ const SAVED_DESIGNS_KEY='ubuild_saved_designs';
+@@ -107,6 +108,43 @@ export function createUIAdapter(runtime){
+             }
+         }
+     }
++    let dimensionToastEl=null;
++    let dimensionToastTimer=null;
++    function showDimensionToast(message){
++        // Restored: legacy checkAspectRatioViolations()/showAspectRatioToast()
++        // clamped out-of-range width/height to the system max and warned
++        // the user with a Bootstrap toast. The refactor's handleDimensionChange
++        // instead let createBuildingModel() throw an uncaught error on
++        // out-of-range input, silently leaving the model unchanged with zero
++        // user feedback.
++        if(!dimensionToastEl){
++            let container=document.getElementById('toast-container');
++            if(!container){
++                container=document.createElement('div');
++                container.id='toast-container';
++                container.className='toast-container position-fixed bottom-0 end-0 p-3';
++                container.style.zIndex='999999';
++                document.body.appendChild(container);
++            }
++            container.insertAdjacentHTML('beforeend',`
++                <div id="dimension-limit-toast" class="toast align-items-center text-white bg-dark border-warning shadow" role="alert" aria-live="assertive" aria-atomic="true">
++                    <div class="d-flex">
++                        <div class="toast-body small"><span id="dimension-limit-toast-text"></span></div>
++                        <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
++                    </div>
++                </div>`);
++            dimensionToastEl=document.getElementById('dimension-limit-toast');
++        }
++        const textEl=document.getElementById('dimension-limit-toast-text');
++        if(textEl)textEl.textContent=message;
++        if(window.bootstrap&&window.bootstrap.Toast){
++            window.bootstrap.Toast.getOrCreateInstance(dimensionToastEl,{delay:4000}).show();
++        }else{
++            dimensionToastEl.classList.add('show');
++            clearTimeout(dimensionToastTimer);
++            dimensionToastTimer=setTimeout(()=>dimensionToastEl.classList.remove('show'),4000);
++        }
++    }
+     function update(patch){
+         runtime.update({...runtime.model,...patch});
+         updateInputsFromModel();
+@@ -114,7 +152,17 @@ export function createUIAdapter(runtime){
+     function handleDimensionChange(prop,value){
+         const meters=toMeters(value);
+         if(meters<=0)return;
+-        update({dimensions:{...runtime.model.dimensions,[prop]:meters}});
++        const limits=(getBuildingModelLimits()[prop])||{};
++        let clamped=meters;
++        let violated=false;
++        if(typeof limits.min==='number'&&clamped<limits.min){clamped=limits.min;violated=true;}
++        if(typeof limits.max==='number'&&clamped>limits.max){clamped=limits.max;violated=true;}
++        update({dimensions:{...runtime.model.dimensions,[prop]:clamped}});
++        if(violated){
++            const unit=isImperial?'ft':'m';
++            const display=toDisplay(clamped);
++            showDimensionToast(`Maximum ${prop} reached (${display} ${unit}).`);
++        }
+     }
+     function handlePitchChange(value){
+         const pitch12=parseFloat(value);
+@@ -193,6 +241,32 @@ export function createUIAdapter(runtime){
+             updateInputsFromModel();
+         });
+     }
++    function bindReferenceModels(){
++        // Restores legacy external-references-models.js checkbox wiring,
++        // which was left completely disconnected in the refactor (the
++        // ReferenceModelsOrchestrator existed but nothing ever called it).
++        const bc=window.ConfiguratorBackendConstraints||{};
++        const modelMapping=[
++            {id:'refVehicle',key:'allow_vehicle'},
++            {id:'refForklift',key:'allow_forklift'},
++            {id:'refAirplane',key:'allow_airplane'},
++            {id:'refTruck',key:'allow_truck'}
++        ];
++        modelMapping.forEach(item=>{
++            const checkbox=document.getElementById(item.id);
++            if(!checkbox)return;
++            const isAllowed=bc[item.key]!==undefined?Boolean(bc[item.key]):true;
++            const container=checkbox.closest('.form-check');
++            if(container)container.style.display=isAllowed?'block':'none';
++            if(!isAllowed)checkbox.checked=false;
++        });
++        document.querySelectorAll('.ref-model-checkbox').forEach(cb=>{
++            cb.addEventListener('change',e=>{
++                const fileName=e.target.value;
++                runtime.referenceModels.toggle(fileName,e.target.checked);
++            });
++        });
++    }
+     function getSavedDesigns(){
+         try{
+             const data=JSON.parse(localStorage.getItem(SAVED_DESIGNS_KEY)||'[]');
+@@ -426,12 +500,24 @@ function bindInsideView(){
+         const reset=document.getElementById('btnReset');
+         if(reset)reset.addEventListener('click',e=>{
+             e.preventDefault();
++            // Legacy initResetFeature() reset the ENTIRE design (dimensions,
++            // roof, colors, wainscot, overhangs, mezzanine/crane/driveway,
++            // openings, reference models) after a confirm() prompt - not
++            // just the camera. That got reduced to a camera-only reset
++            // during the refactor; restored here using the model's own
++            // defaults instead of re-scraping the DOM like legacy did.
++            if(!window.confirm('Are you sure you want to reset the current design?'))return;
++
+             const toggle=document.getElementById('viewInsideToggle');
+             if(toggle)toggle.checked=false;
+-            if(savedOutsidePosition&&runtime.camera)runtime.camera.position.copy(savedOutsidePosition);
+-            if(savedOutsideTarget&&runtime.controls)runtime.controls.target.copy(savedOutsideTarget);
+             savedOutsidePosition=null;
+             savedOutsideTarget=null;
++
++            document.querySelectorAll('.ref-model-checkbox').forEach(cb=>{cb.checked=false;});
++            if(runtime.referenceModels)runtime.referenceModels.clearAll();
++
++            runtime.update(getBuildingModelDefaults());
++            updateInputsFromModel();
+             runtime.autoFrame();
+         });
+     }
+@@ -453,7 +539,29 @@ function bindInsideView(){
+         const quote=document.querySelector('#custom-gform-submit,#btn-quote-submit');
+         if(quote)quote.addEventListener('click',e=>{
+             e.preventDefault();
+-            submitToGravityForms({formId:4,snapshotFieldId:15,specFieldId:16,model:runtime.model,geometry:runtime.geometry,renderer:runtime.renderer});
++            const shareUrl=`${window.location.origin}${window.location.pathname}?config=${serializeModelToURL(runtime.model)}`;
++            submitToGravityForms({
++                formId:4,
++                snapshotFieldId:15,
++                specFieldId:16,
++                model:runtime.model,
++                geometry:runtime.geometry,
++                renderer:runtime.renderer,
++                fieldMap:{widthFieldId:13,lengthFieldId:14,heightFieldId:12,urlFieldId:10,shareUrl}
++            });
++        });
++        const quoteModal=document.getElementById('quoteModal');
++        if(quoteModal)quoteModal.addEventListener('show.bs.modal',()=>{
++            // Legacy populated the thumbnail preview when the Bootstrap
++            // modal opened (show.bs.modal), not only on final submit.
++            const thumbImg=document.getElementById('summary-building-thumb');
++            const fallbackIcon=document.getElementById('summary-building-fallback');
++            if(thumbImg&&runtime.renderer&&runtime.scene&&runtime.camera){
++                runtime.renderer.render(runtime.scene,runtime.camera);
++                thumbImg.src=runtime.renderer.domElement.toDataURL('image/jpeg',0.85);
++                thumbImg.style.display='block';
++                if(fallbackIcon)fallbackIcon.style.display='none';
++            }
+         });
+     }
+     function init(){
+@@ -467,6 +575,7 @@ function bindInsideView(){
+         bindColors();
+         bindVisibility();
+         bindUnits();
++        bindReferenceModels();
+         bindActions();
+         updateInputsFromModel();
+     }
+=== NEW FILE: js/interaction/ReferenceModelInteraction.js ===
+// js/interaction/ReferenceModelInteraction.js
+//
+// Restores drag-to-reposition behaviour for reference models (vehicles,
+// forklifts, airplanes, trucks) that existed in the legacy
+// external-references-models.js (onPointerDown/Move/Up + DragControls-style
+// plane intersection). This was silently dropped during the refactor: the
+// new ReferenceModelsOrchestrator only auto-placed models and had no
+// pointer interaction at all.
+//
+// Implementation note: CameraControls.js is a bespoke orbit implementation
+// (not three/examples OrbitControls) with no `.enabled` switch, so this
+// module binds its own listeners in the capture phase and calls
+// stopImmediatePropagation() while a model is actively grabbed to prevent
+// the camera-orbit listeners (registered on the same element, bubble phase)
+// from also reacting to the same pointer events.
+import * as THREE from 'three';
+
+export function createReferenceModelInteraction({ camera, domElement, group, onDragEnd }) {
+    const raycaster = new THREE.Raycaster();
+    const pointer = new THREE.Vector2();
+    const dragPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
+    const planeHit = new THREE.Vector3();
+    const dragOffset = new THREE.Vector3();
+
+    let selected = null;
+    let dragging = false;
+
+    function updatePointer(event) {
+        const rect = domElement.getBoundingClientRect();
+        pointer.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
+        pointer.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+    }
+
+    function pickRoot(object) {
+        let root = object;
+        while (root.parent && root.parent !== group) {
+            root = root.parent;
+        }
+        return root;
+    }
+
+    function onPointerDown(event) {
+        if (!group || !group.children.length) return;
+
+        updatePointer(event);
+        raycaster.setFromCamera(pointer, camera);
+        const hits = raycaster.intersectObjects(group.children, true);
+        if (hits.length === 0) return;
+
+        selected = pickRoot(hits[0].object);
+        dragging = true;
+
+        raycaster.ray.intersectPlane(dragPlane, planeHit);
+        dragOffset.copy(selected.position).sub(planeHit || new THREE.Vector3());
+
+        event.stopImmediatePropagation();
+        event.preventDefault();
+    }
+
+    function onPointerMove(event) {
+        if (!dragging || !selected) return;
+
+        updatePointer(event);
+        raycaster.setFromCamera(pointer, camera);
+        if (raycaster.ray.intersectPlane(dragPlane, planeHit)) {
+            selected.position.x = planeHit.x + dragOffset.x;
+            selected.position.z = planeHit.z + dragOffset.z;
+        }
+
+        event.stopImmediatePropagation();
+        event.preventDefault();
+    }
+
+    function onPointerUp(event) {
+        if (!dragging) return;
+        dragging = false;
+        selected = null;
+        if (typeof onDragEnd === 'function') onDragEnd();
+        event.stopImmediatePropagation();
+    }
+
+    domElement.addEventListener('pointerdown', onPointerDown, { capture: true });
+    domElement.addEventListener('pointermove', onPointerMove, { capture: true });
+    domElement.addEventListener('pointerup', onPointerUp, { capture: true });
+    domElement.addEventListener('pointerleave', onPointerUp, { capture: true });
+
+    function dispose() {
+        domElement.removeEventListener('pointerdown', onPointerDown, { capture: true });
+        domElement.removeEventListener('pointermove', onPointerMove, { capture: true });
+        domElement.removeEventListener('pointerup', onPointerUp, { capture: true });
+        domElement.removeEventListener('pointerleave', onPointerUp, { capture: true });
+    }
+
+    return Object.freeze({ dispose });
+}
