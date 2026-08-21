@@ -369,6 +369,16 @@ function createObject(
         return root;
     }
 
+    // FIX: visibility.trims was never checked here - only the geometry's
+    // own trimsData.enabled flag gated this, so toggling trims off in
+    // visibility had no effect (this is what produced the diagonal
+    // corner-trim poles even with everything set to false).
+    if (
+        context.model?.visibility?.trims === false
+    ) {
+        return root;
+    }
+
     const trimMaterial =
         resolveMaterial(
             context,

@@ -102,6 +102,11 @@ function createObject(context) {
     if (!guttersData.enabled) {
         return root;
     }
+    // FIX: visibility.gutters was never checked - see the same fix applied
+    // to Ridge/Trim/Foundation orchestrators.
+    if (context.model?.visibility?.gutters === false) {
+        return root;
+    }
 
     const material = resolveMaterial(context, 'eaveTrim');
 

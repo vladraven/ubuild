@@ -244,6 +244,16 @@ function createObject(
         return root;
     }
 
+    // FIX: visibility.logo (the UI show/hide toggle) was never checked -
+    // separate from model.logo.enabled above, which is intentionally not
+    // gated per the comment. See the same fix on Ridge/Trim/Foundation/
+    // Gutters orchestrators.
+    if (
+        context.model?.visibility?.logo === false
+    ) {
+        return root;
+    }
+
     const plate =
         createPlate(
             context

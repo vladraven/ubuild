@@ -72,6 +72,9 @@ function createObject(context) {
     if (!liner.enabled) {
         return root;
     }
+    if (context.model?.visibility?.liner === false) {
+        return root;
+    }
 
     const material = resolveMaterial(context);
     const envelope = context.geometry.envelope;

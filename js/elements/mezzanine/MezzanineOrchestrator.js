@@ -33,6 +33,9 @@ function createObject(context) {
     if (!mezzData.enabled || !mezzData.floor) {
         return root;
     }
+    if (context.model?.visibility?.mezzanine === false) {
+        return root;
+    }
 
     const { deckMat, steelMat } = resolveMaterials(context);
 

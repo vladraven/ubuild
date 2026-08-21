@@ -21,9 +21,17 @@ function resolveMaterial(context) {
 
 function createObject(context) {
     assertContext(context);
-    const roof = context.geometry.roof;
     const root = new THREE.Group();
     root.name = 'ridge';
+
+    // FIX: visibility.ridge was never checked here - the ridge cap mesh
+    // was built purely off roof.type, so toggling it off in visibility
+    // had no effect.
+    if (context.model?.visibility?.ridge === false) {
+        return root;
+    }
+
+    const roof = context.geometry.roof;
 
     if (roof.type !== 'gabled' || !roof.ridge) {
         return root;

@@ -1,77 +1,67 @@
-# U-Build: восстановление фронтенда (коммит d18de7f)
+# U-Build: элементы игнорируют флаги visibility
 
-## Главная причина "полной потери функционала"
+## Причина бага на скрине
 
-Нашёл it быстро скриптом (сравнил все `import ... from '../x/y.js'` в
-`js/**/*.js` с реальными именами папок на диске, без учёта регистра):
+Часть orchestrator'ов вообще не читает `context.model.visibility.*` — они
+показывают элемент, если у геометрии есть свои собственные данные
+(`roof.type === 'gabled'`, `trimsData.enabled`, и т.д.), но флаг
+`visibility.X` из настроек нигде не проверяют. Поэтому даже при
+полностью `false` в `visibility` часть объектов всё равно рисуется.
 
+На скрине видно ровно это:
+
+- **Белая плоскость** — плита фундамента.
+  `FoundationOrchestrator.js` проверял только `visibility.labels`
+  (для подписей Front/Back/Left/Right), а саму плиту создавал
+  безусловно.
+- **Вертикальная палка в центре** — конёк крыши.
+  `RidgeOrchestrator.js` вообще не знал о `visibility.ridge`, смотрел
+  только на `roof.type`.
+- **Две диагональные палки по бокам** — угловые триммы (corner trim).
+  `TrimOrchestrator.js` проверял только свой внутренний
+  `trimsData.enabled`, а `visibility.trims` не читал вообще.
+
+## Что исправлено (проверил вообще все orchestrator'ы на этот баг)
+
+| Файл | Флаг, который был проигнорирован |
+|---|---|
+| `js/elements/foundation/FoundationOrchestrator.js` | `visibility.foundation` |
+| `js/elements/ridge/RidgeOrchestrator.js` | `visibility.ridge` |
+| `js/elements/trim/TrimOrchestrator.js` | `visibility.trims` |
+| `js/elements/gutters/GuttersOrchestrator.js` | `visibility.gutters` |
+| `js/elements/logo/LogoOrchestrator.js` | `visibility.logo` |
+| `js/elements/mezzanine/MezzanineOrchestrator.js` | `visibility.mezzanine` |
+| `js/elements/crane/CraneOrchestrator.js` | `visibility.crane` |
+| `js/elements/driveway/DrivewayOrchestrator.js` | `visibility.driveway` |
+| `js/elements/liner/LinerOrchestrator.js` | `visibility.liner` |
+| `js/elements/awning/AwningVisualProvider.js` | `visibility.awnings` |
+
+Во всех случаях правка одна и та же: в начале `createObject()` (или
+`create()`) добавлена ранняя проверка
+
+```js
+if (context.model?.visibility?.<flag> === false) {
+    return root;
+}
 ```
-js/runtime/UBuildRuntime.js импортирует:
-  ../elements/foundation/FoundationOrchestrator.js   → папка называлась Foundation/
-  ../environment/EnvironmentSystem.js                → папка называлась Environment/
-  ../lighting/LightingSystem.js                      → папка называлась Lighting/
-  ../lighting/SolarPosition.js                        → папка называлась Lighting/
-```
 
-4 несовпадения регистра в путях импорта. На Windows/macOS (файловая
-система нечувствительна к регистру) это молча работает, поэтому
-локально могло всё выглядеть нормально. Но на любом
-Linux/CDN/production-хостинге (регистр важен) `import` по такому пути
-**не резолвится вообще** → падает весь модуль `UBuildRuntime.js` → падает
-`app-new.js`, который его импортирует → конфигуратор не создаётся
-вообще, ни геометрия, ни материалы, ни окружение, ни свет — вообще
-ничего. Это и есть "я потерял полностью функционал завязанный на
-фронтенд": не отдельные фичи потерялись, а весь фронтенд не
-инициализировался.
+рядом с уже существующей проверкой на собственный `enabled`-флаг
+геометрии (если он был).
 
-**Исправление:** переименовал папки в нижний регистр, чтобы совпадали
-с тем, что действительно импортируется:
-`Foundation→foundation`, `Environment→environment`, `Lighting→lighting`.
-Сами файлы не трогал — только регистр имени папки.
+`walls`, `roof`, `panels`, `wainscot`, `frames`, `girts`, `purlins`,
+`endWallColumns` уже были корректно завязаны на `visibility` — их не
+трогал.
 
-## Остальное, что было сломано/недоделано именно в этом коммите
+## Отдельно: `ElementOrchestrator.js`
 
-1. **`toneMapping` рендерера не был задан** (`js/runtime/UBuildRuntime.js`,
-   `createRenderer()`) → оставался `THREE.NoToneMapping`, который жёстко
-   обрезает пересвеченные каналы вместо плавного roll-off. При текущей
-   яркости связки sun+ambient+hemisphere в `LightingSystem` это давало
-   ту самую "дикую жёлто-белую" картинку вместо зелёной травы (см. наш
-   предыдущий разбор). Добавил `renderer.toneMapping =
-   THREE.ACESFilmicToneMapping; renderer.toneMappingExposure = 1.0;`.
+В архиве также лежит уже отправленный ранее фикс
+`TypeError: object.traverse is not a function` (`update()` передавал в
+`visual.dispose()` весь `{id, geometry, object}` вместо
+`instance.object`). Включил его же файл сюда, чтобы не потерять — если
+уже применяли отдельно, второй раз накатывать не обязательно, просто
+сверьте.
 
-2. **Reference Models (машины/погрузчик/самолёт/грузовик) снова были
-   отключены от runtime.** `ReferenceModelsOrchestrator.js` существует,
-   `UIAdapter.js` уже вызывает `runtime.referenceModels.toggle(...)` при
-   клике на чекбоксы — но сам `runtime.referenceModels` в
-   `UBuildRuntime.js` не создавался и не экспортировался, то есть клик
-   на чекбокс упал бы с ошибкой в консоли. Подключил оркестратор + новый
-   drag-модуль `ReferenceModelInteraction.js` (он уже лежал в репо, но
-   тоже был не подключён) и выставил `runtime.referenceModels` в
-   публичном API.
+## Как применить
 
-3. **Ни автовращение камеры на простое, ни анимация облаков не
-   запускались.** В `EnvironmentSystem.js` уже есть неплохой FBM-шейдер
-   облаков с `uTime`, а в `render()` уже есть вызов
-   `environmentSystem.tick()` — но ничего не гоняло `render()` в цикле,
-   когда пользователь не трогает камеру: анимация облаков и авто-поворот
-   камеры "тикали" только на действие пользователя (drag/resize/
-   изменение модели), а не сами по себе. Добавил
-   `cameraControls.setAutoRotate(true)` в `runtime.start()` — это уже
-   существующий в `CameraControls.js` механизм с собственным
-   `requestAnimationFrame`-циклом, он же теперь и облака "оживляет" через
-   `render()`.
-
-## Файлы в архиве
-
-Здесь лежит **вся папка `js/`** уже с исправлениями (проще всего —
-просто распаковать поверх вашей `js/` в репозитории, регистр папок
-станет правильным автоматически). Дополнительно `UBuildRuntime.diff`
-— unified diff только по содержимому `UBuildRuntime.js`, если хотите
-смёржить руками, а не поверх всей папки.
-
-## Что стоит проверить у вас на сервере отдельно
-
-Раз уже один раз ловили эту проблему — стоит явно проверить `case
-sensitivity` во всех путях `import` по всему репо ещё раз после
-следующих коммитов (я гонял простой скрипт-сверку, могу прислать его
-отдельно, если хотите встроить в CI/pre-commit).
+Скопируйте файлы из архива поверх соответствующих путей в `js/` вашего
+репозитория — правки точечные, ничего вокруг не переписывалось.

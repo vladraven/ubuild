@@ -28,6 +28,9 @@ function createObject(context) {
     if (!driveway.enabled) {
         return root;
     }
+    if (context.model?.visibility?.driveway === false) {
+        return root;
+    }
 
     const material = resolveMaterial(context);
     const geometry = new THREE.BoxGeometry(driveway.width, driveway.height, driveway.length);

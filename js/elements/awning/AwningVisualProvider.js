@@ -164,6 +164,12 @@ function create(context) {
     const root = new THREE.Group();
     root.name = 'awnings';
 
+    // FIX: visibility.awnings was never checked - only each side's own
+    // data.active flag gated individual awnings.
+    if (context.model?.visibility?.awnings === false) {
+        return root;
+    }
+
     for (const side of ['L', 'R', 'F', 'B']) {
         const object = createSide(side, context.geometry[side], context);
         if (object) root.add(object);

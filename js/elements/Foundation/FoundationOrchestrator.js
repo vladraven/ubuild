@@ -175,7 +175,12 @@ function createObject(context) {
     const root = new THREE.Group();
     root.name = 'foundation-root';
 
-    const foundationMesh = createFoundationMesh(context);
+    // FIX: this never checked visibility.foundation - the slab mesh was
+    // created unconditionally, so toggling foundation off in visibility
+    // did nothing (only visibility.labels was ever read, for the F/B/L/R
+    // text labels).
+    const showFoundation = context.model?.visibility?.foundation !== false;
+    const foundationMesh = showFoundation ? createFoundationMesh(context) : null;
     if (foundationMesh) {
         root.add(foundationMesh);
     }

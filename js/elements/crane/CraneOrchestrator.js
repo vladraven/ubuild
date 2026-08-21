@@ -33,6 +33,9 @@ function createObject(context) {
     if (!craneData.enabled) {
         return root;
     }
+    if (context.model?.visibility?.crane === false) {
+        return root;
+    }
 
     const { steelMat, bodyMat } = resolveMaterials(context);
 
