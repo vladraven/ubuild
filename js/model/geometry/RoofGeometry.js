@@ -303,10 +303,11 @@ function createRoof(
         overhangs.back;
 
     /*
-     * The roof surface must sit slightly above
-     * the wall top. Otherwise the two surfaces
-     * occupy the same mathematical plane and
-     * produce z-fighting.
+     * This is the common structural
+     * wall/roof junction height.
+     *
+     * WallGeometry uses exactly the
+     * same value.
      */
 
     const roofBaseHeight =
@@ -529,6 +530,15 @@ function createRoof(
         surfaceClearance:
             ROOF_SURFACE_CLEARANCE,
 
+        /*
+         * Expose the exact wall/roof
+         * junction height so every consumer
+         * can use the same value.
+         */
+
+        wallTopHeight:
+            roofBaseHeight,
+
         overhangs:
             Object.freeze({
                 front:
@@ -733,5 +743,6 @@ export function createRoofGeometry(
 }
 
 export {
-    ROOF_TYPES
+    ROOF_TYPES,
+    ROOF_SURFACE_CLEARANCE
 };

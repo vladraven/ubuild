@@ -27,6 +27,67 @@ function assertContext(context) {
     }
 }
 
+// Rake trims are built as separate boxes butted end-to-end at the ridge
+// point, with no mitering - their centerlines meet exactly, but each box's
+// half-width sticks out sideways from that centerline, so the outer/inner
+// corners of the two boxes don't line up at the joint. That's the visible
+// notch/gap at the peak. Overshooting each rake segment slightly past the
+// ridge point makes the two boxes overlap there instead of just touching,
+// which closes the gap (the overlap itself gets hidden under the ridge cap).
+const RAKE_RIDGE_OVERSHOOT = 0.09;
+// Extra length added past each end of the ridge cap so it fully covers the
+// rake-trim joint below it instead of stopping exactly at the nominal
+// ridge-line endpoint.
+const RIDGE_CAP_OVERSHOOT = 0.09;
+// Small downward nudge (world Y) so the ridge cap's base corners sit at/
+// slightly below the rake trims' outer face - i.e. the ridge visually
+// tucks under the trim instead of floating above it with a gap showing
+// through underneath.
+const RIDGE_CAP_TUCK = 0.015;
+
+function extendSegmentAtRidge(edge, slope, amount) {
+    if (!edge || !slope || !amount) return edge;
+
+    const start = new THREE.Vector3(edge.start.x, edge.start.y, edge.start.z);
+    const end = new THREE.Vector3(edge.end.x, edge.end.y, edge.end.z);
+    const dir = end.clone().sub(start);
+    if (dir.lengthSq() < 1e-8) return edge;
+    dir.normalize();
+
+    if (slope === 'left') {
+        // end === ridge point for the left-hand slope segment
+        end.add(dir.clone().multiplyScalar(amount));
+    } else if (slope === 'right') {
+        // start === ridge point for the right-hand slope segment
+        start.add(dir.clone().multiplyScalar(-amount));
+    } else {
+        return edge;
+    }
+
+    return {
+        start: { x: start.x, y: start.y, z: start.z },
+        end: { x: end.x, y: end.y, z: end.z }
+    };
+}
+
+function extendSegmentBothEnds(edge, amount) {
+    if (!edge || !amount) return edge;
+
+    const start = new THREE.Vector3(edge.start.x, edge.start.y, edge.start.z);
+    const end = new THREE.Vector3(edge.end.x, edge.end.y, edge.end.z);
+    const dir = end.clone().sub(start);
+    if (dir.lengthSq() < 1e-8) return edge;
+    dir.normalize();
+
+    start.add(dir.clone().multiplyScalar(-amount));
+    end.add(dir.clone().multiplyScalar(amount));
+
+    return {
+        start: { x: start.x, y: start.y, z: start.z },
+        end: { x: end.x, y: end.y, z: end.z }
+    };
+}
+
 function resolveMaterial(
     context,
     name = 'trimMetal'
@@ -88,6 +149,8 @@ function createProfileMesh(
         return null;
     }
 
+    direction.normalize();
+
     const geometry =
         new THREE.BoxGeometry(
             width,
@@ -108,14 +171,34 @@ function createProfileMesh(
             .multiplyScalar(0.5)
     );
 
-    mesh.quaternion.setFromUnitVectors(
-        new THREE.Vector3(
-            0,
-            0,
-            1
-        ),
-        direction.normalize()
-    );
+    // FIX: quaternion.setFromUnitVectors(Z, direction) only guarantees the
+    // box's length axis (local Z) lands on the segment direction - it says
+    // nothing about roll around that axis, so the profile's width/depth
+    // faces came out at an arbitrary, inconsistent angle per segment. That
+    // is the "trim looks twisted around its own axis" artefact, and it's
+    // also why the trim no longer sat flush against the ridge cap (their
+    // faces weren't co-planar with the roof surface anymore).
+    //
+    // Fix: build an explicit orthonormal basis with world-up as a stable
+    // reference (Gram-Schmidt), instead of letting three.js pick an
+    // unconstrained roll. World Y works as the up-hint for every trim
+    // segment in this model (eaves run along Z, rakes run diagonally in a
+    // vertical X-Y plane) - projecting it perpendicular to the segment
+    // direction consistently puts the box's "width" axis along the
+    // building's depth (Z) axis and its "depth" axis flush against the
+    // roof/wall plane, which is what an L-flashing profile needs.
+    let upHint = new THREE.Vector3(0, 1, 0);
+    if (Math.abs(direction.dot(upHint)) > 0.999) {
+        // Segment is (near) vertical - world Y can't be used as a
+        // reference in that case, fall back to world X.
+        upHint = new THREE.Vector3(1, 0, 0);
+    }
+
+    const xAxis = new THREE.Vector3().crossVectors(upHint, direction).normalize();
+    const yAxis = new THREE.Vector3().crossVectors(direction, xAxis).normalize();
+
+    const basis = new THREE.Matrix4().makeBasis(xAxis, yAxis, direction);
+    mesh.quaternion.setFromRotationMatrix(basis);
 
     mesh.castShadow = true;
     mesh.receiveShadow = true;
@@ -324,19 +407,30 @@ function createRidgeMesh(
             .multiplyScalar(0.5)
     );
 
+    // Small downward nudge so the ridge cap's base corners sit at/just
+    // below the rake trims' outer face - tucks the ridge into the trim
+    // instead of floating above it with a visible gap underneath.
+    mesh.position.y -= RIDGE_CAP_TUCK;
+
     /*
      * Ridge direction is exactly the roof ridge
      * direction: front -> back.
      */
 
-    mesh.quaternion.setFromUnitVectors(
-        new THREE.Vector3(
-            0,
-            0,
-            1
-        ),
-        direction
-    );
+    // FIX: same arbitrary-roll problem as createProfileMesh() above.
+    // This profile is a symmetric triangle straddling the ridge line, so
+    // an undetermined roll doesn't just look twisted - it rotates the
+    // whole triangular cap off-center, so one side digs down into the
+    // roof/rake trim instead of sitting evenly on both slopes. Using the
+    // same explicit up-hint basis keeps it symmetric.
+    let ridgeUpHint = new THREE.Vector3(0, 1, 0);
+    if (Math.abs(direction.dot(ridgeUpHint)) > 0.999) {
+        ridgeUpHint = new THREE.Vector3(1, 0, 0);
+    }
+    const ridgeXAxis = new THREE.Vector3().crossVectors(ridgeUpHint, direction).normalize();
+    const ridgeYAxis = new THREE.Vector3().crossVectors(direction, ridgeXAxis).normalize();
+    const ridgeBasis = new THREE.Matrix4().makeBasis(ridgeXAxis, ridgeYAxis, direction);
+    mesh.quaternion.setFromRotationMatrix(ridgeBasis);
 
     mesh.castShadow = true;
     mesh.receiveShadow = true;
@@ -436,7 +530,11 @@ function createObject(
     ) {
         const mesh =
             createProfileMesh(
-                rake.edge,
+                extendSegmentAtRidge(
+                    rake.edge,
+                    rake.slope,
+                    RAKE_RIDGE_OVERSHOOT
+                ),
                 trimMaterial,
                 0.12,
                 0.06
@@ -463,9 +561,13 @@ function createObject(
         const ridge
         of trimsData.ridge
     ) {
+        const extendedRidge = ridge && ridge.edge
+            ? { ...ridge, edge: extendSegmentBothEnds(ridge.edge, RIDGE_CAP_OVERSHOOT) }
+            : ridge;
+
         const mesh =
             createRidgeMesh(
-                ridge,
+                extendedRidge,
                 trimMaterial
             );
 

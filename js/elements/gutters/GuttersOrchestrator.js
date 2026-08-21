@@ -1,161 +1,382 @@
 import * as THREE from 'three';
 
-function assertContext(context) {
-    if (!context || typeof context !== 'object') {
-        throw new TypeError('Element context is required');
+function assertContext(
+    context
+) {
+    if (
+        !context ||
+        typeof context !== 'object'
+    ) {
+        throw new TypeError(
+            'Element context is required'
+        );
     }
-    if (!context.geometry?.gutters) {
-        throw new TypeError('Gutters geometry is required');
+
+    if (
+        !context.geometry?.gutters
+    ) {
+        throw new TypeError(
+            'Gutters geometry is required'
+        );
     }
-    if (!context.materials) {
-        throw new TypeError('Material system is required');
+
+    if (
+        !context.materials
+    ) {
+        throw new TypeError(
+            'Material system is required'
+        );
     }
 }
 
-function resolveMaterial(context, name) {
-    if (typeof context.materials.get === 'function') {
-        return context.materials.get(name, context.colors?.trim);
+function resolveMaterial(
+    context
+) {
+    if (
+        typeof context.materials.get ===
+        'function'
+    ) {
+        return context.materials.get(
+            'eaveTrim',
+            context.colors?.trim
+        );
     }
-    if (context.materials[name]) {
-        return context.materials[name];
-    }
-    return context.materials.trimMetal || context.materials.steel;
+
+    return (
+        context.materials.eaveTrim ||
+        context.materials.trimMetal ||
+        context.materials.steel
+    );
 }
 
-function createGutterChannelMesh(eave, profile, material) {
-    const shape = new THREE.Shape();
-    const w = profile.width;
-    const h = profile.height;
-    const t = profile.wallThickness;
-    const r = w / 2;
+function createBox(
+    width,
+    height,
+    length,
+    x,
+    y,
+    z,
+    material,
+    name
+) {
+    const geometry =
+        new THREE.BoxGeometry(
+            width,
+            height,
+            length
+        );
 
-    shape.moveTo(0, h);
-    shape.lineTo(0, 0);
-    shape.absarc(r, 0, r, Math.PI, 0, true);
-    shape.lineTo(w, h);
-    shape.lineTo(w - t, h);
-    shape.absarc(r, 0, r - t, 0, Math.PI, false);
-    shape.lineTo(t, h);
-    shape.closePath();
-
-    const geometry = new THREE.ExtrudeGeometry(shape, {
-        depth: eave.length,
-        bevelEnabled: false
-    });
-
-    geometry.translate(-w / 2, 0, -eave.length / 2);
-    const mesh = new THREE.Mesh(geometry, material);
-    mesh.name = `gutter-channel-${eave.side}`;
+    const mesh =
+        new THREE.Mesh(
+            geometry,
+            material
+        );
 
     mesh.position.set(
-        (eave.start.x + eave.end.x) / 2,
-        (eave.start.y + eave.end.y) / 2,
-        (eave.start.z + eave.end.z) / 2
+        x,
+        y,
+        z
     );
+
+    mesh.name =
+        name;
+
+    mesh.castShadow =
+        true;
+
+    mesh.receiveShadow =
+        true;
 
     return mesh;
 }
 
-function createDownspoutMesh(downspout, pipeConfig, material) {
-    const group = new THREE.Group();
-    group.name = `downspout-${downspout.id}`;
+function createGutter(
+    eave,
+    profile,
+    material
+) {
+    const group =
+        new THREE.Group();
 
-    for (const seg of downspout.segments) {
-        const height = seg.length;
-        const geometry = new THREE.BoxGeometry(pipeConfig.width, height, pipeConfig.depth);
-        const mesh = new THREE.Mesh(geometry, material);
-        mesh.position.set(
-            (seg.start.x + seg.end.x) / 2,
-            (seg.start.y + seg.end.y) / 2,
-            (seg.start.z + seg.end.z) / 2
+    group.name =
+        `gutter-${eave.side}`;
+
+    const width =
+        profile.width;
+
+    const thickness =
+        profile.thickness;
+
+    const innerHeight =
+        profile.innerHeight;
+
+    const outerHeight =
+        profile.outerHeight;
+
+    const length =
+        eave.edge.length;
+
+    /*
+     * eave.y is the roof-edge elevation.
+     *
+     * The TOP of the inner gutter wall
+     * is exactly at the roof edge.
+     *
+     * Therefore the gutter bottom is:
+     *
+     * roofEdgeY - innerHeight
+     */
+
+    const bottomY =
+        eave.front.y -
+        innerHeight;
+
+    /*
+     * eave.x is the CENTER of the gutter.
+     *
+     * Half of the gutter therefore lies
+     * inside the roof edge and half outside.
+     */
+
+    const centerX =
+        eave.front.x;
+
+    const centerZ =
+        (
+            eave.front.z +
+            eave.back.z
+        ) / 2;
+
+    /*
+     * INNER WALL
+     *
+     * Full height: 1.75 × W
+     *
+     * This is the wall facing the building.
+     */
+
+    const innerX =
+        centerX +
+        (
+            eave.side === 'L'
+                ? width / 2 -
+                    thickness / 2
+                : -width / 2 +
+                    thickness / 2
         );
-        group.add(mesh);
-    }
 
-    if (downspout.shoe) {
-        const shoeGeom = new THREE.BoxGeometry(pipeConfig.width, pipeConfig.depth, downspout.shoeLength);
-        const shoeMesh = new THREE.Mesh(shoeGeom, material);
-        shoeMesh.position.set(
-            (downspout.shoe.start.x + downspout.shoe.end.x) / 2,
-            (downspout.shoe.start.y + downspout.shoe.end.y) / 2,
-            (downspout.shoe.start.z + downspout.shoe.end.z) / 2
+    const innerWall =
+        createBox(
+            thickness,
+            innerHeight,
+            length,
+            innerX,
+            bottomY +
+                innerHeight / 2,
+            centerZ,
+            material,
+            `gutter-${eave.side}-inner`
         );
-        group.add(shoeMesh);
-    }
 
-    for (const strap of downspout.straps) {
-        const strapGeom = new THREE.BoxGeometry(pipeConfig.width * 1.2, 0.03, pipeConfig.depth * 1.2);
-        const strapMesh = new THREE.Mesh(strapGeom, material);
-        strapMesh.position.set(strap.x, strap.y, strap.z);
-        group.add(strapMesh);
-    }
+    /*
+     * BOTTOM
+     *
+     * Full gutter width.
+     */
+
+    const bottom =
+        createBox(
+            width,
+            thickness,
+            length,
+            centerX,
+            bottomY +
+                thickness / 2,
+            centerZ,
+            material,
+            `gutter-${eave.side}-bottom`
+        );
+
+    /*
+     * OUTER WALL
+     *
+     * Height: 0.75 × W
+     *
+     * Shorter than the inner wall.
+     */
+
+    const outerX =
+        centerX +
+        (
+            eave.side === 'L'
+                ? -width / 2 +
+                    thickness / 2
+                : width / 2 -
+                    thickness / 2
+        );
+
+    const outerWall =
+        createBox(
+            thickness,
+            outerHeight,
+            length,
+            outerX,
+            bottomY +
+                outerHeight / 2,
+            centerZ,
+            material,
+            `gutter-${eave.side}-outer`
+        );
+
+    group.add(
+        innerWall,
+        bottom,
+        outerWall
+    );
 
     return group;
 }
 
-function createObject(context) {
-    assertContext(context);
-    const guttersData = context.geometry.gutters;
-    const root = new THREE.Group();
-    root.name = 'gutters';
+function createObject(
+    context
+) {
+    assertContext(
+        context
+    );
 
-    if (!guttersData.enabled) {
+    const data =
+        context.geometry.gutters;
+
+    const root =
+        new THREE.Group();
+
+    root.name =
+        'gutters';
+
+    if (
+        !data.enabled
+    ) {
         return root;
     }
-    // FIX: visibility.gutters was never checked - see the same fix applied
-    // to Ridge/Trim/Foundation orchestrators.
-    if (context.model?.visibility?.gutters === false) {
+
+    if (
+        context.model?.visibility?.gutters ===
+        false
+    ) {
         return root;
     }
 
-    const material = resolveMaterial(context, 'eaveTrim');
+    const material =
+        resolveMaterial(
+            context
+        );
 
-    if (guttersData.eaves.left) {
-        root.add(createGutterChannelMesh(guttersData.eaves.left, guttersData.profile, material));
-    }
-    if (guttersData.eaves.right) {
-        root.add(createGutterChannelMesh(guttersData.eaves.right, guttersData.profile, material));
+    if (
+        data.eaves?.left
+    ) {
+        root.add(
+            createGutter(
+                data.eaves.left,
+                data.profile,
+                material
+            )
+        );
     }
 
-    for (const downspout of guttersData.downspouts) {
-        if (downspout.visible) {
-            root.add(createDownspoutMesh(downspout, guttersData.config.pipe, material));
-        }
+    if (
+        data.eaves?.right
+    ) {
+        root.add(
+            createGutter(
+                data.eaves.right,
+                data.profile,
+                material
+            )
+        );
     }
+
+    /*
+     * Deliberately no downspouts.
+     */
 
     return root;
 }
 
-function disposeObject(object) {
-    if (!object) return;
+function disposeObject(
+    object
+) {
+    if (!object) {
+        return;
+    }
 
-    object.traverse((child) => {
-        if (!child.isMesh) return;
-        if (child.geometry) {
-            child.geometry.dispose();
-            child.geometry = null;
+    object.traverse(
+        child => {
+            if (
+                !child.isMesh
+            ) {
+                return;
+            }
+
+            if (
+                child.geometry
+            ) {
+                child.geometry.dispose();
+                child.geometry = null;
+            }
         }
-    });
+    );
 
-    const children = object.children.slice();
-    for (let i = 0; i < children.length; i++) {
-        object.remove(children[i]);
+    const children =
+        object.children.slice();
+
+    for (
+        const child
+        of children
+    ) {
+        object.remove(
+            child
+        );
     }
 
     object.removeFromParent();
 }
 
-export const GuttersOrchestrator = Object.freeze({
-    id: 'gutters',
-    create(context) {
-        return createObject(context);
-    },
-    update(object, context) {
-        if (!object) return createObject(context);
-        disposeObject(object);
-        return createObject(context);
-    },
-    dispose(object) {
-        disposeObject(object);
-    }
-});
+export const GuttersOrchestrator =
+    Object.freeze({
+        id: 'gutters',
+
+        create(
+            context
+        ) {
+            return createObject(
+                context
+            );
+        },
+
+        update(
+            object,
+            context
+        ) {
+            if (!object) {
+                return createObject(
+                    context
+                );
+            }
+
+            disposeObject(
+                object
+            );
+
+            return createObject(
+                context
+            );
+        },
+
+        dispose(
+            object
+        ) {
+            disposeObject(
+                object
+            );
+        }
+    });
