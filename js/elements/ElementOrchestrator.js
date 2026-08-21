@@ -49,13 +49,13 @@ export function createElementOrchestrator({ definition, geometry, visual }) {
                 object: elementVisual || instance.object
             };
             if (nextInstance.object !== instance.object && typeof visual.dispose === 'function') {
-                visual.dispose(instance);
+                visual.dispose(instance.object);
             }
             return nextInstance;
         }
         const elementVisual = visual.create(nextContext);
         if (typeof visual.dispose === 'function') {
-            visual.dispose(instance);
+            visual.dispose(instance.object);
         }
         return {
             id: definition.id,
