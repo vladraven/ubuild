@@ -321,6 +321,7 @@ export function createUBuildRuntime({
     const scene = createScene();
     const camera = createCamera(container, buildingGeometry);
     const renderer = createRenderer(container);
+    // onNeedRender wired after render() is defined (see below)
     const environmentSystem = createEnvironmentSystem(environment);
     scene.add(environmentSystem.group);
     const lightingSystem = createLightingSystem(scene);
@@ -405,6 +406,13 @@ export function createUBuildRuntime({
         renderer.render(scene, camera);
     }
 
+    // Re-render when async ground textures finish loading
+    if (typeof environmentSystem.setOnNeedRender === 'function') {
+        environmentSystem.setOnNeedRender(() => {
+            if (!disposed) render();
+        });
+    }
+
     function update(nextModel) {
         if (disposed) throw new Error('UBuild runtime is disposed');
 
@@ -469,6 +477,22 @@ export function createUBuildRuntime({
         updateLightingAndEnvironment();
         resize();
         autoFrame();
+        // Safety: textures may still be loading — force a couple of follow-up frames
+        if (typeof requestAnimationFrame === 'function') {
+            requestAnimationFrame(() => {
+                if (!disposed) render();
+                requestAnimationFrame(() => {
+                    if (!disposed) render();
+                });
+            });
+        }
+        // Extra pass after network textures typically arrive
+        setTimeout(() => {
+            if (!disposed) render();
+        }, 150);
+        setTimeout(() => {
+            if (!disposed) render();
+        }, 500);
         return api;
     }
 

@@ -105,8 +105,8 @@ const WEATHER_MOD = Object.freeze({
         fogDensity: 0.00045,
         skyDesaturate: 0.0,
         skyDarken: 0.0,
-        cloudCover: 0.42,
-        cloudOpacity: 1,
+        cloudCover: 0.75,
+        cloudOpacity: 0.95,
         turbidityBoost: 0.0,
         lightMul: 1.0
     }),
@@ -114,8 +114,8 @@ const WEATHER_MOD = Object.freeze({
         fogDensity: 0.0014,
         skyDesaturate: 0.28,
         skyDarken: 0.1,
-        cloudCover: 1,
-        cloudOpacity: 1,
+        cloudCover: 0.88,
+        cloudOpacity: 0.96,
         turbidityBoost: 4.0,
         lightMul: 0.75
     }),
@@ -123,8 +123,8 @@ const WEATHER_MOD = Object.freeze({
         fogDensity: 0.0038,
         skyDesaturate: 0.5,
         skyDarken: 0.3,
-        cloudCover: 1,
-        cloudOpacity: 1,
+        cloudCover: 0.95,
+        cloudOpacity: 0.98,
         turbidityBoost: 8.0,
         lightMul: 0.5
     }),
@@ -133,7 +133,7 @@ const WEATHER_MOD = Object.freeze({
         skyDesaturate: 0.32,
         skyDarken: 0.16,
         cloudCover: 0.85,
-        cloudOpacity: 1,
+        cloudOpacity: 0.94,
         turbidityBoost: 5.0,
         lightMul: 0.65
     }),
@@ -141,14 +141,14 @@ const WEATHER_MOD = Object.freeze({
         fogDensity: 0.01,
         skyDesaturate: 0.5,
         skyDarken: 0.2,
-        cloudCover: 1,
-        cloudOpacity: 1,
+        cloudCover: 0.98,
+        cloudOpacity: 0.75,
         turbidityBoost: 12.0,
         lightMul: 0.4
     })
 });
 
-/** Resolve URL for seasonal JPG next to this module (works with Vite / plain ES modules / WP theme). */
+/** Resolve URL for seasonal JPG next to this module */
 function resolveSeasonTextureUrl(filename) {
     try {
         if (typeof import.meta !== 'undefined' && import.meta.url) {
@@ -162,7 +162,6 @@ function resolveSeasonTextureUrl(filename) {
     if (themeBase) {
         return `${String(themeBase).replace(/\/$/, '')}/js/Environment/${filename}`;
     }
-    // Relative fallback from typical page that loads js/app-new.js
     return `js/Environment/${filename}`;
 }
 
@@ -187,9 +186,9 @@ function createProceduralGroundTexture(baseHex = 0x486b32) {
     const texture = new THREE.CanvasTexture(canvas);
     texture.wrapS = THREE.RepeatWrapping;
     texture.wrapT = THREE.RepeatWrapping;
-    texture.repeat.set(12, 12);
+    texture.repeat.set(120, 120);
     texture.colorSpace = THREE.SRGBColorSpace;
-    texture.anisotropy = 8;
+    texture.anisotropy = 2;
     texture.userData = { isSharedProcedural: true };
     return texture;
 }
@@ -206,8 +205,8 @@ const SkyShader = {
         uSunIntensity: { value: 1.0 },
         uSunAngularSize: { value: 0.022 },
         uExposure: { value: 1.0 },
-        uCloudCover: { value: 0.2 },
-        uCloudOpacity: { value: 0.6 },
+        uCloudCover: { value: 0.75 },
+        uCloudOpacity: { value: 0.95 },
         uHaze: { value: 0.0 },
         uTime: { value: 0.0 },
         uCloudSpeed: { value: 0.025 }
@@ -237,7 +236,6 @@ const SkyShader = {
 
         varying vec3 vWorldPosition;
 
-        // --- hash / value noise / FBM ---
         float hash(vec2 p) {
             return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453);
         }
@@ -269,23 +267,18 @@ const SkyShader = {
             vec3 dir = normalize(vWorldPosition);
             float elev = dir.y;
 
-            // Base sky gradient
             float t = smoothstep(-0.12, 0.7, elev);
             vec3 sky = mix(uHorizonColor, uZenithColor, t);
 
-            // Horizon glow
             float horizonGlow = exp(-pow(elev * 3.5, 2.0)) * 0.18;
             sky += uHorizonColor * horizonGlow;
 
-            // Haze
             float hazeFactor = uHaze * (1.0 - elev * 0.45);
             float lum = dot(sky, vec3(0.299, 0.587, 0.114));
             sky = mix(sky, vec3(lum), hazeFactor * 0.55);
             sky = mix(sky, sky * 0.88 + vec3(0.08), hazeFactor * 0.35);
 
-            // --- Procedural clouds (projected on upper hemisphere) ---
             if (elev > -0.02 && uCloudCover > 0.02) {
-                // Spherical -> 2D cloud map (two layers for variety)
                 vec2 cloudUV = dir.xz / max(0.12, elev + 0.4);
                 cloudUV *= 2.2;
                 vec2 drift = vec2(uTime * uCloudSpeed, uTime * uCloudSpeed * 0.55);
@@ -293,23 +286,19 @@ const SkyShader = {
                 float n2 = fbm(cloudUV * 1.7 + drift * 1.3 + vec2(13.1, 7.7));
                 float n = n1 * 0.65 + n2 * 0.35;
 
-                // Higher cover => lower threshold => more cloud area
                 float cover = clamp(uCloudCover, 0.0, 1.0);
-                float threshold = mix(0.72, 0.18, cover);
-                float softness = mix(0.22, 0.4, cover);
+                float threshold = mix(0.55, 0.08, cover);
+                float softness = mix(0.28, 0.5, cover);
                 float cloudMask = smoothstep(threshold, threshold + softness, n);
-                // Soft horizon fade
                 cloudMask *= smoothstep(-0.02, 0.22, elev);
-                // Slightly denser near zenith for clear skies too
                 cloudMask *= mix(0.85, 1.0, elev);
 
                 vec3 cloudColor = mix(vec3(0.78, 0.81, 0.86), vec3(0.97, 0.98, 1.0), clamp(n * 1.1, 0.0, 1.0));
                 cloudColor = mix(cloudColor, uSunColor * 0.95, 0.12 * uSunIntensity * (1.0 - elev));
 
-                sky = mix(sky, cloudColor, cloudMask * uCloudOpacity);
+                sky = mix(sky, cloudColor, min(1.0, cloudMask * uCloudOpacity * 1.25));
             }
 
-            // Sun disc + glow
             vec3 sunDir = normalize(uSunPosition);
             float cosAngle = clamp(dot(dir, sunDir), -1.0, 1.0);
             float sunDisk = smoothstep(
@@ -320,7 +309,6 @@ const SkyShader = {
             float sunGlow = pow(max(0.0, cosAngle), 28.0) * 0.4 * uSunIntensity;
             sky += uSunColor * (sunDisk * 2.8 + sunGlow) * uSunIntensity;
 
-            // Exposure + mild tonemap
             sky *= uExposure;
             sky = sky / (sky + vec3(1.0));
             sky = pow(max(sky, vec3(0.0)), vec3(1.0 / 1.85));
@@ -382,6 +370,9 @@ export function getSeason(dateInput, hemisphere = 'north') {
  * Full environment: seasonal ground textures + procedural sky (clouds/weather) + fog.
  */
 export function createEnvironmentSystem(initialConfig = {}) {
+    let onNeedRender =
+        typeof initialConfig.onNeedRender === 'function' ? initialConfig.onNeedRender : null;
+
     let currentState = {
         date: initialConfig.date || '2026-06-21',
         hemisphere: initialConfig.hemisphere || 'north',
@@ -405,10 +396,9 @@ export function createEnvironmentSystem(initialConfig = {}) {
     groundGeometry.rotateX(-Math.PI / 2);
 
     const textureLoader = new THREE.TextureLoader();
-    const groundTextures = Object.create(null); // season -> Texture
+    const groundTextures = Object.create(null);
     let activeGroundTexture = null;
 
-    // Procedural fallbacks per season (used until JPG loads or if load fails)
     const proceduralFallback = {
         winter: createProceduralGroundTexture(0xd8e2ec),
         spring: createProceduralGroundTexture(0x5a7a42),
@@ -419,12 +409,17 @@ export function createEnvironmentSystem(initialConfig = {}) {
     function configureGroundTexture(tex) {
         tex.wrapS = THREE.RepeatWrapping;
         tex.wrapT = THREE.RepeatWrapping;
-        // Moderate tiling — too high looks like noisy yellow grid under strong sun
-        tex.repeat.set(12, 12);
-        tex.anisotropy = 8;
+        tex.repeat.set(120, 120);
+        tex.anisotropy = 2;
         tex.colorSpace = THREE.SRGBColorSpace;
         tex.needsUpdate = true;
         return tex;
+    }
+
+    function requestRender() {
+        if (typeof onNeedRender === 'function') {
+            onNeedRender();
+        }
     }
 
     function loadSeasonGroundTexture(season) {
@@ -434,7 +429,6 @@ export function createEnvironmentSystem(initialConfig = {}) {
         const url = resolveSeasonTextureUrl(file);
         const fallback = proceduralFallback[season] || proceduralFallback.summer;
 
-        // Start with fallback so ground is never blank
         groundTextures[season] = fallback;
 
         textureLoader.load(
@@ -442,20 +436,22 @@ export function createEnvironmentSystem(initialConfig = {}) {
             (tex) => {
                 configureGroundTexture(tex);
                 tex.userData = { isSeasonGround: true, season, source: url };
-                // Dispose previous non-procedural if any
+
                 const prev = groundTextures[season];
                 groundTextures[season] = tex;
+
                 if (currentState.season === season) {
                     groundMaterial.map = tex;
                     groundMaterial.needsUpdate = true;
+                    requestRender();
                 }
+
                 if (prev && prev !== fallback && prev.userData && prev.userData.isSeasonGround) {
                     prev.dispose();
                 }
             },
             undefined,
             () => {
-                // Keep procedural fallback
                 console.warn('[U-Build Environment] Failed to load ground texture:', url);
             }
         );
@@ -463,9 +459,7 @@ export function createEnvironmentSystem(initialConfig = {}) {
         return groundTextures[season];
     }
 
-    // Preload current season
     activeGroundTexture = loadSeasonGroundTexture(currentState.season);
-    // Warm other seasons in background
     ['winter', 'spring', 'summer', 'autumn'].forEach((s) => {
         if (s !== currentState.season) loadSeasonGroundTexture(s);
     });
@@ -496,7 +490,6 @@ export function createEnvironmentSystem(initialConfig = {}) {
         const weatherMod = WEATHER_MOD[weather] || WEATHER_MOD.clear;
         const phaseCfg = PHASE_SKY[phase] || PHASE_SKY.day;
 
-        // Ground texture swap + seasonal tint (keeps grass green, not washed yellow)
         const tex = loadSeasonGroundTexture(season);
         if (groundMaterial.map !== tex) {
             groundMaterial.map = tex;
@@ -506,7 +499,6 @@ export function createEnvironmentSystem(initialConfig = {}) {
         if (weather === 'snow') {
             tint = 0xf2f5f8;
         } else if (weather === 'rain') {
-            // slightly darker / wet
             const c = new THREE.Color(tint);
             c.multiplyScalar(0.72);
             tint = c.getHex();
@@ -515,7 +507,6 @@ export function createEnvironmentSystem(initialConfig = {}) {
         groundMaterial.roughness = weather === 'rain' ? 0.35 : profile.groundRoughness;
         groundMaterial.needsUpdate = true;
 
-        // Sky colors
         let zenith = mulColor(profile.zenithColor, phaseCfg.zenithMul);
         let horizon = mulColor(profile.horizonColor, phaseCfg.horizonMul);
         zenith = desaturateColor(zenith, weatherMod.skyDesaturate);
@@ -588,7 +579,6 @@ export function createEnvironmentSystem(initialConfig = {}) {
         return getState();
     }
 
-    /** Call each frame (or from render) to animate clouds */
     function tick(timeSeconds) {
         const t =
             typeof timeSeconds === 'number'
@@ -607,7 +597,6 @@ export function createEnvironmentSystem(initialConfig = {}) {
 
     function applyToScene(scene) {
         if (!scene) return;
-        // Keep solid fallback background under transparent edges; sky mesh is the real sky
         scene.background = fogColor.clone();
         if (!scene.fog || !(scene.fog instanceof THREE.FogExp2)) {
             scene.fog = new THREE.FogExp2(fogColor.getHex(), fogDensity);
@@ -615,6 +604,10 @@ export function createEnvironmentSystem(initialConfig = {}) {
             scene.fog.color.copy(fogColor);
             scene.fog.density = fogDensity;
         }
+    }
+
+    function setOnNeedRender(fn) {
+        onNeedRender = typeof fn === 'function' ? fn : null;
     }
 
     function getState() {
@@ -668,6 +661,7 @@ export function createEnvironmentSystem(initialConfig = {}) {
         tick,
         updateBounds,
         applyToScene,
+        setOnNeedRender,
         getState,
         dispose
     });
