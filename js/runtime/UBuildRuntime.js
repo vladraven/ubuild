@@ -375,6 +375,7 @@ export function createUBuildRuntime({
     function updateLightingAndEnvironment() {
         const solarState = getSolarState(lightingConfig);
         lightingSystem.update(solarState, buildingGeometry.bounds);
+        // weather / hemisphere stay in environmentSystem state unless setDateTimeLocation changes them
         environmentSystem.update({
             date: lightingConfig.date,
             solar: solarState,
@@ -397,7 +398,11 @@ export function createUBuildRuntime({
     }
 
     function render() {
-        if (!disposed) renderer.render(scene, camera);
+        if (disposed) return;
+        if (typeof environmentSystem.tick === 'function') {
+            environmentSystem.tick();
+        }
+        renderer.render(scene, camera);
     }
 
     function update(nextModel) {
