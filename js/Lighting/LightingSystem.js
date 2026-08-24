@@ -57,9 +57,9 @@ export function createLightingSystem(scene) {
     sunLight.castShadow = true;
 
     // Настройки карты теней высокой четкости
-    sunLight.shadow.mapSize.width = 2048;
-    sunLight.shadow.mapSize.height = 2048;
-    sunLight.shadow.bias = -0.00015;
+    sunLight.shadow.mapSize.width = 1024;
+    sunLight.shadow.mapSize.height = 1024;
+    sunLight.shadow.bias = -0.0015;
     sunLight.shadow.normalBias = 0.02;
 
     lightsGroup.add(sunLight);
