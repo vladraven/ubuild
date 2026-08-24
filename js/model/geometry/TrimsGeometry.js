@@ -81,13 +81,31 @@ export function createTrimsGeometry(
         length +
         overhangs.back;
 
+    /*
+     * IMPORTANT:
+     *
+     * These heights must describe the same roof
+     * plane as RoofGeometry.
+     *
+     * left-sloped:
+     *     LEFT  = HIGH
+     *     RIGHT = LOW
+     *
+     * right-sloped:
+     *     LEFT  = LOW
+     *     RIGHT = HIGH
+     *
+     * gabled:
+     *     both eaves are at wall height.
+     */
+
     const leftY =
-        isRightSloped
+        isLeftSloped
             ? height + rise
             : height;
 
     const rightY =
-        isLeftSloped
+        isRightSloped
             ? height + rise
             : height;
 
@@ -164,9 +182,6 @@ export function createTrimsGeometry(
 
     /*
      * RAKE TRIMS
-     *
-     * Front and back use exactly the same
-     * roof geometry and the same orientation.
      */
 
     const rake = [];
@@ -339,11 +354,6 @@ export function createTrimsGeometry(
 
     /*
      * RIDGE TRIM
-     *
-     * The ridge is NOT a rectangular beam.
-     *
-     * It contains the actual triangular roof
-     * profile used by TrimOrchestrator.
      */
 
     const ridge = [];
@@ -386,18 +396,13 @@ export function createTrimsGeometry(
 
     /*
      * CORNER TRIMS
-     *
-     * L-shaped angle trims that wrap the outside
-     * corner of the walls. sx / sz indicate the
-     * outward wall directions so the L opens
-     * correctly (matches legacy createCornerTrimGeo).
      */
 
     const corners = [
         Object.freeze({
             id: 'corner-FL',
             sx: -1,
-            sz: -1, // front is -Z in new coord (z=0)
+            sz: -1,
 
             edge: segment(
                 point(

@@ -921,111 +921,140 @@ export function createUIAdapter(runtime) {
         }
     }
 
-    function bindRoofControls() {
-        const applyRoofType =
-            type => {
-                if (
-                    type !== 'gabled' &&
-                    type !== 'left-sloped' &&
-                    type !== 'right-sloped'
-                ) {
-                    return;
-                }
+function bindRoofControls() {
+    const applyRoofType = type => {
+        const normalized =
+            String(type || '')
+                .trim()
+                .toLowerCase();
 
-                update({
+        if (
+            normalized !== 'gabled' &&
+            normalized !== 'left-sloped' &&
+            normalized !== 'right-sloped'
+        ) {
+            return;
+        }
+
+        const currentRoof =
+            runtime.model.roof || {};
+
+        const nextModel = {
+            ...runtime.model,
+
+            roof: {
+                ...currentRoof,
+                type: normalized
+            }
+        };
+
+        runtime.update(
+            nextModel
+        );
+
+        updateInputsFromModel();
+
+        if (
+            typeof runtime.render ===
+            'function'
+        ) {
+            runtime.render();
+        }
+    };
+
+    const roofType =
+        document.querySelector(
+            '#roofType'
+        );
+
+    if (roofType) {
+        roofType.addEventListener(
+            'change',
+            event => {
+                applyRoofType(
+                    event.target.value
+                );
+            }
+        );
+    }
+
+    document.addEventListener(
+        'click',
+        event => {
+            const button =
+                event.target.closest(
+                    '[data-roof-type], .roof-type-btn'
+                );
+
+            if (!button) {
+                return;
+            }
+
+            event.preventDefault();
+
+            const type =
+                button.getAttribute(
+                    'data-roof-type'
+                ) ||
+                button.value ||
+                button.getAttribute(
+                    'value'
+                );
+
+            applyRoofType(
+                type
+            );
+        }
+    );
+
+    const roofProfile =
+        document.querySelector(
+            '#roofProfile'
+        );
+
+    if (roofProfile) {
+        roofProfile.addEventListener(
+            'change',
+            event => {
+                runtime.update({
+                    ...runtime.model,
+
                     roof: {
                         ...runtime.model.roof,
-                        type
+
+                        profile:
+                            event.target.value
                     }
                 });
 
                 updatePitchControls();
-            };
-
-        const roofType =
-            document.querySelector(
-                '#roofType'
-            );
-
-        if (roofType) {
-            roofType.addEventListener(
-                'change',
-                e => {
-                    applyRoofType(
-                        e.target.value
-                    );
-                }
-            );
-        }
-
-        document
-            .querySelectorAll(
-                '[data-roof-type],.roof-type-btn'
-            )
-            .forEach(
-                button => {
-                    button.addEventListener(
-                        'click',
-                        e => {
-                            e.preventDefault();
-
-                            const type =
-                                button.getAttribute(
-                                    'data-roof-type'
-                                ) ||
-                                button.value;
-
-                            applyRoofType(
-                                type
-                            );
-                        }
-                    );
-                }
-            );
-
-        const roofProfile =
-            document.querySelector(
-                '#roofProfile'
-            );
-
-        if (roofProfile) {
-            roofProfile.addEventListener(
-                'change',
-                e => {
-                    update({
-                        roof: {
-                            ...runtime.model.roof,
-                            profile:
-                                e.target.value
-                        }
-                    });
-
-                    updatePitchControls();
-                }
-            );
-        }
-
-        const wallProfile =
-            document.querySelector(
-                '#wallProfile'
-            );
-
-        if (wallProfile) {
-            wallProfile.addEventListener(
-                'change',
-                e => {
-                    update({
-                        panels: {
-                            ...runtime.model.panels,
-                            profile:
-                                e.target.value
-                        }
-                    });
-                }
-            );
-        }
+            }
+        );
     }
 
+    const wallProfile =
+        document.querySelector(
+            '#wallProfile'
+        );
+
+    if (wallProfile) {
+        wallProfile.addEventListener(
+            'change',
+            event => {
+                runtime.update({
+                    ...runtime.model,
+
+                    panels: {
+                        ...runtime.model.panels,
+
+                        profile:
+                            event.target.value
+                    }
+                });
+            }
+        );
+    }
+}
     function bindOverhangs() {
         for (
             const side of [

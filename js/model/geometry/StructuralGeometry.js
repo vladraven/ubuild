@@ -93,6 +93,81 @@ function createPositions(
     return positions;
 }
 
+function getMonoSlopeRoofHeightAtX(
+    x,
+    envelope,
+    roof,
+    wallOffset
+) {
+    const halfWidth =
+        envelope.width / 2;
+
+    const baseHeight =
+        envelope.height;
+
+    const rise =
+        roof.rise;
+
+    if (
+        roof.type === 'left-sloped'
+    ) {
+        const leftRoofX =
+            -halfWidth -
+            (
+                roof.overhangs?.left ??
+                0
+            );
+
+        const leftRoofY =
+            baseHeight -
+            (
+                roof.overhangs?.left ??
+                0
+            ) *
+            roof.pitchRatio;
+
+        return (
+            leftRoofY +
+            (
+                x -
+                leftRoofX
+            ) *
+            roof.pitchRatio
+        );
+    }
+
+    if (
+        roof.type === 'right-sloped'
+    ) {
+        const leftRoofX =
+            -halfWidth -
+            (
+                roof.overhangs?.left ??
+                0
+            );
+
+        const leftRoofY =
+            baseHeight +
+            rise +
+            (
+                roof.overhangs?.left ??
+                0
+            ) *
+            roof.pitchRatio;
+
+        return (
+            leftRoofY -
+            (
+                x -
+                leftRoofX
+            ) *
+            roof.pitchRatio
+        );
+    }
+
+    return baseHeight;
+}
+
 function createFrame(
     envelope,
     roof,
@@ -191,11 +266,33 @@ function createFrame(
     if (
         roof.type === 'left-sloped'
     ) {
+        const leftRoofHeight =
+            getMonoSlopeRoofHeightAtX(
+                leftX,
+                envelope,
+                roof,
+                wallOffset
+            );
+
+        const rightRoofHeight =
+            getMonoSlopeRoofHeightAtX(
+                rightX,
+                envelope,
+                roof,
+                wallOffset
+            );
+
         const leftHighTop =
             point(
                 leftX,
-                baseHeight +
-                    roof.rise,
+                leftRoofHeight,
+                z
+            );
+
+        const rightLowTop =
+            point(
+                rightX,
+                rightRoofHeight,
                 z
             );
 
@@ -212,47 +309,77 @@ function createFrame(
             rafter:
                 line(
                     leftHighTop,
-                    rightTop
+                    rightLowTop
                 ),
 
             rightColumn:
                 line(
-                    rightTop,
+                    rightLowTop,
                     rightBase
                 )
         });
     }
 
-    const rightHighTop =
-        point(
-            rightX,
-            baseHeight +
-                roof.rise,
-            z
-        );
+    if (
+        roof.type === 'right-sloped'
+    ) {
+        const leftRoofHeight =
+            getMonoSlopeRoofHeightAtX(
+                leftX,
+                envelope,
+                roof,
+                wallOffset
+            );
 
-    return Object.freeze({
-        index,
-        position: z,
+        const rightRoofHeight =
+            getMonoSlopeRoofHeightAtX(
+                rightX,
+                envelope,
+                roof,
+                wallOffset
+            );
 
-        leftColumn:
-            line(
-                leftBase,
-                leftTop
-            ),
+        const leftLowTop =
+            point(
+                leftX,
+                leftRoofHeight,
+                z
+            );
 
-        rafter:
-            line(
-                leftTop,
-                rightHighTop
-            ),
+        const rightHighTop =
+            point(
+                rightX,
+                rightRoofHeight,
+                z
+            );
 
-        rightColumn:
-            line(
-                rightHighTop,
-                rightBase
-            )
-    });
+        return Object.freeze({
+            index,
+            position: z,
+
+            leftColumn:
+                line(
+                    leftBase,
+                    leftLowTop
+                ),
+
+            rafter:
+                line(
+                    leftLowTop,
+                    rightHighTop
+                ),
+
+            rightColumn:
+                line(
+                    rightHighTop,
+                    rightBase
+                )
+        });
+    }
+
+    throw new RangeError(
+        `Unsupported roof type: ${roof.type}`
+    );
 }
 
 function resolveOpeningInterval(
@@ -668,13 +795,6 @@ function createGirts(
     const baseHeight =
         envelope.height;
 
-    /*
-     * Girts are wall members.
-     *
-     * They must stop at the top of the wall.
-     * They must NOT continue into the gable
-     * triangle.
-     */
     const maxWallHeight =
         baseHeight;
 
@@ -697,11 +817,6 @@ function createGirts(
                     elevation:
                         y,
 
-                    /*
-                     * FRONT:
-                     * restricted to wall height.
-                     */
-
                     frontSegments:
                         Object.freeze(
                             y <= baseHeight
@@ -715,11 +830,6 @@ function createGirts(
                                 )
                                 : []
                         ),
-
-                    /*
-                     * BACK:
-                     * restricted to wall height.
-                     */
 
                     backSegments:
                         Object.freeze(

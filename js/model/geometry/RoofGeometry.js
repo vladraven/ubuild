@@ -302,14 +302,6 @@ function createRoof(
         length +
         overhangs.back;
 
-    /*
-     * This is the common structural
-     * wall/roof junction height.
-     *
-     * WallGeometry uses exactly the
-     * same value.
-     */
-
     const roofBaseHeight =
         height +
         ROOF_SURFACE_CLEARANCE;
@@ -337,30 +329,30 @@ function createRoof(
         type === 'left-sloped'
     ) {
         leftY =
-            roofBaseHeight -
+            roofBaseHeight +
+            rise +
             (
                 overhangs.left *
                 pitchRatio
             );
 
         rightY =
-            roofBaseHeight +
-            rise +
+            roofBaseHeight -
             (
                 overhangs.right *
                 pitchRatio
             );
     } else {
         leftY =
-            roofBaseHeight +
-            rise +
+            roofBaseHeight -
             (
                 overhangs.left *
                 pitchRatio
             );
 
         rightY =
-            roofBaseHeight -
+            roofBaseHeight +
+            rise +
             (
                 overhangs.right *
                 pitchRatio
@@ -529,12 +521,6 @@ function createRoof(
 
         surfaceClearance:
             ROOF_SURFACE_CLEARANCE,
-
-        /*
-         * Expose the exact wall/roof
-         * junction height so every consumer
-         * can use the same value.
-         */
 
         wallTopHeight:
             roofBaseHeight,
