@@ -34,16 +34,16 @@ function assertContext(context) {
 // notch/gap at the peak. Overshooting each rake segment slightly past the
 // ridge point makes the two boxes overlap there instead of just touching,
 // which closes the gap (the overlap itself gets hidden under the ridge cap).
-const RAKE_RIDGE_OVERSHOOT = 0.09;
+const RAKE_RIDGE_OVERSHOOT = 0.009;
 // Extra length added past each end of the ridge cap so it fully covers the
 // rake-trim joint below it instead of stopping exactly at the nominal
 // ridge-line endpoint.
-const RIDGE_CAP_OVERSHOOT = 0.09;
+const RIDGE_CAP_OVERSHOOT = 0.009;
 // Small downward nudge (world Y) so the ridge cap's base corners sit at/
 // slightly below the rake trims' outer face - i.e. the ridge visually
 // tucks under the trim instead of floating above it with a gap showing
 // through underneath.
-const RIDGE_CAP_TUCK = 0.015;
+const RIDGE_CAP_TUCK = -0.025;
 
 function extendSegmentAtRidge(edge, slope, amount) {
     if (!edge || !slope || !amount) return edge;
