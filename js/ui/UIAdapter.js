@@ -1,76 +1,141 @@
-import * as THREE from 'three';
-import { serializeModelToURL } from '../integration/URLSerializer.js';
-import { submitToGravityForms } from '../integration/GravityFormsAdapter.js';
-import { getBuildingModelDefaults, getBuildingModelLimits } from '../model/buildingModel.js';
+import { getBuildingModelLimits } from '../model/buildingModel.js';
+import { createUIActions } from './UIActions.js';
 
 const M_TO_FT = 3.28084;
 const FT_TO_M = 0.3048;
-const SAVED_DESIGNS_KEY = 'ubuild_saved_designs';
 
 export function createUIAdapter(runtime) {
     if (!runtime) {
-        throw new TypeError('UBuildRuntime instance is required for UIAdapter');
+        throw new TypeError(
+            'UBuildRuntime instance is required for UIAdapter'
+        );
     }
 
     let isImperial = true;
-    let savedOutsidePosition = null;
-    let savedOutsideTarget = null;
 
     function toDisplay(meters) {
-        if (meters === undefined || meters === null) return 0;
+        if (
+            meters === undefined ||
+            meters === null
+        ) {
+            return 0;
+        }
+
         return isImperial
-            ? (meters * M_TO_FT).toFixed(1)
-            : Number(meters).toFixed(2);
+            ? (
+                meters *
+                M_TO_FT
+            ).toFixed(1)
+            : Number(
+                meters
+            ).toFixed(2);
     }
 
     function toMeters(val) {
-        const num = parseFloat(val);
-        if (!Number.isFinite(num)) return 0;
-        return isImperial ? num * FT_TO_M : num;
+        const num =
+            parseFloat(val);
+
+        if (
+            !Number.isFinite(num)
+        ) {
+            return 0;
+        }
+
+        return isImperial
+            ? num * FT_TO_M
+            : num;
     }
 
-    function setElementVal(selectors, val) {
-        for (const s of selectors) {
-            const el = document.querySelector(s);
-            if (!el) continue;
+    function setElementVal(
+        selectors,
+        val
+    ) {
+        for (
+            const s of selectors
+        ) {
+            const el =
+                document.querySelector(
+                    s
+                );
 
-            el.value = val;
+            if (!el) {
+                continue;
+            }
 
-            if (el.tagName === 'SPAN' || el.tagName === 'B') {
-                el.textContent = val;
+            el.value =
+                val;
+
+            if (
+                el.tagName === 'SPAN' ||
+                el.tagName === 'B'
+            ) {
+                el.textContent =
+                    val;
             }
         }
     }
 
-    function setElementChecked(selectors, checked) {
-        for (const s of selectors) {
-            const el = document.querySelector(s);
+    function setElementChecked(
+        selectors,
+        checked
+    ) {
+        for (
+            const s of selectors
+        ) {
+            const el =
+                document.querySelector(
+                    s
+                );
 
-            if (el && el.type === 'checkbox') {
-                el.checked = checked;
+            if (
+                el &&
+                el.type === 'checkbox'
+            ) {
+                el.checked =
+                    checked;
             }
         }
     }
 
-    function formatPitchRatio(ratio) {
-        const pitch12 = Number(ratio) * 12;
-        const formatted = parseFloat(pitch12.toFixed(1)).toString();
+    function formatPitchRatio(
+        ratio
+    ) {
+        const pitch12 =
+            Number(ratio) * 12;
+
+        const formatted =
+            parseFloat(
+                pitch12.toFixed(1)
+            ).toString();
+
         return `${formatted}:12`;
     }
 
-    function parsePitchInput(raw) {
-        if (raw === undefined || raw === null) {
+    function parsePitchInput(
+        raw
+    ) {
+        if (
+            raw === undefined ||
+            raw === null
+        ) {
             return NaN;
         }
 
-        const str = String(raw)
-            .trim()
-            .replace(/:12$/i, '')
-            .trim();
+        const str =
+            String(raw)
+                .trim()
+                .replace(
+                    /:12$/i,
+                    ''
+                )
+                .trim();
 
-        const num = parseFloat(str);
+        const num =
+            parseFloat(str);
 
-        if (!Number.isFinite(num)) {
+        if (
+            !Number.isFinite(num)
+        ) {
             return NaN;
         }
 
@@ -79,78 +144,119 @@ export function createUIAdapter(runtime) {
 
     function getPitchLimits() {
         const constraints =
-            window.ConfiguratorBackendConstraints || {};
+            window.ConfiguratorBackendConstraints ||
+            {};
 
         const profile =
             String(
-                runtime.model.roof?.profile || 'awr'
+                runtime.model.roof?.profile ||
+                'awr'
             ).toLowerCase();
 
         const roofType =
             String(
-                runtime.model.roof?.type || 'gabled'
+                runtime.model.roof?.type ||
+                'gabled'
             ).toLowerCase();
 
         const pitchEl =
-            document.getElementById('inputPitch');
-
-        let min = Number(pitchEl?.min);
-        let max = Number(pitchEl?.max);
-        let step = Number(pitchEl?.step);
-
-        if (!Number.isFinite(min) || min < 0) {
-            min = Number(
-                constraints.pitch_min ?? 0
+            document.getElementById(
+                'inputPitch'
             );
+
+        let min =
+            Number(
+                pitchEl?.min
+            );
+
+        let max =
+            Number(
+                pitchEl?.max
+            );
+
+        let step =
+            Number(
+                pitchEl?.step
+            );
+
+        if (
+            !Number.isFinite(min) ||
+            min < 0
+        ) {
+            min =
+                Number(
+                    constraints.pitch_min ??
+                    0
+                );
         }
 
-        if (!Number.isFinite(max) || max <= 0) {
-            max = Number(
-                constraints.pitch_awr_max ??
-                constraints.pitch_awr ??
-                1
-            );
+        if (
+            !Number.isFinite(max) ||
+            max <= 0
+        ) {
+            max =
+                Number(
+                    constraints.pitch_awr_max ??
+                    constraints.pitch_awr ??
+                    1
+                );
         }
 
-        if (!Number.isFinite(step) || step <= 0) {
-            step = Number(
-                constraints.pitch_step ?? 0.001
-            );
+        if (
+            !Number.isFinite(step) ||
+            step <= 0
+        ) {
+            step =
+                Number(
+                    constraints.pitch_step ??
+                    0.001
+                );
         }
 
         if (
             profile.includes('ssr') ||
             profile.includes('snap')
         ) {
-            min = Number(
-                constraints.pitch_ssr24_min ?? min
-            );
+            min =
+                Number(
+                    constraints.pitch_ssr24_min ??
+                    min
+                );
 
-            max = Number(
-                constraints.pitch_ssr24_max ??
-                constraints.pitch_ssr24 ??
-                max
-            );
+            max =
+                Number(
+                    constraints.pitch_ssr24_max ??
+                    constraints.pitch_ssr24 ??
+                    max
+                );
 
-            step = Number(
-                constraints.pitch_ssr24_step ?? step
-            );
+            step =
+                Number(
+                    constraints.pitch_ssr24_step ??
+                    step
+                );
         }
 
         if (
-            roofType === 'left-sloped' ||
-            roofType === 'right-sloped'
+            roofType ===
+                'left-sloped' ||
+            roofType ===
+                'right-sloped'
         ) {
-            max = Math.min(
-                max,
-                Number(
-                    constraints.pitch_sloped_max ??
-                    0.1667
-                )
-            );
+            max =
+                Math.min(
+                    max,
+                    Number(
+                        constraints.pitch_sloped_max ??
+                        0.1667
+                    )
+                );
         }
 
-        if (!Number.isFinite(min) || min < 0) {
+        if (
+            !Number.isFinite(min) ||
+            min < 0
+        ) {
             min = 0;
         }
 
@@ -202,20 +308,35 @@ export function createUIAdapter(runtime) {
             ]
         ) {
             const el =
-                document.querySelector(selector);
+                document.querySelector(
+                    selector
+                );
 
-            if (!el) continue;
+            if (!el) {
+                continue;
+            }
 
-            if (el.type === 'range') {
-                el.min = limits.min;
-                el.max = limits.max;
-                el.step = limits.step;
-                el.value = value;
+            if (
+                el.type === 'range'
+            ) {
+                el.min =
+                    limits.min;
+
+                el.max =
+                    limits.max;
+
+                el.step =
+                    limits.step;
+
+                el.value =
+                    value;
             }
         }
 
         const formatted =
-            formatPitchRatio(value);
+            formatPitchRatio(
+                value
+            );
 
         setElementVal(
             [
@@ -263,7 +384,9 @@ export function createUIAdapter(runtime) {
             meters
         ) => {
             const display =
-                toDisplay(meters);
+                toDisplay(
+                    meters
+                );
 
             setElementVal(
                 [
@@ -312,7 +435,9 @@ export function createUIAdapter(runtime) {
                 '#building-width',
                 '#width-ft'
             ],
-            toDisplay(d.width)
+            toDisplay(
+                d.width
+            )
         );
 
         setElementVal(
@@ -323,7 +448,9 @@ export function createUIAdapter(runtime) {
                 '#building-length',
                 '#length-ft'
             ],
-            toDisplay(d.length)
+            toDisplay(
+                d.length
+            )
         );
 
         setElementVal(
@@ -334,19 +461,23 @@ export function createUIAdapter(runtime) {
                 '#building-height',
                 '#height-ft'
             ],
-            toDisplay(d.height)
+            toDisplay(
+                d.height
+            )
         );
 
         document
             .querySelectorAll(
                 '.value-unit,.unit-label'
             )
-            .forEach(el => {
-                el.textContent =
-                    isImperial
-                        ? 'ft'
-                        : 'm';
-            });
+            .forEach(
+                el => {
+                    el.textContent =
+                        isImperial
+                            ? 'ft'
+                            : 'm';
+                }
+            );
 
         updatePitchControls();
 
@@ -366,18 +497,20 @@ export function createUIAdapter(runtime) {
             .querySelectorAll(
                 '[data-roof-type],.roof-type-btn'
             )
-            .forEach(btn => {
-                const type =
-                    btn.getAttribute(
-                        'data-roof-type'
-                    ) ||
-                    btn.value;
+            .forEach(
+                btn => {
+                    const type =
+                        btn.getAttribute(
+                            'data-roof-type'
+                        ) ||
+                        btn.value;
 
-                btn.classList.toggle(
-                    'active',
-                    type === roofType
-                );
-            });
+                    btn.classList.toggle(
+                        'active',
+                        type === roofType
+                    );
+                }
+            );
 
         setElementVal(
             [
@@ -467,7 +600,9 @@ export function createUIAdapter(runtime) {
                 '#slider-wainscot-height',
                 '#val-wainscot-height'
             ],
-            toDisplay(wsHeight)
+            toDisplay(
+                wsHeight
+            )
         );
 
         setElementChecked(
@@ -481,7 +616,10 @@ export function createUIAdapter(runtime) {
 
         if (model.colors) {
             for (
-                const [key, hex]
+                const [
+                    key,
+                    hex
+                ]
                 of Object.entries(
                     model.colors
                 )
@@ -499,7 +637,10 @@ export function createUIAdapter(runtime) {
 
         if (model.visibility) {
             for (
-                const [key, val]
+                const [
+                    key,
+                    val
+                ]
                 of Object.entries(
                     model.visibility
                 )
@@ -519,8 +660,11 @@ export function createUIAdapter(runtime) {
         }
     }
 
-    let dimensionToastEl = null;
-    let dimensionToastTimer = null;
+    let dimensionToastEl =
+        null;
+
+    let dimensionToastTimer =
+        null;
 
     function showDimensionToast(
         message
@@ -610,7 +754,9 @@ export function createUIAdapter(runtime) {
         }
     }
 
-    function update(patch) {
+    function update(
+        patch
+    ) {
         runtime.update({
             ...runtime.model,
             ...patch
@@ -641,16 +787,19 @@ export function createUIAdapter(runtime) {
         };
 
         const limits =
-            getBuildingModelLimits()[prop] ||
-            {};
+            getBuildingModelLimits()[
+                prop
+            ] || {};
 
         let maxM =
-            typeof limits.max === 'number'
+            typeof limits.max ===
+            'number'
                 ? limits.max
                 : Infinity;
 
         let minM =
-            typeof limits.min === 'number'
+            typeof limits.min ===
+            'number'
                 ? limits.min
                 : 0;
 
@@ -699,7 +848,8 @@ export function createUIAdapter(runtime) {
                     Number.isFinite(dm) &&
                     dm < maxM
                 ) {
-                    maxM = dm;
+                    maxM =
+                        dm;
                 }
 
                 const dmin =
@@ -713,22 +863,36 @@ export function createUIAdapter(runtime) {
                     Number.isFinite(dmin) &&
                     dmin > minM
                 ) {
-                    minM = dmin;
+                    minM =
+                        dmin;
                 }
             }
         }
 
-        let clamped = meters;
-        let violated = false;
+        let clamped =
+            meters;
 
-        if (clamped < minM) {
-            clamped = minM;
-            violated = true;
+        let violated =
+            false;
+
+        if (
+            clamped < minM
+        ) {
+            clamped =
+                minM;
+
+            violated =
+                true;
         }
 
-        if (clamped > maxM) {
-            clamped = maxM;
-            violated = true;
+        if (
+            clamped > maxM
+        ) {
+            clamped =
+                maxM;
+
+            violated =
+                true;
         }
 
         if (sliderId) {
@@ -748,7 +912,8 @@ export function createUIAdapter(runtime) {
         update({
             dimensions: {
                 ...runtime.model.dimensions,
-                [prop]: clamped
+                [prop]:
+                    clamped
             }
         });
 
@@ -759,7 +924,9 @@ export function createUIAdapter(runtime) {
                     : 'm';
 
             const display =
-                toDisplay(clamped);
+                toDisplay(
+                    clamped
+                );
 
             showDimensionToast(
                 `Maximum ${prop} reached (${display} ${unit}).`
@@ -787,7 +954,11 @@ export function createUIAdapter(runtime) {
                     rawValue
                 );
 
-            if (!Number.isFinite(rise)) {
+            if (
+                !Number.isFinite(
+                    rise
+                )
+            ) {
                 return;
             }
 
@@ -795,7 +966,11 @@ export function createUIAdapter(runtime) {
                 rise / 12;
         }
 
-        if (!Number.isFinite(ratio)) {
+        if (
+            !Number.isFinite(
+                ratio
+            )
+        ) {
             return;
         }
 
@@ -811,7 +986,8 @@ export function createUIAdapter(runtime) {
         update({
             roof: {
                 ...runtime.model.roof,
-                pitchRatio: clamped
+                pitchRatio:
+                    clamped
             }
         });
     }
@@ -837,7 +1013,8 @@ export function createUIAdapter(runtime) {
                 );
 
                 if (
-                    el.tagName === 'INPUT' &&
+                    el.tagName ===
+                        'INPUT' &&
                     el.type !== 'range'
                 ) {
                     el.addEventListener(
@@ -921,140 +1098,149 @@ export function createUIAdapter(runtime) {
         }
     }
 
-function bindRoofControls() {
-    const applyRoofType = type => {
-        const normalized =
-            String(type || '')
-                .trim()
-                .toLowerCase();
+    function bindRoofControls() {
+        const applyRoofType =
+            type => {
+                const normalized =
+                    String(
+                        type || ''
+                    )
+                        .trim()
+                        .toLowerCase();
 
-        if (
-            normalized !== 'gabled' &&
-            normalized !== 'left-sloped' &&
-            normalized !== 'right-sloped'
-        ) {
-            return;
-        }
+                if (
+                    normalized !==
+                        'gabled' &&
+                    normalized !==
+                        'left-sloped' &&
+                    normalized !==
+                        'right-sloped'
+                ) {
+                    return;
+                }
 
-        const currentRoof =
-            runtime.model.roof || {};
+                const currentRoof =
+                    runtime.model.roof ||
+                    {};
 
-        const nextModel = {
-            ...runtime.model,
-
-            roof: {
-                ...currentRoof,
-                type: normalized
-            }
-        };
-
-        runtime.update(
-            nextModel
-        );
-
-        updateInputsFromModel();
-
-        if (
-            typeof runtime.render ===
-            'function'
-        ) {
-            runtime.render();
-        }
-    };
-
-    const roofType =
-        document.querySelector(
-            '#roofType'
-        );
-
-    if (roofType) {
-        roofType.addEventListener(
-            'change',
-            event => {
-                applyRoofType(
-                    event.target.value
-                );
-            }
-        );
-    }
-
-    document.addEventListener(
-        'click',
-        event => {
-            const button =
-                event.target.closest(
-                    '[data-roof-type], .roof-type-btn'
-                );
-
-            if (!button) {
-                return;
-            }
-
-            event.preventDefault();
-
-            const type =
-                button.getAttribute(
-                    'data-roof-type'
-                ) ||
-                button.value ||
-                button.getAttribute(
-                    'value'
-                );
-
-            applyRoofType(
-                type
-            );
-        }
-    );
-
-    const roofProfile =
-        document.querySelector(
-            '#roofProfile'
-        );
-
-    if (roofProfile) {
-        roofProfile.addEventListener(
-            'change',
-            event => {
-                runtime.update({
+                const nextModel = {
                     ...runtime.model,
 
                     roof: {
-                        ...runtime.model.roof,
-
-                        profile:
-                            event.target.value
+                        ...currentRoof,
+                        type:
+                            normalized
                     }
-                });
+                };
 
-                updatePitchControls();
-            }
-        );
-    }
+                runtime.update(
+                    nextModel
+                );
 
-    const wallProfile =
-        document.querySelector(
-            '#wallProfile'
-        );
+                updateInputsFromModel();
 
-    if (wallProfile) {
-        wallProfile.addEventListener(
-            'change',
+                if (
+                    typeof runtime.render ===
+                    'function'
+                ) {
+                    runtime.render();
+                }
+            };
+
+        const roofType =
+            document.querySelector(
+                '#roofType'
+            );
+
+        if (roofType) {
+            roofType.addEventListener(
+                'change',
+                event => {
+                    applyRoofType(
+                        event.target.value
+                    );
+                }
+            );
+        }
+
+        document.addEventListener(
+            'click',
             event => {
-                runtime.update({
-                    ...runtime.model,
+                const button =
+                    event.target.closest(
+                        '[data-roof-type], .roof-type-btn'
+                    );
 
-                    panels: {
-                        ...runtime.model.panels,
+                if (!button) {
+                    return;
+                }
 
-                        profile:
-                            event.target.value
-                    }
-                });
+                event.preventDefault();
+
+                const type =
+                    button.getAttribute(
+                        'data-roof-type'
+                    ) ||
+                    button.value ||
+                    button.getAttribute(
+                        'value'
+                    );
+
+                applyRoofType(
+                    type
+                );
             }
         );
+
+        const roofProfile =
+            document.querySelector(
+                '#roofProfile'
+            );
+
+        if (roofProfile) {
+            roofProfile.addEventListener(
+                'change',
+                event => {
+                    runtime.update({
+                        ...runtime.model,
+
+                        roof: {
+                            ...runtime.model.roof,
+
+                            profile:
+                                event.target.value
+                        }
+                    });
+
+                    updatePitchControls();
+                }
+            );
+        }
+
+        const wallProfile =
+            document.querySelector(
+                '#wallProfile'
+            );
+
+        if (wallProfile) {
+            wallProfile.addEventListener(
+                'change',
+                event => {
+                    runtime.update({
+                        ...runtime.model,
+
+                        panels: {
+                            ...runtime.model.panels,
+
+                            profile:
+                                event.target.value
+                        }
+                    });
+                }
+            );
+        }
     }
-}
+
     function bindOverhangs() {
         for (
             const side of [
@@ -1086,8 +1272,10 @@ function bindRoofControls() {
                             update({
                                 roof: {
                                     ...runtime.model.roof,
+
                                     overhangs: {
                                         ...runtime.model.roof.overhangs,
+
                                         [side]:
                                             toMeters(
                                                 e.target.value
@@ -1113,13 +1301,16 @@ function bindRoofControls() {
                     update({
                         panels: {
                             ...runtime.model.panels,
+
                             wainscotHeight:
                                 e.target.checked
                                     ? 0.9144
                                     : 0
                         },
+
                         visibility: {
                             ...runtime.model.visibility,
+
                             wainscot:
                                 e.target.checked
                         }
@@ -1139,6 +1330,7 @@ function bindRoofControls() {
                     update({
                         panels: {
                             ...runtime.model.panels,
+
                             wainscotHeight:
                                 toMeters(
                                     e.target.value
@@ -1149,91 +1341,221 @@ function bindRoofControls() {
         }
     }
 
-    function bindColors() {
-        document
-            .querySelectorAll(
-                'input[type="color"],[data-color-target]'
-            )
-            .forEach(
-                input => {
-                    const target =
-                        input.getAttribute(
-                            'data-color-target'
-                        ) ||
-                        input.id
-                            .replace(
-                                /^color/,
-                                ''
-                            )
-                            .replace(
-                                /^-/,
-                                ''
-                            )
-                            .toLowerCase();
+    function normalizeColorKey(
+        value
+    ) {
+        if (!value) {
+            return null;
+        }
 
-                    input.addEventListener(
-                        'input',
-                        e =>
-                            runtime.update({
-                                ...runtime.model,
-                                colors: {
-                                    ...runtime.model.colors,
-                                    [target]:
-                                        e.target.value
-                                }
-                            })
-                    );
+        let key =
+            String(value)
+                .trim();
 
-                    input.addEventListener(
-                        'change',
-                        e =>
-                            runtime.update({
-                                ...runtime.model,
-                                colors: {
-                                    ...runtime.model.colors,
-                                    [target]:
-                                        e.target.value
-                                }
-                            })
-                    );
-                }
+        if (!key) {
+            return null;
+        }
+
+        key =
+            key
+                .replace(
+                    /^color[-_]?/i,
+                    ''
+                )
+                .replace(
+                    /[-_]+(.)/g,
+                    (
+                        _,
+                        char
+                    ) =>
+                        char.toUpperCase()
+                );
+
+        const aliases = {
+            eavetrim:
+                'eaveTrim',
+
+            raketrim:
+                'rakeTrim',
+
+            structuralsteel:
+                'structuralSteel',
+
+            interiorwall:
+                'interiorWall',
+
+            wainscotmetal:
+                'wainscot'
+        };
+
+        const lower =
+            key.toLowerCase();
+
+        return (
+            aliases[lower] ||
+            key.charAt(0).toLowerCase() +
+                key.slice(1)
+        );
+    }
+
+    function getColorTarget(
+        element
+    ) {
+        const explicit =
+            element.getAttribute(
+                'data-color-target'
+            ) ||
+            element.getAttribute(
+                'data-color-input'
+            ) ||
+            element.getAttribute(
+                'data-target'
             );
+
+        if (explicit) {
+            return normalizeColorKey(
+                explicit
+            );
+        }
+
+        const name =
+            element.getAttribute(
+                'name'
+            );
+
+        if (name) {
+            const normalizedName =
+                normalizeColorKey(
+                    name
+                );
+
+            if (
+                normalizedName &&
+                runtime.model.colors?.[
+                    normalizedName
+                ] !== undefined
+            ) {
+                return normalizedName;
+            }
+        }
+
+        const id =
+            element.id || '';
+
+        if (id) {
+            const normalizedId =
+                normalizeColorKey(
+                    id
+                );
+
+            if (normalizedId) {
+                return normalizedId;
+            }
+        }
+
+        return null;
+    }
+
+    function setColor(
+        target,
+        value
+    ) {
+        if (
+            !target ||
+            value === undefined ||
+            value === null ||
+            value === ''
+        ) {
+            return;
+        }
+
+        runtime.update({
+            ...runtime.model,
+
+            colors: {
+                ...(runtime.model.colors ||
+                    {}),
+
+                [target]:
+                    value
+            }
+        });
+    }
+
+    function bindColors() {
+        const colorControls =
+            document.querySelectorAll(
+                'input[type="color"], select[id^="color"], select[name*="color" i], [data-color-target], [data-color-input]'
+            );
+
+        colorControls.forEach(
+            control => {
+                const target =
+                    getColorTarget(
+                        control
+                    );
+
+                if (!target) {
+                    return;
+                }
+
+                const handler =
+                    event => {
+                        setColor(
+                            target,
+                            event.target.value
+                        );
+                    };
+
+                control.addEventListener(
+                    'input',
+                    handler
+                );
+
+                control.addEventListener(
+                    'change',
+                    handler
+                );
+            }
+        );
 
         document
             .querySelectorAll(
                 '.color-swatch,.color-btn'
             )
             .forEach(
-                btn =>
-                    btn.addEventListener(
+                button => {
+                    button.addEventListener(
                         'click',
                         () => {
                             const hex =
-                                btn.getAttribute(
+                                button.getAttribute(
                                     'data-color'
                                 ) ||
-                                btn.getAttribute(
+                                button.getAttribute(
                                     'data-hex'
                                 );
 
                             const target =
-                                btn.getAttribute(
-                                    'data-target'
-                                ) ||
-                                'wall';
+                                normalizeColorKey(
+                                    button.getAttribute(
+                                        'data-target'
+                                    ) ||
+                                    button.getAttribute(
+                                        'data-color-target'
+                                    ) ||
+                                    'wall'
+                                );
 
                             if (hex) {
-                                runtime.update({
-                                    ...runtime.model,
-                                    colors: {
-                                        ...runtime.model.colors,
-                                        [target]:
-                                            hex
-                                    }
-                                });
+                                setColor(
+                                    target,
+                                    hex
+                                );
                             }
                         }
-                    )
+                    );
+                }
             );
     }
 
@@ -1271,8 +1593,10 @@ function bindRoofControls() {
                         e =>
                             runtime.update({
                                 ...runtime.model,
+
                                 visibility: {
                                     ...runtime.model.visibility,
+
                                     [key]:
                                         e.target.checked
                                 }
@@ -1327,24 +1651,36 @@ function bindRoofControls() {
                             '';
 
                         if (
-                            id.includes('W') ||
-                            id.includes('width')
+                            id.includes(
+                                'W'
+                            ) ||
+                            id.includes(
+                                'width'
+                            )
                         ) {
                             currentM =
                                 runtime.model
                                     .dimensions
                                     .width;
                         } else if (
-                            id.includes('L') ||
-                            id.includes('length')
+                            id.includes(
+                                'L'
+                            ) ||
+                            id.includes(
+                                'length'
+                            )
                         ) {
                             currentM =
                                 runtime.model
                                     .dimensions
                                     .length;
                         } else if (
-                            id.includes('H') ||
-                            id.includes('height')
+                            id.includes(
+                                'H'
+                            ) ||
+                            id.includes(
+                                'height'
+                            )
                         ) {
                             currentM =
                                 runtime.model
@@ -1479,11 +1815,15 @@ function bindRoofControls() {
                     lbl
                 );
 
-            if (!el) continue;
+            if (!el) {
+                continue;
+            }
 
             const mVal =
                 Number(
-                    constraints[mKey] ??
+                    constraints[
+                        mKey
+                    ] ??
                     fallback
                 );
 
@@ -1503,12 +1843,15 @@ function bindRoofControls() {
                 '#unitToggle,#unit-toggle,#unit-switch,[data-unit],.btn-unit-toggle'
             );
 
-        if (!toggle) return;
+        if (!toggle) {
+            return;
+        }
 
-        const apply = () => {
-            syncDistSlidersToUnit();
-            updateInputsFromModel();
-        };
+        const apply =
+            () => {
+                syncDistSlidersToUnit();
+                updateInputsFromModel();
+            };
 
         toggle.addEventListener(
             'change',
@@ -1519,7 +1862,8 @@ function bindRoofControls() {
                     )
                         ? e.target.getAttribute(
                             'data-unit'
-                        ) === 'imperial'
+                        ) ===
+                            'imperial'
                         : !e.target.checked;
 
                 apply();
@@ -1588,10 +1932,13 @@ function bindRoofControls() {
                 }
 
                 const isAllowed =
-                    bc[item.key] !==
-                    undefined
+                    bc[
+                        item.key
+                    ] !== undefined
                         ? Boolean(
-                            bc[item.key]
+                            bc[
+                                item.key
+                            ]
                         )
                         : true;
 
@@ -1623,853 +1970,16 @@ function bindRoofControls() {
                     cb.addEventListener(
                         'change',
                         e => {
-                            const fileName =
-                                e.target.value;
-
-                            runtime.referenceModels.toggle(
-                                fileName,
-                                e.target.checked
-                            );
+                            runtime
+                                .referenceModels
+                                .toggle(
+                                    e.target.value,
+                                    e.target.checked
+                                );
                         }
                     );
                 }
             );
-    }
-
-    function getSavedDesigns() {
-        try {
-            const data =
-                JSON.parse(
-                    localStorage.getItem(
-                        SAVED_DESIGNS_KEY
-                    ) || '[]'
-                );
-
-            return Array.isArray(data)
-                ? data
-                : [];
-        } catch {
-            return [];
-        }
-    }
-
-    function setSavedDesigns(
-        designs
-    ) {
-        localStorage.setItem(
-            SAVED_DESIGNS_KEY,
-            JSON.stringify(
-                designs
-            )
-        );
-    }
-
-    function showMessage(
-        message
-    ) {
-        let el =
-            document.getElementById(
-                'ubuild-ui-message'
-            );
-
-        if (!el) {
-            el =
-                document.createElement(
-                    'div'
-                );
-
-            el.id =
-                'ubuild-ui-message';
-
-            el.style.cssText =
-                'position:fixed;right:20px;bottom:20px;z-index:1000000;background:#198754;color:#fff;padding:10px 16px;border-radius:4px;font-size:14px;box-shadow:0 4px 12px rgba(0,0,0,.2);';
-
-            document.body.appendChild(
-                el
-            );
-        }
-
-        el.textContent =
-            message;
-
-        el.style.display =
-            'block';
-
-        clearTimeout(
-            el._timer
-        );
-
-        el._timer =
-            setTimeout(
-                () =>
-                    el.style.display =
-                        'none',
-                2500
-            );
-    }
-
-    function createDesignSnapshot(
-        name
-    ) {
-        const model =
-            JSON.parse(
-                JSON.stringify(
-                    runtime.model
-                )
-            );
-
-        let image = null;
-
-        try {
-            runtime.render();
-
-            if (
-                runtime.renderer?.domElement
-            ) {
-                image =
-                    runtime.renderer.domElement.toDataURL(
-                        'image/jpeg',
-                        0.85
-                    );
-            }
-        } catch (error) {
-            console.warn(
-                'Unable to create design preview:',
-                error
-            );
-        }
-
-        return {
-            id:
-                `design-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-            name,
-            createdAt:
-                new Date().toISOString(),
-            model,
-            image
-        };
-    }
-
-    function saveDesign() {
-        const designs =
-            getSavedDesigns();
-
-        let name =
-            window.prompt(
-                'Enter a unique name for this design:',
-                'My Design'
-            );
-
-        if (name === null) {
-            return;
-        }
-
-        name =
-            name.trim();
-
-        if (!name) {
-            showMessage(
-                'Design name is required.'
-            );
-            return;
-        }
-
-        if (
-            designs.some(
-                design =>
-                    String(
-                        design.name ||
-                        ''
-                    )
-                        .trim()
-                        .toLowerCase() ===
-                    name.toLowerCase()
-            )
-        ) {
-            showMessage(
-                'A design with this name already exists.'
-            );
-            return;
-        }
-
-        designs.unshift(
-            createDesignSnapshot(
-                name
-            )
-        );
-
-        setSavedDesigns(
-            designs.slice(0, 50)
-        );
-
-        showMessage(
-            `Design "${name}" saved.`
-        );
-    }
-
-    function closeOverlay(
-        id
-    ) {
-        const overlay =
-            document.getElementById(
-                id
-            );
-
-        if (overlay) {
-            overlay.remove();
-        }
-    }
-
-    function loadDesign(
-        design
-    ) {
-        if (!design?.model) {
-            return;
-        }
-
-        runtime.update(
-            design.model
-        );
-
-        updateInputsFromModel();
-
-        runtime.autoFrame?.();
-
-        closeOverlay(
-            'ubuild-gallery-overlay'
-        );
-
-        closeOverlay(
-            'ubuild-compare-overlay'
-        );
-    }
-
-    function deleteDesign(
-        id
-    ) {
-        setSavedDesigns(
-            getSavedDesigns().filter(
-                design =>
-                    design.id !== id
-            )
-        );
-
-        renderGallery();
-    }
-
-    function createOverlay(
-        id,
-        title
-    ) {
-        let overlay =
-            document.getElementById(
-                id
-            );
-
-        if (!overlay) {
-            overlay =
-                document.createElement(
-                    'div'
-                );
-
-            overlay.id = id;
-
-            overlay.style.cssText =
-                'position:fixed;inset:0;background:rgba(15,23,42,.96);z-index:999999;overflow:auto;padding:30px;display:none;box-sizing:border-box;';
-
-            overlay.innerHTML =
-                `<div style="max-width:1200px;margin:0 auto;color:#fff;"><div style="display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid #475569;padding-bottom:15px;margin-bottom:20px;"><h3 style="margin:0;">${title}</h3><button type="button" data-close-overlay="${id}" class="btn btn-outline-light btn-sm">Close</button></div><div data-overlay-content></div></div>`;
-
-            document.body.appendChild(
-                overlay
-            );
-
-            overlay.addEventListener(
-                'click',
-                e => {
-                    const close =
-                        e.target.closest(
-                            '[data-close-overlay]'
-                        );
-
-                    if (close) {
-                        closeOverlay(
-                            close.getAttribute(
-                                'data-close-overlay'
-                            )
-                        );
-                    }
-                }
-            );
-        }
-
-        return overlay;
-    }
-
-    function renderGallery() {
-        const overlay =
-            createOverlay(
-                'ubuild-gallery-overlay',
-                'Saved Designs'
-            );
-
-        const content =
-            overlay.querySelector(
-                '[data-overlay-content]'
-            );
-
-        const designs =
-            getSavedDesigns();
-
-        content.innerHTML =
-            '';
-
-        if (!designs.length) {
-            content.innerHTML =
-                '<div class="alert alert-secondary">No saved designs.</div>';
-        } else {
-            const grid =
-                document.createElement(
-                    'div'
-                );
-
-            grid.style.cssText =
-                'display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:20px;';
-
-            designs.forEach(
-                design => {
-                    const card =
-                        document.createElement(
-                            'div'
-                        );
-
-                    card.style.cssText =
-                        'background:#fff;color:#111;border-radius:6px;overflow:hidden;';
-
-                    const img =
-                        design.image
-                            ? `<img src="${design.image}" style="width:100%;height:160px;object-fit:cover;">`
-                            : '<div style="height:160px;background:#e2e8f0;display:flex;align-items:center;justify-content:center;color:#64748b;">No preview</div>';
-
-                    const d =
-                        design.model?.dimensions ||
-                        {};
-
-                    const r =
-                        design.model?.roof ||
-                        {};
-
-                    card.innerHTML =
-                        `${img}<div style="padding:15px;"><div style="font-size:18px;font-weight:700;">${design.name || 'Unnamed Design'}</div><div style="margin-top:6px;">${toDisplay(d.width)} × ${toDisplay(d.length)} × ${toDisplay(d.height)} ${isImperial ? 'ft' : 'm'}</div><div style="color:#64748b;margin-top:5px;">${r.type || 'gabled'} · ${(Number(r.pitchRatio || 0) * 12).toFixed(1)}:12</div><div style="color:#94a3b8;font-size:12px;margin-top:5px;">${design.createdAt ? new Date(design.createdAt).toLocaleString() : ''}</div><div style="display:flex;gap:8px;margin-top:12px;"><button type="button" class="btn btn-primary btn-sm" data-load-design="${design.id}">Load</button><button type="button" class="btn btn-danger btn-sm" data-delete-design="${design.id}">Delete</button></div></div>`;
-
-                    card.addEventListener(
-                        'click',
-                        e => {
-                            const load =
-                                e.target.closest(
-                                    '[data-load-design]'
-                                );
-
-                            const del =
-                                e.target.closest(
-                                    '[data-delete-design]'
-                                );
-
-                            if (load) {
-                                loadDesign(
-                                    designs.find(
-                                        x =>
-                                            x.id ===
-                                            load.getAttribute(
-                                                'data-load-design'
-                                            )
-                                    )
-                                );
-                            }
-
-                            if (del) {
-                                deleteDesign(
-                                    del.getAttribute(
-                                        'data-delete-design'
-                                    )
-                                );
-                            }
-                        }
-                    );
-
-                    grid.appendChild(
-                        card
-                    );
-                }
-            );
-
-            content.appendChild(
-                grid
-            );
-        }
-
-        overlay.style.display =
-            'block';
-    }
-
-    function renderCompare() {
-        const overlay =
-            createOverlay(
-                'ubuild-compare-overlay',
-                'Compare Saved Designs'
-            );
-
-        const content =
-            overlay.querySelector(
-                '[data-overlay-content]'
-            );
-
-        const designs =
-            getSavedDesigns();
-
-        content.innerHTML =
-            '';
-
-        if (designs.length < 2) {
-            content.innerHTML =
-                '<div class="alert alert-warning">Save at least two designs to compare them.</div>';
-
-            overlay.style.display =
-                'block';
-
-            return;
-        }
-
-        const grid =
-            document.createElement(
-                'div'
-            );
-
-        grid.style.cssText =
-            'display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:20px;';
-
-        designs
-            .slice(0, 2)
-            .forEach(
-                (design, index) => {
-                    const card =
-                        document.createElement(
-                            'div'
-                        );
-
-                    card.style.cssText =
-                        'background:#fff;color:#111;border-radius:6px;padding:15px;';
-
-                    const d =
-                        design.model?.dimensions ||
-                        {};
-
-                    const r =
-                        design.model?.roof ||
-                        {};
-
-                    const p =
-                        design.model?.panels ||
-                        {};
-
-                    const colors =
-                        design.model?.colors ||
-                        {};
-
-                    card.innerHTML =
-                        `${design.image ? `<img src="${design.image}" style="width:100%;height:260px;object-fit:cover;border-radius:4px;">` : ''}<h4 style="margin-top:15px;">${design.name || `Design ${index + 1}`}</h4><table class="table table-sm"><tr><td>Width</td><td>${toDisplay(d.width)} ${isImperial ? 'ft' : 'm'}</td></tr><tr><td>Length</td><td>${toDisplay(d.length)} ${isImperial ? 'ft' : 'm'}</td></tr><tr><td>Height</td><td>${toDisplay(d.height)} ${isImperial ? 'ft' : 'm'}</td></tr><tr><td>Roof</td><td>${r.type || 'gabled'}</td></tr><tr><td>Pitch</td><td>${(Number(r.pitchRatio || 0) * 12).toFixed(1)}:12</td></tr><tr><td>Roof Profile</td><td>${r.profile || '—'}</td></tr><tr><td>Wall Profile</td><td>${p.profile || '—'}</td></tr><tr><td>Wall Color</td><td>${colors.wall || '—'}</td></tr><tr><td>Roof Color</td><td>${colors.roof || '—'}</td></tr></table><button type="button" class="btn btn-primary btn-sm" data-load-design="${design.id}">Load Design</button>`;
-
-                    card.addEventListener(
-                        'click',
-                        e => {
-                            const load =
-                                e.target.closest(
-                                    '[data-load-design]'
-                                );
-
-                            if (load) {
-                                loadDesign(
-                                    designs.find(
-                                        x =>
-                                            x.id ===
-                                            load.getAttribute(
-                                                'data-load-design'
-                                            )
-                                    )
-                                );
-                            }
-                        }
-                    );
-
-                    grid.appendChild(
-                        card
-                    );
-                }
-            );
-
-        content.appendChild(
-            grid
-        );
-
-        overlay.style.display =
-            'block';
-    }
-
-    function bindInsideView() {
-        const toggle =
-            document.getElementById(
-                'viewInsideToggle'
-            );
-
-        if (!toggle) {
-            return;
-        }
-
-        toggle.addEventListener(
-            'change',
-            () => {
-                const camera =
-                    runtime.camera;
-
-                const controls =
-                    runtime.controls;
-
-                if (
-                    !camera ||
-                    !controls
-                ) {
-                    return;
-                }
-
-                if (toggle.checked) {
-                    savedOutsidePosition =
-                        camera.position.clone();
-
-                    savedOutsideTarget =
-                        controls.target.clone();
-
-                    const height =
-                        Number(
-                            runtime.model.dimensions?.height ||
-                            4.88
-                        );
-
-                    const length =
-                        Number(
-                            runtime.model.dimensions?.length ||
-                            24
-                        );
-
-                    const eyeHeight =
-                        Math.min(
-                            1.7,
-                            height * 0.4
-                        );
-
-                    const depth =
-                        Math.max(
-                            0.5,
-                            Math.min(
-                                2,
-                                length * 0.08
-                            )
-                        );
-
-                    const position =
-                        new THREE.Vector3(
-                            0,
-                            eyeHeight,
-                            depth
-                        );
-
-                    const target =
-                        new THREE.Vector3(
-                            0,
-                            eyeHeight,
-                            depth +
-                                Math.max(
-                                    4,
-                                    length * 0.35
-                                )
-                        );
-
-                    controls.setView(
-                        position,
-                        target
-                    );
-                } else {
-                    const position =
-                        savedOutsidePosition;
-
-                    const target =
-                        savedOutsideTarget;
-
-                    if (
-                        position &&
-                        target
-                    ) {
-                        controls.setView(
-                            position,
-                            target
-                        );
-                    }
-
-                    savedOutsidePosition =
-                        null;
-
-                    savedOutsideTarget =
-                        null;
-                }
-
-                runtime.render();
-            }
-        );
-    }
-
-    function bindTools() {
-        const save =
-            document.getElementById(
-                'btnSaveDesign'
-            );
-
-        if (save) {
-            save.addEventListener(
-                'click',
-                e => {
-                    e.preventDefault();
-                    saveDesign();
-                }
-            );
-        }
-
-        const gallery =
-            document.getElementById(
-                'btnGallery'
-            );
-
-        if (gallery) {
-            gallery.addEventListener(
-                'click',
-                e => {
-                    e.preventDefault();
-                    renderGallery();
-                }
-            );
-        }
-
-        const share =
-            document.getElementById(
-                'btnShare'
-            );
-
-        if (share) {
-            share.addEventListener(
-                'click',
-                async e => {
-                    e.preventDefault();
-
-                    const config =
-                        serializeModelToURL(
-                            runtime.model
-                        );
-
-                    const url =
-                        `${window.location.origin}${window.location.pathname}?config=${config}`;
-
-                    try {
-                        if (
-                            navigator.clipboard &&
-                            window.isSecureContext
-                        ) {
-                            await navigator.clipboard.writeText(
-                                url
-                            );
-
-                            showMessage(
-                                'Link copied to clipboard.'
-                            );
-                        } else {
-                            const textarea =
-                                document.createElement(
-                                    'textarea'
-                                );
-
-                            textarea.value =
-                                url;
-
-                            textarea.style.position =
-                                'fixed';
-
-                            textarea.style.opacity =
-                                '0';
-
-                            document.body.appendChild(
-                                textarea
-                            );
-
-                            textarea.select();
-
-                            document.execCommand(
-                                'copy'
-                            );
-
-                            textarea.remove();
-
-                            showMessage(
-                                'Link copied to clipboard.'
-                            );
-                        }
-                    } catch (error) {
-                        window.prompt(
-                            'Copy configuration link:',
-                            url
-                        );
-                    }
-                }
-            );
-        }
-
-        const help =
-            document.getElementById(
-                'btnHelp'
-            );
-
-        if (help) {
-            help.addEventListener(
-                'click',
-                e => {
-                    e.preventDefault();
-
-                    const popover =
-                        document.getElementById(
-                            'custom-help-popover'
-                        );
-
-                    if (!popover) {
-                        return;
-                    }
-
-                    popover.classList.toggle(
-                        'custom-popover-hidden'
-                    );
-
-                    popover.style.display =
-                        popover.classList.contains(
-                            'custom-popover-hidden'
-                        )
-                            ? 'none'
-                            : 'block';
-                }
-            );
-        }
-
-        const closeHelp =
-            document.getElementById(
-                'btnCloseHelp'
-            );
-
-        if (closeHelp) {
-            closeHelp.addEventListener(
-                'click',
-                e => {
-                    e.preventDefault();
-
-                    const popover =
-                        document.getElementById(
-                            'custom-help-popover'
-                        );
-
-                    if (!popover) {
-                        return;
-                    }
-
-                    popover.classList.add(
-                        'custom-popover-hidden'
-                    );
-
-                    popover.style.display =
-                        'none';
-                }
-            );
-        }
-
-        const compare =
-            document.getElementById(
-                'btnCompare'
-            );
-
-        if (compare) {
-            compare.addEventListener(
-                'click',
-                e => {
-                    e.preventDefault();
-                    renderCompare();
-                }
-            );
-        }
-
-        const reset =
-            document.getElementById(
-                'btnReset'
-            );
-
-        if (reset) {
-            reset.addEventListener(
-                'click',
-                e => {
-                    e.preventDefault();
-
-                    if (
-                        !window.confirm(
-                            'Are you sure you want to reset the current design?'
-                        )
-                    ) {
-                        return;
-                    }
-
-                    const toggle =
-                        document.getElementById(
-                            'viewInsideToggle'
-                        );
-
-                    if (toggle) {
-                        toggle.checked =
-                            false;
-                    }
-
-                    savedOutsidePosition =
-                        null;
-
-                    savedOutsideTarget =
-                        null;
-
-                    document
-                        .querySelectorAll(
-                            '.ref-model-checkbox'
-                        )
-                        .forEach(
-                            cb => {
-                                cb.checked =
-                                    false;
-                            }
-                        );
-
-                    if (
-                        runtime.referenceModels
-                    ) {
-                        runtime.referenceModels.clearAll();
-                    }
-
-                    runtime.update(
-                        getBuildingModelDefaults()
-                    );
-
-                    updateInputsFromModel();
-
-                    runtime.autoFrame();
-                }
-            );
-        }
     }
 
     function bindInformationNotice() {
@@ -2509,94 +2019,12 @@ function bindRoofControls() {
         );
     }
 
-    function bindActions() {
-        bindTools();
-        bindInsideView();
-        bindInformationNotice();
-
-        const quote =
-            document.querySelector(
-                '#custom-gform-submit,#btn-quote-submit'
-            );
-
-        if (quote) {
-            quote.addEventListener(
-                'click',
-                e => {
-                    e.preventDefault();
-
-                    const shareUrl =
-                        `${window.location.origin}${window.location.pathname}?config=${serializeModelToURL(runtime.model)}`;
-
-                    submitToGravityForms({
-                        formId: 4,
-                        snapshotFieldId: 15,
-                        specFieldId: 16,
-                        model: runtime.model,
-                        geometry: runtime.geometry,
-                        renderer: runtime.renderer,
-                        fieldMap: {
-                            widthFieldId: 13,
-                            lengthFieldId: 14,
-                            heightFieldId: 12,
-                            urlFieldId: 10,
-                            shareUrl
-                        }
-                    });
-                }
-            );
-        }
-
-        const quoteModal =
-            document.getElementById(
-                'quoteModal'
-            );
-
-        if (quoteModal) {
-            quoteModal.addEventListener(
-                'show.bs.modal',
-                () => {
-                    const thumbImg =
-                        document.getElementById(
-                            'summary-building-thumb'
-                        );
-
-                    const fallbackIcon =
-                        document.getElementById(
-                            'summary-building-fallback'
-                        );
-
-                    if (
-                        thumbImg &&
-                        runtime.renderer &&
-                        runtime.scene &&
-                        runtime.camera
-                    ) {
-                        runtime.renderer.render(
-                            runtime.scene,
-                            runtime.camera
-                        );
-
-                        thumbImg.src =
-                            runtime.renderer.domElement.toDataURL(
-                                'image/jpeg',
-                                0.85
-                            );
-
-                        thumbImg.style.display =
-                            'block';
-
-                        if (
-                            fallbackIcon
-                        ) {
-                            fallbackIcon.style.display =
-                                'none';
-                        }
-                    }
-                }
-            );
-        }
-    }
+    const actions =
+        createUIActions({
+            runtime,
+            updateInputsFromModel,
+            toDisplay
+        });
 
     function init() {
         bindDimension(
@@ -2622,7 +2050,9 @@ function bindRoofControls() {
         bindVisibility();
         bindUnits();
         bindReferenceModels();
-        bindActions();
+        bindInformationNotice();
+
+        actions.init();
 
         syncDistSlidersToUnit();
         updateInputsFromModel();
@@ -2633,8 +2063,14 @@ function bindRoofControls() {
         updateInputsFromModel,
         toDisplay,
         toMeters,
-        saveDesign,
-        renderGallery,
-        renderCompare
+
+        saveDesign:
+            actions.saveDesign,
+
+        renderGallery:
+            actions.renderGallery,
+
+        renderCompare:
+            actions.renderCompare
     });
 }

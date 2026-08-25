@@ -1,0 +1,280 @@
+import * as THREE from 'three';
+import { Brush, Evaluator, SUBTRACTION } from 'three-bvh-csg';
+
+import standard from './roofs/standard.js';
+import saltbox from './roofs/saltbox.js';
+import gambrel from './roofs/gambrel.js';
+import butterfly from './roofs/butterfly.js';
+import shed from './roofs/shed.js';
+import flat from './roofs/flat.js';
+import mansard from './roofs/mansard.js';
+import hip from './roofs/hip.js';
+import split from './roofs/split.js';
+import pyramid from './roofs/pyramid.js';
+import hexagonal from './roofs/hexagonal.js';
+import m_shaped from './roofs/m_shaped.js';
+import skillion_leanto from './roofs/skillion_leanto.js';
+import jerkinhead from './roofs/jerkinhead.js';
+import dutch_gable from './roofs/dutch_gable.js';
+import combination from './roofs/combination.js';
+import cross_hipped from './roofs/cross_hipped.js';
+import hip_and_valley from './roofs/hip_and_valley.js';
+
+const csgEvaluator = new Evaluator();
+
+const RoofModules = {
+    standard, saltbox, gambrel, butterfly, shed, 
+    flat, mansard, hip, split, pyramid, hexagonal, 
+    m_shaped, skillion_leanto, jerkinhead, dutch_gable, combination, cross_hipped, hip_and_valley
+};
+
+const createGenericRoofMesh = (pts, indices, params, materials, isFlat = false, customTY = null) => {
+    const geom = new THREE.BufferGeometry();
+    const peak = (params.width / 2) * (params.pitch / 12);
+    
+    let tY;
+    if (customTY !== null && customTY !== undefined) {
+        tY = customTY;
+    } else {
+        tY = isFlat ? params.thickness : (params.thickness / Math.cos(Math.atan(peak / (params.width / 2))));
+    }
+    
+    const n = pts.length;
+    const allPts = [...pts];
+    
+    for (let i = 0; i < n; i++) {
+        allPts.push(new THREE.Vector3(pts[i].x, pts[i].y - tY, pts[i].z));
+    }
+    
+    const allIndices = [...indices];
+    for (let i = 0; i < indices.length; i += 3) {
+        allIndices.push(indices[i] + n, indices[i + 2] + n, indices[i + 1] + n);
+    }
+
+    const edges = {};
+    for (let i = 0; i < indices.length; i += 3) {
+        edges[`${indices[i]}_${indices[i+1]}`] = true; 
+        edges[`${indices[i+1]}_${indices[i+2]}`] = true; 
+        edges[`${indices[i+2]}_${indices[i]}`] = true;
+    }
+    for (let key in edges) {
+        const parts = key.split('_'); 
+        const u = parseInt(parts[0]), v = parseInt(parts[1]);
+        if (!edges[`${v}_${u}`]) { 
+            const uBot = u + n, vBot = v + n;
+            allIndices.push(v, u, uBot, v, uBot, vBot);
+        }
+    }
+
+    geom.setFromPoints(allPts); 
+    geom.setIndex(allIndices); 
+    geom.computeVertexNormals();
+
+    const uvs = [];
+    for (let i = 0; i < allPts.length; i++) {
+        const u = params.width > 0 ? (allPts[i].x / params.width + 0.5) : 0;
+        const v = params.depth > 0 ? (allPts[i].z / params.depth + 0.5) : 0;
+        uvs.push(u, v);
+    }
+    geom.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2));
+
+    const mesh = new THREE.Mesh(geom, materials.roof);
+    mesh.castShadow = true;
+    mesh.receiveShadow = true;
+    return mesh;
+};
+
+export const HouseGenerator = {
+    createBuilding(params, materials) {
+        const group = new THREE.Group();
+        const activeModule = RoofModules[params.modelType] || RoofModules['standard'];
+
+        const roofData = activeModule.getRoofData(params, THREE);
+        if (roofData && roofData.pts && roofData.pts.length > 0) {
+            const roofMesh = createGenericRoofMesh(roofData.pts, roofData.indices, params, materials, roofData.isFlat, roofData.customTY);
+            group.add(roofMesh);
+        }
+
+        const createWallGroup = (w, h, pos, rot, isGable, wallId, customShape = null) => {
+            const shape = customShape || (activeModule.getWallShape ? activeModule.getWallShape(w, h, isGable, wallId, params, THREE) : null);
+            if (!shape) return new THREE.Group();
+
+            const geom = new THREE.ExtrudeGeometry(shape, { depth: params.thickness, bevelEnabled: false });
+            
+            let wallBrush = new Brush(geom, materials.wall);
+            wallBrush.position.set(0, 0, 0);
+            wallBrush.updateMatrixWorld();
+
+            const wallGroup = new THREE.Group();
+
+            if (params.openings && params.openings[wallId] && params.openings[wallId].length > 0) {
+                params.openings[wallId].forEach(o => {
+                    const holeGeo = new THREE.BoxGeometry(o.w, o.h, params.thickness + 2);
+                    holeGeo.translate(0, 0, params.thickness / 2); 
+                    const holeBrush = new Brush(holeGeo);
+                    holeBrush.position.set(o.cx, o.cy, 0); 
+                    holeBrush.updateMatrixWorld();
+                    
+                    wallBrush = csgEvaluator.evaluate(wallBrush, holeBrush, SUBTRACTION);
+                    wallBrush.material = materials.wall;
+
+                    const glassMat = new THREE.MeshStandardMaterial({ color: 0x111111, transparent: true, opacity: 0.4, metalness: 0.0, roughness: 0.9 });
+                    const visualMesh = new THREE.Mesh(new THREE.BoxGeometry(o.w, o.h, params.thickness + 0.1), glassMat);
+                    visualMesh.position.set(o.cx, o.cy, params.thickness / 2);
+                    visualMesh.userData = { isOpening: true, id: o.id, wallId: wallId, w: o.w, h: o.h, isDoor: o.isDoor };
+                    
+                    wallGroup.add(visualMesh);
+                });
+            }
+            
+            wallBrush.castShadow = true; wallBrush.receiveShadow = true;
+            wallGroup.add(wallBrush);
+            wallGroup.position.set(pos.x, pos.y, pos.z);
+            wallGroup.rotation.set(rot.x, rot.y, rot.z);
+
+            return wallGroup;
+        };
+
+        if (activeModule.buildCustomElements) {
+            activeModule.buildCustomElements(params, materials, THREE, group, createGenericRoofMesh, csgEvaluator, createWallGroup);
+        }
+
+        if (activeModule.useDefaultWalls !== false) {
+            if (params.modelType === 'hexagonal') {
+                const R = params.width / 2; 
+                const a = R * Math.cos(Math.PI / 6); 
+                const wallMap = ['front', 'right', 'back_right', 'back', 'left', 'front_left'];
+                
+                for (let i = 0; i < 6; i++) {
+                    const angle = i * (Math.PI / 3);
+                    const posZ = (a - params.thickness) * Math.cos(angle);
+                    const posX = (a - params.thickness) * Math.sin(angle);
+                    
+                    group.add(createWallGroup(R, params.height, {x: posX, y: 0, z: posZ}, {x: 0, y: angle, z: 0}, false, wallMap[i]));
+                }
+            } else {
+                const isGableWall = !['mansard', 'hip', 'pyramid', 'flat', 'split', 'hexagonal', 'skillion_leanto', 'dutch_gable', 'combination'].includes(params.modelType);
+                group.add(createWallGroup(params.width, params.height, {x: 0, y: 0, z: params.depth/2 - params.thickness}, {x:0, y:0, z:0}, isGableWall, 'front'));
+                group.add(createWallGroup(params.width, params.height, {x: 0, y: 0, z: -params.depth/2}, {x:0, y:0, z:0}, isGableWall, 'back'));
+                group.add(createWallGroup(params.depth, params.height, {x: params.width/2 - params.thickness, y: 0, z: 0}, {x:0, y: -Math.PI/2, z:0}, false, 'right'));
+                group.add(createWallGroup(params.depth, params.height, {x: -params.width/2, y: 0, z: 0}, {x:0, y: Math.PI/2, z:0}, false, 'left'));
+            }
+        }
+
+        const peak = (params.modelType === 'flat') ? 0 : (params.width / 2) * (params.pitch / 12);
+        
+        if (params.hasDormer && !['flat', 'shed', 'butterfly', 'pyramid', 'hexagonal', 'm_shaped', 'skillion_leanto', 'dutch_gable', 'combination', 'cross_hipped', 'hip_and_valley'].includes(params.modelType)) {
+            const dw = params.dormerWidth;
+            const dx = params.dormerDepth; 
+            const dz = params.dormerZ; 
+            const dh = params.dormerHeight; 
+            
+            let run = params.width / 2;
+            let ridgeX = 0;
+            if (params.modelType === 'saltbox') {
+                run = params.width * 0.66;
+                ridgeX = (params.width / 2) - (params.width * 0.33); 
+            }
+
+            const m = params.pitch / 12; 
+            const dPeak = (dw / 2) * m; 
+            const yRidge = params.height + (run * m);
+            const yRoofAtFront = yRidge - (m * dx); 
+
+            const dormerGroup = new THREE.Group();
+            const hFront = dh - yRoofAtFront; 
+            
+            if (hFront > 0) {
+                const tY = params.thickness / Math.cos(Math.atan(m));
+                
+                const frontS = new THREE.Shape();
+                frontS.moveTo(-dw/2, yRoofAtFront - tY * 0.95); 
+                frontS.lineTo(dw/2, yRoofAtFront - tY * 0.95); 
+                frontS.lineTo(dw/2, dh);
+                frontS.lineTo(0, dh + dPeak); 
+                frontS.lineTo(-dw/2, dh); 
+                frontS.closePath();
+                
+                const frontM = new THREE.Mesh(new THREE.ExtrudeGeometry(frontS, { depth: params.thickness, bevelEnabled: false }), materials.wall);
+                frontM.rotation.y = Math.PI / 2; 
+                frontM.position.set(dx, 0, 0); 
+                frontM.castShadow = true; frontM.receiveShadow = true;
+                dormerGroup.add(frontM);
+
+                const xIntersect = Math.max(0, (yRidge - dh) / m); 
+
+                const sideS = new THREE.Shape();
+                sideS.moveTo(xIntersect, dh); 
+                sideS.lineTo(dx, yRoofAtFront); 
+                sideS.lineTo(dx, dh);
+                sideS.closePath();
+
+                const sideG = new THREE.ExtrudeGeometry(sideS, { depth: params.thickness, bevelEnabled: false });
+                
+                const sideR = new THREE.Mesh(sideG, materials.wall);
+                sideR.position.set(0, 0, -dw/2 - params.thickness); 
+                sideR.castShadow = true; sideR.receiveShadow = true;
+                dormerGroup.add(sideR);
+                
+                const sideL = new THREE.Mesh(sideG, materials.wall);
+                sideL.position.set(0, 0, dw/2); 
+                sideL.castShadow = true; sideL.receiveShadow = true;
+                dormerGroup.add(sideL);
+
+                const rGeom = new THREE.BufferGeometry();
+                const yR = dh + dPeak;
+                const yE = dh;
+                const zE = dw/2 + 0.4; 
+                const dT = params.thickness / Math.cos(Math.atan(dPeak / (dw/2)));
+
+                const pts = [
+                    new THREE.Vector3(dx + 0.4, yE, zE),
+                    new THREE.Vector3(dx + 0.4, yR, 0),
+                    new THREE.Vector3(dx + 0.4, yE, -zE),
+                    new THREE.Vector3(dx + 0.4, yE - dT, -zE),
+                    new THREE.Vector3(dx + 0.4, yR - dT, 0),
+                    new THREE.Vector3(dx + 0.4, yE - dT, zE),
+
+                    new THREE.Vector3(xIntersect, yE, zE),
+                    new THREE.Vector3((yRidge - yR)/m, yR, 0),
+                    new THREE.Vector3(xIntersect, yE, -zE),
+                    new THREE.Vector3((yRidge - (yE - dT))/m, yE - dT, -zE),
+                    new THREE.Vector3((yRidge - (yR - dT))/m, yR - dT, 0),
+                    new THREE.Vector3((yRidge - (yE - dT))/m, yE - dT, zE)
+                ];
+
+                const indices = [
+                    0, 1, 7,  0, 7, 6,
+                    1, 2, 8,  1, 8, 7,
+                    5, 11, 10, 5, 10, 4,
+                    4, 10, 9, 4, 9, 3,
+                    0, 5, 4, 0, 4, 1,
+                    1, 4, 3, 1, 3, 2,
+                    6, 7, 10, 6, 10, 11,
+                    7, 8, 9, 7, 9, 10
+                ];
+
+                const uvs = [];
+                for(let i=0; i<12; i++) uvs.push(pts[i].x/params.width + 0.5, pts[i].z/params.depth + 0.5);
+
+                rGeom.setFromPoints(pts);
+                rGeom.setIndex(indices);
+                rGeom.computeVertexNormals();
+                rGeom.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2));
+
+                const roofM = new THREE.Mesh(rGeom, materials.roof);
+                roofM.castShadow = true; roofM.receiveShadow = true;
+                dormerGroup.add(roofM);
+
+                dormerGroup.position.set(ridgeX, 0, dz);
+                if (params.modelType === 'saltbox') {
+                    dormerGroup.rotation.y = Math.PI; 
+                }
+                
+                group.add(dormerGroup);
+            }
+        }
+
+        return group;
+    }
+};

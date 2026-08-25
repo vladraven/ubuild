@@ -1,0 +1,193 @@
+body {
+  margin: 0;
+  overflow: hidden;
+  background: #f0f4f8;
+  font-family: "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+}
+#canvas-container {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 360px;
+  bottom: 0;
+}
+#ui-panel {
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 360px;
+  height: 100vh;
+  background: #fff;
+  overflow-y: auto;
+  box-shadow: -2px 0 15px rgba(0, 0, 0, 0.1);
+  display: flex;
+  flex-direction: column;
+  z-index: 10;
+}
+.section-title {
+  font-size: 0.85rem;
+  color: #666;
+  letter-spacing: 1px;
+  border-bottom: 2px solid #222;
+  padding-bottom: 5px;
+}
+.btn-custom {
+  background-color: #ff8300;
+  color: white;
+  border: none;
+}
+.btn-custom:hover {
+  background-color: #ac5c07;
+  color: white;
+}
+.info-row {
+  font-size: 0.9rem;
+  border-bottom: 1px dashed #eee;
+  padding: 4px 0;
+}
+.info-row:last-child {
+  border: none;
+}
+.form-range::-webkit-slider-thumb {
+  background: #ff8300;
+}
+
+#view-controls {
+  position: absolute;
+  bottom: 20px;
+  left: calc(50% - 180px);
+  transform: translateX(-50%);
+  z-index: 100;
+  background: rgba(33, 37, 41, 0.9);
+  padding: 8px 12px;
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+#view-controls button {
+  font-size: 12px;
+  font-weight: bold;
+  text-transform: uppercase;
+}
+
+@media (max-width: 768px) {
+  #canvas-container {
+    right: 0;
+    bottom: 40vh;
+  }
+  #ui-panel {
+    width: 100%;
+    height: 40vh;
+    top: auto;
+    bottom: 0;
+  }
+  #view-controls {
+    bottom: calc(40vh + 20px);
+    left: 50%;
+  }
+}
+.form-check-input:checked {
+  background-color: #ff8300;
+  border-color: #ff8300;
+}
+.dealer-card {
+  border-left: 4px solid #ff8300;
+  background: #f8f9fa;
+}
+.btn-primary {
+  background-color: #ff8300;
+  border-color: #ff8300;
+}
+.btn-primary:hover {
+  background-color: #ac5c07;
+  border-color: #ac5c07;
+}
+.btn-primary:active {
+  background-color: #ac5c07;
+  border-color: #ac5c07;
+}
+.btn-primary:focus {
+  background-color: #ac5c07;
+  border-color: #ac5c07;
+}
+#logo-container {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 30%;
+  max-width: 380px;
+  z-index: 10001;
+  clip-path: polygon(0 0, 100% 0, 75% 100%, 0 100%);
+  box-shadow: 3px 3px 5px rgba(0, 0, 0, 0.5);
+  overflow: hidden;
+}
+#logo-container span {
+  display: block;
+  padding: 0.5rem 0.25rem 0.5rem 0.5rem;
+}
+#logo-container span img {
+  width: 50%;
+  margin-left: 1rem;
+}
+
+*[style*="display:none"] {
+    display: none !important;
+}
+
+/* Стили для жесткой блокировки экрана */
+#terms-click-blocker {
+    position: fixed;
+    top: 0; left: 0; width: 100vw; height: 100vh;
+    background: rgba(0, 0, 0, 0.4);
+    z-index: 999998;
+}
+
+/* Сам баннер внизу экрана */
+#terms-bottom-banner {
+    position: fixed;
+    bottom: 0; left: 0; right: 0;
+    width: 100%;
+    height: 28vh; /* Около 30-35% высоты экрана */
+    min-height: 250px;
+    background: #ffffff;
+    z-index: 999999;
+    display: flex;
+    flex-direction: column;
+    border-top: 1px solid #ddd;
+    
+    /* Анимация выезда снизу */
+    transform: translateY(100%);
+    transition: transform 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+#terms-bottom-banner.show-banner {
+    transform: translateY(0);
+}
+
+.terms-banner-content {
+    padding: 25px 40px;
+    overflow-y: auto; /* Внутренний скролл для текста */
+    flex-grow: 1;
+    font-size: 13px;
+    line-height: 1.6;
+    color: #444;
+    text-align: justify;
+}
+
+.terms-banner-actions {
+    padding: 15px 40px;
+    background: #f8f9fa;
+    border-top: 1px solid #e9ecef;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+/* Адаптивность для мобильных */
+@media (max-width: 768px) {
+    #terms-bottom-banner { height: 45vh; }
+    .terms-banner-content { padding: 15px 20px; }
+    .terms-banner-actions { padding: 15px 20px; justify-content: center; }
+}

@@ -1,0 +1,1094 @@
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { HouseGenerator } from './houseModel.js';
+import { WESTMAN_COLORS } from './colors.js';
+import { setupPanelUI } from './panels.js';
+
+const MIN_SPACING = 3.28; 
+let cameraGroundMargin = 0.05; // 5% отступ от уровня земли для предотвращения артефактов
+
+let params = { 
+    width: 30, depth: 40, height: 16, pitch: 4, upperPitch: 6, thickness: 0.05, 
+    modelType: 'hip_and_valley', hipOffset: 0,
+    hasDormer: false, dormerWidth: 6, dormerDepth: 7.5, dormerZ: 0, dormerHeight: 18,
+    hasEnvironment: false,
+    horizontalSiding: false,
+    crossWidth: 20, crossDepth: 20, crossOffset: 0,
+    hvLeftExt: 15, hvRightExt: 15, hvLeftOffset: 0, hvRightOffset: 0, 
+    leanToWidth: 10, leanToDepth: 20, leanToHeight: 8, leanToPitch: 2,
+    openings: { 
+        front: [], back: [], left: [], right: [], 
+        left_front: [], left_back: [], right_front: [], right_back: [], 
+        wing_l_front: [], wing_l_back: [], wing_l_end: [], 
+        wing_r_front: [], wing_r_back: [], wing_r_end: [] 
+    }
+};
+
+let currentHouse = null;
+let selectedRoofWidth = 36, selectedWallWidth = 36;
+let cachedScrews = 0;
+let elementIdCounter = 0;
+
+const scene = new THREE.Scene();
+const defaultBgColor = new THREE.Color(0xf0f4f8);
+scene.background = defaultBgColor;
+
+const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 2000);
+camera.position.set(50, 40, 50);
+
+const renderer = new THREE.WebGLRenderer({ antialias: true, logarithmicDepthBuffer: true, preserveDrawingBuffer: true });
+renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+document.getElementById('canvas-container').appendChild(renderer.domElement);
+
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.maxPolarAngle = (Math.PI / 2) * (1 - cameraGroundMargin);
+
+scene.add(new THREE.AmbientLight(0xffffff, 0.85));
+const dirLight = new THREE.DirectionalLight(0xffffff, 1.0);
+dirLight.position.set(60, 120, 60);
+dirLight.castShadow = true;
+dirLight.shadow.mapSize.width = 2048;
+dirLight.shadow.mapSize.height = 2048;
+dirLight.shadow.bias = -0.0005; 
+dirLight.shadow.camera.left = -100;
+dirLight.shadow.camera.right = 100;
+dirLight.shadow.camera.top = 100;
+dirLight.shadow.camera.bottom = -100;
+scene.add(dirLight);
+
+const grid = new THREE.GridHelper(2000, 100, 0xcccccc, 0xdddddd);
+grid.position.y = -0.04;
+scene.add(grid);
+
+const wallMat = new THREE.MeshStandardMaterial({ metalness: 0.0, roughness: 0.9, side: THREE.DoubleSide });
+const roofMat = new THREE.MeshStandardMaterial({ metalness: 0.0, roughness: 0.9, side: THREE.DoubleSide });
+const gableMat = new THREE.MeshStandardMaterial({ metalness: 0.0, roughness: 0.9, side: THREE.DoubleSide });
+
+const textureLoader = new THREE.TextureLoader();
+const cubeTextureLoader = new THREE.CubeTextureLoader();
+let skyboxTexture = null;
+let grassMesh = null;
+let environmentReady = false;
+
+function loadEnvironmentAssets() {
+    const envSwitch = document.getElementById('env-enable');
+    if (envSwitch) envSwitch.disabled = true;
+
+    cubeTextureLoader.setPath('https://cdn.jsdelivr.net/gh/mrdoob/three.js@r148/examples/textures/cube/skyboxsun25deg/');
+    cubeTextureLoader.load(
+        ['px.jpg', 'nx.jpg', 'py.jpg', 'ny.jpg', 'pz.jpg', 'nz.jpg'],
+        (texture) => { 
+            skyboxTexture = texture;
+            environmentReady = true;
+            if (envSwitch) {
+                envSwitch.disabled = false; 
+                if (params.hasEnvironment) updateEnvironment();
+            }
+        },
+        undefined,
+        (err) => console.error("Skybox error:", err)
+    );
+
+    const grassMap = textureLoader.load('https://cdn.jsdelivr.net/gh/mrdoob/three.js@r148/examples/textures/terrain/grasslight-big.jpg');
+    grassMap.wrapS = THREE.RepeatWrapping;
+    grassMap.wrapT = THREE.RepeatWrapping;
+    grassMap.repeat.set(100, 100);
+
+    const grassMat = new THREE.MeshStandardMaterial({ map: grassMap, roughness: 0.9, metalness: 0.05, color: 0x88bb88 });
+    const grassGeo = new THREE.PlaneGeometry(5000, 5000);
+    grassMesh = new THREE.Mesh(grassGeo, grassMat);
+    grassMesh.rotation.x = -Math.PI / 2;
+    grassMesh.position.y = -0.05;
+    grassMesh.receiveShadow = true;
+    grassMesh.visible = params.hasEnvironment;
+    scene.add(grassMesh);
+}
+
+function updateEnvironment() {
+    if (params.hasEnvironment && environmentReady && skyboxTexture) {
+        scene.background = skyboxTexture;
+        grid.visible = false;
+        if (grassMesh) grassMesh.visible = true;
+        dirLight.intensity = 1.5;
+    } else {
+        scene.background = defaultBgColor;
+        grid.visible = true;
+        if (grassMesh) grassMesh.visible = false;
+        dirLight.intensity = 1.0;
+    }
+}
+loadEnvironmentAssets();
+
+function checkOverlap(wallId, currentOp) {
+    const wallOps = params.openings[wallId] || [];
+    for (let other of wallOps) {
+        if (other.id === currentOp.id) continue;
+        const combinedW = (currentOp.w + other.w) / 2 + 1.0; 
+        const combinedH = (currentOp.h + other.h) / 2 + 1.0; 
+        const dx = Math.abs(currentOp.cx - other.cx);
+        const dy = Math.abs(currentOp.cy - other.cy);
+        if (dx < combinedW && dy < combinedH) return true;
+    }
+    return false;
+}
+
+function sanitizeAndAlign() {
+    const invalidDormerTypes = ['butterfly', 'flat', 'shed', 'pyramid', 'hexagonal', 'm_shaped', 'skillion_leanto', 'dutch_gable', 'combination', 'cross_hipped', 'hip_and_valley'];
+    const dEnable = document.getElementById('d-enable');
+    const dormerControls = document.getElementById('dormer-controls');
+    const dormerSection = dEnable ? dEnable.closest('.p-3') : null;
+
+    if (invalidDormerTypes.includes(params.modelType)) {
+        params.hasDormer = false; 
+        if (dEnable) { dEnable.checked = false; dEnable.disabled = true; }
+        if (dormerSection) dormerSection.style.display = 'none';
+    } else {
+        if (dEnable) dEnable.disabled = false;
+        if (dormerSection) dormerSection.style.display = 'block';
+        if (dormerControls) dormerControls.style.display = params.hasDormer ? 'block' : 'none';
+    }
+
+    Object.keys(params.openings).forEach(wall => {
+        params.openings[wall].forEach(o => {
+            const oldY = o.cy;
+            let maxAllowedY = params.height - o.h / 2 - 0.5;
+
+            if ((wall === 'front' || wall === 'back') && !['mansard', 'hip', 'pyramid', 'hexagonal', 'dutch_gable', 'combination', 'cross_hipped', 'hip_and_valley'].includes(params.modelType)) {
+                if (params.modelType === 'butterfly') {
+                    const peak = (params.width / 2) * (params.pitch / 12);
+                    maxAllowedY = (params.height - peak) - o.h / 2 - 0.5;
+                } else if (params.modelType === 'm_shaped') {
+                    const pX = params.width / 6;
+                    const m = params.pitch / 12;
+                    let localRoofY = params.height;
+                    if (Math.abs(o.cx) >= pX) { localRoofY = params.height + (params.width / 2 - Math.abs(o.cx)) * m; } 
+                    else { localRoofY = params.height + Math.abs(o.cx) * (m * 2); }
+                    maxAllowedY = localRoofY - 1.0 - o.h / 2;
+                } else if (params.modelType === 'jerkinhead') {
+                    const m = params.pitch / 12;
+                    const peak = (params.width / 2) * m;
+                    const actOff = Math.max(0.1, params.hipOffset);
+                    const cWallX = actOff - 0.5;
+                    let localRoofY;
+                    if (cWallX <= 0) { localRoofY = params.height + (params.width / 2 - Math.abs(o.cx)) * m; } 
+                    else {
+                        const hWallClip = params.height + peak - cWallX * m;
+                        if (Math.abs(o.cx) <= cWallX) { localRoofY = hWallClip; } 
+                        else { localRoofY = params.height + (params.width / 2 - Math.abs(o.cx)) * m; }
+                    }
+                    maxAllowedY = localRoofY - o.h / 2 - 0.5;
+                } else if (['standard', 'saltbox', 'gambrel', 'split'].includes(params.modelType)) {
+                    const run = (params.modelType === 'saltbox') ? (params.width * 0.66) : (params.width / 2);
+                    const ridgeX = (params.modelType === 'saltbox') ? (params.width / 2 - params.width * 0.33) : 0;
+                    const localPeak = (run - Math.abs(o.cx - ridgeX)) * (params.pitch / 12);
+                    maxAllowedY = (params.height + localPeak) - o.h / 2 - 0.5;
+                } else if (params.modelType === 'skillion_leanto' || params.modelType === 'shed') {
+                    const m = params.pitch / 12;
+                    const localPeak = (o.cx + params.width/2) * m;
+                    maxAllowedY = (params.height + localPeak) - o.h / 2 - 0.5;
+                }
+            }
+
+            o.cy = Math.min(o.cy, maxAllowedY);
+            if (o.isDoor) o.cy = o.h / 2;
+            if (checkOverlap(wall, o)) { o.cx += (o.cx >= 0) ? 2.0 : -2.0; if (checkOverlap(wall, o)) o.cy = oldY; }
+        });
+    });
+}
+
+function showToast(msg) {
+    const t = document.getElementById('toast');
+    if (!t) return;
+    t.innerText = msg;
+    t.className = "show px-4 py-3 rounded shadow fw-bold text-center";
+    setTimeout(() => { t.className = t.className.replace("show", ""); }, 3000);
+}
+
+function updateBuildingLimits() {
+    const reqSpace = (wallId) => {
+        const ops = params.openings[wallId] || [];
+        if (ops.length === 0) return 0;
+        const totalW = ops.reduce((sum, o) => sum + o.w, 0);
+        return totalW + (ops.length + 1) * MIN_SPACING;
+    };
+
+    let minW = 10, minD = 10, maxH = 8;
+    Object.keys(params.openings).forEach(w => {
+        if (!params.openings[w]) return;
+        const ws = reqSpace(w);
+        if (w.includes('front') || w.includes('back') || w.includes('end')) minW = Math.max(minW, ws);
+        if (w.includes('left') || w.includes('right')) minD = Math.max(minD, ws);
+        params.openings[w].forEach(o => {
+            const topEdge = o.cy + o.h/2;
+            if (topEdge + 1 > maxH) maxH = topEdge + 1; 
+        });
+    });
+
+    const wInput = document.getElementById('h-width');
+    const dInput = document.getElementById('h-depth');
+    const hInput = document.getElementById('h-height');
+    const hipInput = document.getElementById('h-hipOffset');
+
+    if (wInput) {
+        wInput.min = minW;
+        if (params.width < minW) { params.width = minW; wInput.value = minW; const span = document.getElementById('w-val'); if(span) span.innerText = minW.toFixed(1); }
+    }
+    if (dInput) {
+        dInput.min = minD;
+        if (params.depth < minD) { params.depth = minD; dInput.value = minD; const span = document.getElementById('d-val'); if(span) span.innerText = minD.toFixed(1); }
+    }
+    if (hInput) {
+        hInput.min = maxH;
+        if (params.height < maxH) { params.height = maxH; hInput.value = maxH; const span = document.getElementById('h-val'); if(span) span.innerText = maxH.toFixed(1); }
+    }
+
+    if (hipInput) {
+        let maxAllowedOffset = Math.max(0.1, (params.depth / 2) - 2); 
+        if (['dutch_gable', 'combination'].includes(params.modelType)) {
+            maxAllowedOffset = Math.max(0.1, Math.min(params.width/2 - 1, params.depth/2 - 1));
+        } else if (params.modelType === 'cross_hipped' || params.modelType === 'hip_and_valley') {
+            maxAllowedOffset = Math.max(0, params.width/2 - 0.1); 
+        }
+
+        hipInput.max = maxAllowedOffset;
+        if (params.hipOffset > maxAllowedOffset) {
+            params.hipOffset = maxAllowedOffset;
+            hipInput.value = maxAllowedOffset;
+            const span = document.getElementById('ho-val');
+            if (span) span.innerText = maxAllowedOffset.toFixed(1);
+        }
+    }
+
+    if (params.modelType === 'cross_hipped') {
+        const hco = document.getElementById('h-crossOffset');
+        if (hco) {
+            const maxRange = Math.max(0, params.depth / 2 - params.width / 2);
+            hco.min = -maxRange;
+            hco.max = maxRange;
+            params.crossOffset = THREE.MathUtils.clamp(params.crossOffset || 0, -maxRange, maxRange);
+            hco.value = params.crossOffset;
+            const spanX = document.getElementById('cx-val');
+            if (spanX) spanX.innerText = params.crossOffset.toFixed(1);
+        }
+    }
+
+    if (params.modelType === 'hip_and_valley') {
+        const hvlo = document.getElementById('h-hvLeftOffset');
+        const hvro = document.getElementById('h-hvRightOffset');
+        const maxRange = Math.max(0, params.depth / 2 - params.width / 2);
+        
+        if (hvlo) {
+            hvlo.min = -maxRange; hvlo.max = maxRange;
+            params.hvLeftOffset = THREE.MathUtils.clamp(params.hvLeftOffset || 0, -maxRange, maxRange);
+            hvlo.value = params.hvLeftOffset;
+            const sl = document.getElementById('hvlo-val'); if (sl) sl.innerText = params.hvLeftOffset.toFixed(1);
+        }
+        if (hvro) {
+            hvro.min = -maxRange; hvro.max = maxRange;
+            params.hvRightOffset = THREE.MathUtils.clamp(params.hvRightOffset || 0, -maxRange, maxRange);
+            hvro.value = params.hvRightOffset;
+            const sr = document.getElementById('hvro-val'); if (sr) sr.innerText = params.hvRightOffset.toFixed(1);
+        }
+    }
+
+    if (params.modelType === 'skillion_leanto') {
+        const hLTDepth = document.getElementById('h-leanToDepth');
+        const hLTHeight = document.getElementById('h-leanToHeight');
+        
+        if (hLTDepth) {
+            hLTDepth.max = params.depth;
+            params.leanToDepth = Math.min(params.leanToDepth, params.depth);
+            hLTDepth.value = params.leanToDepth;
+            const span = document.getElementById('ltd-val'); if(span) span.innerText = params.leanToDepth.toFixed(1);
+        }
+        if (hLTHeight) {
+            const peakLean = params.leanToWidth * (params.leanToPitch / 12);
+            const maxLH = params.height - peakLean;
+            hLTHeight.max = Math.max(1, maxLH);
+            if (params.leanToHeight > maxLH) {
+                params.leanToHeight = Math.max(1, maxLH);
+                hLTHeight.value = params.leanToHeight;
+                const span = document.getElementById('lth-val'); if(span) span.innerText = params.leanToHeight.toFixed(1);
+            }
+        }
+    }
+
+    updateDormerLimits();
+}
+
+function updateDormerLimits() {
+    const run = (params.modelType === 'saltbox') ? (params.width * 0.66) : (params.width / 2);
+    const peak = run * (params.pitch / 12);
+    const m = params.pitch / 12;
+
+    const hDormerWidth = document.getElementById('h-dormerWidth');
+    const hDormerDepth = document.getElementById('h-dormerDepth');
+    const hDormerHeight = document.getElementById('h-dormerHeight');
+    const hDormerZ = document.getElementById('h-dormerZ');
+
+    if (hDormerWidth) {
+        hDormerWidth.max = params.depth;
+        params.dormerWidth = Math.min(params.dormerWidth, params.depth);
+        hDormerWidth.value = params.dormerWidth; 
+    }
+    
+    if (hDormerZ) {
+        let maxZ = Math.max(0, (params.depth / 2) - (params.dormerWidth / 2));
+        if (params.modelType === 'jerkinhead') {
+            const actOff = Math.max(0.1, params.hipOffset);
+            maxZ = Math.max(0, (params.depth / 2) - actOff - (params.dormerWidth / 2));
+        }
+        hDormerZ.min = -maxZ;
+        hDormerZ.max = maxZ;
+        params.dormerZ = THREE.MathUtils.clamp(params.dormerZ, -maxZ, maxZ);
+        hDormerZ.value = params.dormerZ; 
+    }
+
+    if (hDormerDepth) {
+        const minDx = Math.max(((params.dormerWidth / 2) * m + 0.5) / m, run * 0.2); 
+        const maxDx = run; 
+        hDormerDepth.min = minDx;
+        hDormerDepth.max = maxDx;
+        params.dormerDepth = THREE.MathUtils.clamp(params.dormerDepth, minDx, maxDx);
+        hDormerDepth.value = params.dormerDepth; 
+    }
+    
+    if (hDormerHeight) {
+        const yRidge = params.height + peak;
+        const maxDh = yRidge - ((params.dormerWidth / 2) * m) - 0.1; 
+        const yRoofAtFront = yRidge - m * params.dormerDepth;
+        const minDh = yRoofAtFront + 0.1; 
+        const finalMinDh = Math.min(minDh, maxDh); 
+        hDormerHeight.min = finalMinDh;
+        hDormerHeight.max = maxDh;
+        params.dormerHeight = THREE.MathUtils.clamp(params.dormerHeight, finalMinDh, maxDh);
+        hDormerHeight.value = params.dormerHeight; 
+    }
+}
+
+function clampOpenings() {
+    Object.keys(params.openings).forEach(w => {
+        let len = 0;
+        if (w === 'front' || w === 'back') len = params.width;
+        if (w === 'left' || w === 'right') len = params.depth;
+        
+        if (params.modelType === 'hip_and_valley') {
+            const A = params.width; const B = params.depth; 
+            const L = params.hvLeftExt || 0; const R = params.hvRightExt || 0; 
+            const OL = params.hvLeftOffset || 0; const OR = params.hvRightOffset || 0;
+            const Zw_L_front = OL + A/2; const Zw_L_back = OL - A/2;
+            const Zw_R_front = OR + A/2; const Zw_R_back = OR - A/2;
+            
+            if (w === 'front' || w === 'back') len = A;
+            if (w === 'wing_l_front' || w === 'wing_l_back') len = L;
+            if (w === 'wing_r_front' || w === 'wing_r_back') len = R;
+            if (w === 'left_front') len = B/2 - Zw_L_front;
+            if (w === 'left_back') len = Zw_L_back - (-B/2);
+            if (w === 'right_front') len = B/2 - Zw_R_front;
+            if (w === 'right_back') len = Zw_R_back - (-B/2);
+            if (w === 'wing_l_end' || w === 'wing_r_end') len = A;
+            if (w === 'left') len = L <= 0.1 ? B : 0;
+            if (w === 'right') len = R <= 0.1 ? B : 0;
+        } else if (params.modelType === 'cross_hipped') {
+            const A = params.width; const B = params.depth; const D = params.width; const X = params.crossOffset || 0;
+            if (w === 'front_left') len = (X - D/2) - (-A/2);
+            if (w === 'front_right') len = A/2 - (X + D/2);
+            if (w === 'wing_front') len = D;
+            if (w === 'left') len = ((X - D/2) - (-A/2)) < 0.1 ? B + params.crossDepth : B;
+            if (w === 'right') len = (A/2 - (X + D/2)) < 0.1 ? B + params.crossDepth : B;
+        } else if (params.modelType === 'hexagonal') {
+            len = params.width / 2;
+        }
+
+        if (len <= 0.1) {
+            params.openings[w] = [];
+            return;
+        }
+        
+        params.openings[w].forEach(o => {
+            const limit = len/2 - o.w/2 - 0.5;
+            if (limit < 0) o.cx = 0;
+            else o.cx = THREE.MathUtils.clamp(o.cx, -limit, limit);
+        });
+    });
+}
+
+const raycaster = new THREE.Raycaster();
+const mouse = new THREE.Vector2();
+let dragMesh = null;
+let dragOffset = new THREE.Vector3();
+let dragPlane = new THREE.Plane();
+
+renderer.domElement.addEventListener('dblclick', (e) => {
+    mouse.x = (e.clientX / window.innerWidth) * 2 - 1;
+    mouse.y = -(e.clientY / window.innerHeight) * 2 + 1;
+    raycaster.setFromCamera(mouse, camera);
+    const interactables = [];
+    scene.traverse(child => { if (child.userData && child.userData.isOpening) interactables.push(child); });
+    const hits = raycaster.intersectObjects(interactables, false);
+    if (hits.length > 0) {
+        dragMesh = hits[0].object;
+        controls.enabled = false;
+        dragPlane.setFromNormalAndCoplanarPoint(hits[0].face.normal, hits[0].point);
+        dragOffset.copy(hits[0].point).sub(dragMesh.position);
+        document.getElementById('canvas-container').style.cursor = 'grabbing';
+    }
+});
+
+renderer.domElement.addEventListener('pointermove', (e) => {
+    if (!dragMesh) return;
+    mouse.x = (e.clientX / window.innerWidth) * 2 - 1;
+    mouse.y = -(e.clientY / window.innerHeight) * 2 + 1;
+    raycaster.setFromCamera(mouse, camera);
+    const point = new THREE.Vector3();
+    if (raycaster.ray.intersectPlane(dragPlane, point)) {
+        const localPos = dragMesh.parent.worldToLocal(point.clone().sub(dragOffset));
+        const wallId = dragMesh.userData.wallId;
+        
+        let wallLen = (wallId === 'front' || wallId === 'back') ? params.width : params.depth;
+        
+        if (params.modelType === 'hip_and_valley') {
+            const A = params.width; const B = params.depth; 
+            const L = params.hvLeftExt || 0; const R = params.hvRightExt || 0; 
+            const OL = params.hvLeftOffset || 0; const OR = params.hvRightOffset || 0;
+            const Zw_L_front = OL + A/2; const Zw_L_back = OL - A/2;
+            const Zw_R_front = OR + A/2; const Zw_R_back = OR - A/2;
+            
+            if (wallId === 'front' || wallId === 'back' || wallId === 'wing_l_end' || wallId === 'wing_r_end') wallLen = A;
+            if (wallId === 'wing_l_front' || wallId === 'wing_l_back') wallLen = L;
+            if (wallId === 'wing_r_front' || wallId === 'wing_r_back') wallLen = R;
+            if (wallId === 'left_front') wallLen = B/2 - Zw_L_front;
+            if (wallId === 'left_back') wallLen = Zw_L_back - (-B/2);
+            if (wallId === 'right_front') wallLen = B/2 - Zw_R_front;
+            if (wallId === 'right_back') wallLen = Zw_R_back - (-B/2);
+            if (wallId === 'left') wallLen = B;
+            if (wallId === 'right') wallLen = B;
+        } else if (params.modelType === 'hexagonal') {
+            wallLen = params.width / 2;
+        } else if (params.modelType === 'cross_hipped') {
+            const A = params.width; const B = params.depth; const D = params.width; const C = params.crossDepth; const X = params.crossOffset || 0;
+            if (wallId === 'front_left') wallLen = (X - D/2) - (-A/2);
+            if (wallId === 'front_right') wallLen = A/2 - (X + D/2);
+            if (wallId === 'wing_front') wallLen = D;
+            if (wallId === 'wing_left' || wallId === 'wing_right') wallLen = C;
+            if (wallId === 'left') wallLen = ((X - D/2) - (-A/2)) < 0.1 ? B + C : B;
+            if (wallId === 'right') wallLen = (A/2 - (X + D/2)) < 0.1 ? B + C : B;
+        }
+
+        const minX = -wallLen/2 + dragMesh.userData.w/2 + 0.5;
+        const maxX = wallLen/2 - dragMesh.userData.w/2 - 0.5;
+        dragMesh.position.x = Math.max(minX, Math.min(maxX, localPos.x));
+        
+        if (!dragMesh.userData.isDoor) {
+            let maxY = params.height - dragMesh.userData.h/2 - 0.5;
+            
+            if (params.modelType === 'm_shaped' && (wallId === 'front' || wallId === 'back')) {
+                const pX = params.width / 6;
+                const m = params.pitch / 12;
+                if (Math.abs(dragMesh.position.x) >= pX) {
+                    maxY = params.height + (params.width/2 - Math.abs(dragMesh.position.x)) * m - 1.0 - dragMesh.userData.h/2;
+                } else {
+                    maxY = params.height + Math.abs(dragMesh.position.x) * (m*2) - 1.0 - dragMesh.userData.h/2;
+                }
+            } else if ((params.modelType === 'shed' || params.modelType === 'skillion_leanto') && (wallId === 'front' || wallId === 'back')) {
+                const m = params.pitch / 12;
+                maxY = params.height + (dragMesh.position.x + params.width/2) * m - 1.0 - dragMesh.userData.h/2;
+            } else if (params.modelType === 'jerkinhead' && (wallId === 'front' || wallId === 'back')) {
+                const m = params.pitch / 12;
+                const peak = (params.width / 2) * m;
+                const actOff = Math.max(0.1, params.hipOffset);
+                const cWallX = actOff - 0.5;
+                if (cWallX > 0 && Math.abs(dragMesh.position.x) <= cWallX) {
+                    maxY = params.height + peak - cWallX * m - 1.0 - dragMesh.userData.h/2;
+                } else {
+                    maxY = params.height + (params.width / 2 - Math.abs(dragMesh.position.x)) * m - 1.0 - dragMesh.userData.h/2;
+                }
+            }
+
+            const minY = dragMesh.userData.h/2 + 0.5;
+            dragMesh.position.y = Math.max(minY, Math.min(maxY, localPos.y));
+        }
+    }
+});
+
+renderer.domElement.addEventListener('pointerdown', (e) => {
+    if (dragMesh) {
+        const op = params.openings[dragMesh.userData.wallId].find(o => o.id === dragMesh.userData.id);
+        if (op) { op.cx = dragMesh.position.x; op.cy = dragMesh.position.y; }
+        dragMesh = null; controls.enabled = true;
+        document.getElementById('canvas-container').style.cursor = 'grab';
+        updateScene(); 
+    }
+});
+
+document.getElementById('btn-add-element')?.addEventListener('click', () => {
+    const wall = document.getElementById('wd-wall').value;
+    const typeVal = document.getElementById('wd-type').value;
+    let w = 0, h = 0, isDoor = false;
+    if (typeVal === 'window_1') { w = 2; h = 3; }
+    else if (typeVal === 'window_2') { w = 4; h = 3; }
+    else if (typeVal === 'window_3') { w = 6; h = 3; }
+    else if (typeVal === 'door_1') { w = 3; h = 7; isDoor = true; }
+    else if (typeVal === 'door_2') { w = 6; h = 7; isDoor = true; }
+
+    let wallLen = (wall === 'front' || wall === 'back') ? params.width : params.depth;
+    
+    if (params.modelType === 'hip_and_valley') {
+        const A = params.width; const B = params.depth; 
+        const L = params.hvLeftExt || 0; const R = params.hvRightExt || 0; 
+        const OL = params.hvLeftOffset || 0; const OR = params.hvRightOffset || 0;
+        const Zw_L_front = OL + A/2; const Zw_L_back = OL - A/2;
+        const Zw_R_front = OR + A/2; const Zw_R_back = OR - A/2;
+        
+        if (wall === 'front' || wall === 'back' || wall === 'wing_l_end' || wall === 'wing_r_end') wallLen = A;
+        if (wall === 'wing_l_front' || wall === 'wing_l_back') wallLen = L;
+        if (wall === 'wing_r_front' || wall === 'wing_r_back') wallLen = R;
+        if (wall === 'left_front' || wall === 'right_front') wallLen = B/2 - Zw_L_front;
+        if (wall === 'left_back' || wall === 'right_back') wallLen = Zw_L_back - (-B/2);
+        if (wall === 'left' || wall === 'right') wallLen = B;
+    } else if (params.modelType === 'hexagonal') {
+        wallLen = params.width / 2;
+    } else if (params.modelType === 'cross_hipped') {
+        const A = params.width; const B = params.depth; const D = params.width; const C = params.crossDepth; const X = params.crossOffset || 0;
+        if (wall === 'front_left') wallLen = (X - D/2) - (-A/2);
+        if (wall === 'front_right') wallLen = A/2 - (X + D/2);
+        if (wall === 'wing_front') wallLen = D;
+        if (wall === 'wing_left' || wall === 'wing_right') wallLen = C;
+        if (wall === 'left') wallLen = ((X - D/2) - (-A/2)) < 0.1 ? B + C : B;
+        if (wall === 'right') wallLen = (A/2 - (X + D/2)) < 0.1 ? B + C : B;
+    }
+
+    if (!params.openings[wall]) params.openings[wall] = [];
+    const current = params.openings[wall];
+    let cx = (current.length > 0) ? current[current.length-1].cx + current[current.length-1].w/2 + MIN_SPACING + w/2 : -wallLen/2 + MIN_SPACING + w/2;
+    
+    if (cx + w/2 + MIN_SPACING <= wallLen/2) {
+        params.openings[wall].push({ id: elementIdCounter++, w, h, isDoor, cx, cy: isDoor ? h/2 : h/2 + 3 });
+        updateScene();
+    } else { showToast(`Not enough space on this wall!`); }
+});
+
+document.getElementById('btn-clear-elements')?.addEventListener('click', () => {
+    Object.keys(params.openings).forEach(k => params.openings[k] = []);
+    updateScene();
+});
+
+function createPanelTextures(name, coverage, isRoof) {
+    const size = 1024;
+    const canvasMap = document.createElement('canvas');
+    const canvasBump = document.createElement('canvas');
+    canvasMap.width = canvasBump.width = size; canvasMap.height = canvasBump.height = size;
+    const ctxMap = canvasMap.getContext('2d'); const ctxBump = canvasBump.getContext('2d');
+    ctxMap.fillStyle = '#ffffff'; ctxMap.fillRect(0, 0, size, size);
+    ctxBump.fillStyle = '#808080'; ctxBump.fillRect(0, 0, size, size);
+
+    const isVert = isRoof ? true : !params.horizontalSiding;
+    const drawProfile = (x, y, w, h, type) => {
+        let gMap = isVert ? ctxMap.createLinearGradient(x, 0, x+w, 0) : ctxMap.createLinearGradient(0, y, 0, y+h);
+        let gBump = isVert ? ctxBump.createLinearGradient(x, 0, x+w, 0) : ctxBump.createLinearGradient(0, y, 0, y+h);
+        if (type === 'rib') {
+            gMap.addColorStop(0, 'rgba(0,0,0,0.3)'); gMap.addColorStop(0.2, 'rgba(255,255,255,0.4)'); gMap.addColorStop(0.8, 'rgba(255,255,255,0.4)'); gMap.addColorStop(1, 'rgba(0,0,0,0.3)');
+            gBump.addColorStop(0, '#404040'); gBump.addColorStop(0.2, '#ffffff'); gBump.addColorStop(0.8, '#ffffff'); gBump.addColorStop(1, '#404040');
+        } else {
+            gMap.addColorStop(0, 'rgba(0,0,0,0.2)'); gMap.addColorStop(0.5, 'rgba(255,255,255,0.3)'); gMap.addColorStop(1, 'rgba(0,0,0,0.2)');
+            gBump.addColorStop(0, '#404040'); gBump.addColorStop(0.5, '#ffffff'); gBump.addColorStop(1, '#404040');
+        }
+        ctxMap.fillStyle = gMap; ctxBump.fillStyle = gBump;
+        isVert ? (ctxMap.fillRect(x,0,w,size), ctxBump.fillRect(x,0,w,size)) : (ctxMap.fillRect(0,y,size,h), ctxBump.fillRect(0,y,size,h));
+    };
+
+    const label = name.toUpperCase();
+    if (label.includes("CORRUGATED")) {
+        for (let i = 0; i < 14; i++) drawProfile(i*(size/14), i*(size/14), size/14, size/14, 'wave');
+    } else if (label.includes("SNAP") || label.includes("LOCK") || label.includes("SEAM")) {
+        drawProfile(0, 0, 25, 25, 'seam');
+    } else {
+        for (let i = 0; i < 4; i++) drawProfile(i*(size/4), i*(size/4), 55, 55, 'rib');
+    }
+
+    const mapTex = new THREE.CanvasTexture(canvasMap); const bumpTex = new THREE.CanvasTexture(canvasBump);
+    mapTex.wrapS = mapTex.wrapT = bumpTex.wrapS = bumpTex.wrapT = THREE.RepeatWrapping;
+    const currentScale = isRoof ? 8 : 4;
+    const repX = isRoof ? (params.depth / (coverage / 12)) / currentScale : (isVert ? (params.width / (coverage / 12)) / currentScale : (params.height / (coverage / 12)) / currentScale);
+    const repY = isRoof ? 1 / currentScale : (isVert ? 1 / currentScale : (params.width / (coverage / 12)) / currentScale);
+    mapTex.repeat.set(repX, repY); bumpTex.repeat.set(repX, repY);
+    return { map: mapTex, bumpMap: bumpTex };
+}
+
+function updateMaterials() {
+    const rEl = document.getElementById('roof-panel-model');
+    const wEl = document.getElementById('wall-panel-model');
+    if (!rEl || !wEl) return;
+    const rData = createPanelTextures(rEl.value, selectedRoofWidth, true);
+    const wData = createPanelTextures(wEl.value, selectedWallWidth, false);
+    roofMat.map = rData.map; roofMat.bumpMap = rData.bumpMap; roofMat.bumpScale = 0.02; roofMat.needsUpdate = true;
+    wallMat.map = wData.map; wallMat.bumpMap = wData.bumpMap; wallMat.bumpScale = 0.01; wallMat.needsUpdate = true;
+    const splitLike = (params.modelType === 'split' || params.modelType === 'gambrel');
+    gableMat.map = splitLike ? rData.map : wData.map;
+    gableMat.needsUpdate = true;
+}
+
+function calculateInfo() {
+    const { width, depth, height, pitch, modelType, hipOffset, upperPitch } = params;
+    const m = pitch / 12;
+    let roofArea = 0;
+    let wallArea = 0;
+    let ridgeLF = depth + 1;
+    let hipLF = 0;
+    
+    let slope_len = Math.sqrt((width / 2)**2 + ((width / 2) * m)**2);
+    if (modelType === 'flat') slope_len = width;
+    if (modelType === 'shed' || modelType === 'skillion_leanto') slope_len = Math.sqrt(width**2 + (width*m)**2);
+    if (slope_len < 0.1) slope_len = 1;
+    
+    if (modelType === 'hexagonal') {
+        const R = width / 2; const a = R * Math.cos(Math.PI / 6);
+        const sH = Math.sqrt(a**2 + (R*m)**2);
+        roofArea = 6 * (0.5 * R * sH); wallArea = 6 * (R * height);
+        hipLF = 6 * Math.sqrt((R + 0.5 / Math.cos(Math.PI / 6))**2 + ((width/2)*m)**2);
+    } else if (modelType === 'hip_and_valley') {
+        const oh = 0.5; const L = params.hvLeftExt || 0; const R = params.hvRightExt || 0;
+        const fpArea = (width + 2*oh) * (depth + 2*oh) + L * (width + 2*oh) + R * (width + 2*oh); 
+        roofArea = fpArea * Math.sqrt(1 + m*m);
+        wallArea = (2*depth + 2*width + 2*L + 2*R) * height;
+        const ho = params.hipOffset || 0;
+        const mainR = Math.max(0, depth - width - ho*2);
+        ridgeLF = mainR + L + R + 2; 
+        const hip_len = Math.sqrt((width/2)**2 + ho**2 + (width/2*m)**2);
+        hipLF = 4 * hip_len + (L > 0 ? 4 * hip_len : 0) + (R > 0 ? 4 * hip_len : 0);
+    } else if (modelType === 'cross_hipped') {
+        const oh = 0.5; const cw = params.width; const cd = params.crossDepth || 20;
+        const fpArea = (width + 2*oh) * (depth + 2*oh) + cd * (cw + 2*oh); 
+        roofArea = fpArea * Math.sqrt(1 + m*m);
+        wallArea = (2*width + 2*depth + 2*cd) * height;
+        const ho = params.hipOffset || 0;
+        ridgeLF = Math.max(0, depth - width - ho*2) + Math.max(0, cd - cw/2 - ho) + 2; 
+        hipLF = 6 * Math.sqrt((width/2)**2 + (width/2*m)**2);
+    } else if (modelType === 'dutch_gable') {
+        const actOff = Math.min(hipOffset, Math.min(width/2 - 0.1, depth/2 - 0.1));
+        const inX = width/2 - actOff; const inZ = depth/2 - actOff;
+        const m1 = m; const m2 = (upperPitch || 6) / 12;
+        const sLower = Math.sqrt((actOff + 0.5)**2 + ((actOff + 0.5)*m1)**2);
+        const sUpper = Math.sqrt(inX**2 + (inX*m2)**2);
+        roofArea = 2 * (0.5 * ((width + 1.0) + (2*inX)) * sLower) + 2 * (0.5 * ((depth + 1.0) + (2*inZ)) * sLower) + 2 * (2*inZ) * sUpper;
+        wallArea = (width + depth) * 2 * height + 2 * (0.5 * (2*inX) * (inX*m2));
+        ridgeLF = 2 * inZ + 1; 
+        hipLF = 4 * Math.sqrt(actOff**2 + (actOff * m)**2);
+    } else if (modelType === 'combination') {
+        const actOff = Math.min(hipOffset, Math.min(width/2 - 0.1, depth/2 - 0.1));
+        const inX = width/2 - actOff; const inZ = depth/2 - actOff;
+        const m1 = m; const m2 = (upperPitch || 6) / 12;
+        const sLower = Math.sqrt((actOff + 0.5)**2 + ((actOff + 0.5)*m1)**2);
+        const sUpper = Math.sqrt(inX**2 + (inX*m2)**2);
+        roofArea = 2 * (0.5 * ((width + 1.0) + (2*inX)) * sLower) + 2 * (0.5 * ((depth + 1.0) + (2*inZ)) * sLower) + (2*inX * sUpper) + (2*inZ * sUpper);
+        wallArea = (width + depth) * 2 * height;
+        ridgeLF = 2 * Math.max(0, inZ - inX);
+        hipLF = 4 * Math.sqrt(actOff**2 + actOff**2 + (actOff*m)**2) + 4 * Math.sqrt(inX**2 + inX**2 + (inX*((upperPitch||6)/12))**2);
+    } else if (modelType === 'jerkinhead') {
+        const actOff = Math.max(0.1, hipOffset);
+        const slant_main = Math.sqrt((width/2)**2 + (width/2 * m)**2);
+        const slant_clip = Math.sqrt(actOff**2 + (actOff * m)**2);
+        roofArea = 2 * (0.5 * (depth + (depth - 2*actOff)) * slant_main) + 2 * (0.5 * (2 * actOff) * slant_clip);
+        const cWallX = actOff - 0.5; 
+        let gableArea = width * ((width / 2) * m); 
+        if (cWallX > 0) gableArea -= 2 * (cWallX * cWallX * m); 
+        wallArea = (width + depth) * 2 * height + gableArea;
+        ridgeLF = Math.max(0, depth - 2 * actOff);
+        hipLF = 4 * Math.sqrt(actOff**2 + (actOff * m)**2);
+    } else if (modelType === 'pyramid') {
+        const rW = width / 2; const rD = depth / 2;
+        roofArea = (width * Math.sqrt(rD**2 + (rW*m)**2)) + (depth * Math.sqrt(rW**2 + (rW*m)**2));
+        wallArea = (width + depth) * 2 * height;
+    } else if (modelType === 'saltbox') {
+        roofArea = (Math.sqrt((width * 0.66)**2 + ((width * 0.66)*m)**2) + Math.sqrt((width * 0.33)**2 + ((width * 0.33)*m)**2)) * depth;
+        wallArea = (width + depth) * 2 * height + width * (width * 0.66 * m);
+    } else if (modelType === 'flat') {
+        roofArea = width * depth;
+        wallArea = (width + depth) * 2 * height;
+    } else if (modelType === 'shed') {
+        roofArea = Math.sqrt(width**2 + (width*m)**2) * depth;
+        wallArea = (width + depth) * 2 * height + width * (width * m);
+    } else if (modelType === 'skillion_leanto') {
+        const p_lean = params.leanToWidth * (params.leanToPitch / 12);
+        roofArea = Math.sqrt(width**2 + (width * m)**2) * depth + Math.sqrt(params.leanToWidth**2 + p_lean**2) * params.leanToDepth;
+        wallArea = ((width + depth) * 2 * height + width * (width * m)) + (2 * params.leanToWidth * params.leanToHeight + params.leanToWidth * p_lean + params.leanToDepth * params.leanToHeight);
+    } else {
+        const r = width / 2; roofArea = (Math.sqrt(r**2 + (r*m)**2) * depth * 2);
+        wallArea = (width + depth) * 2 * height;
+        if (['standard', 'butterfly', 'gambrel', 'split'].includes(modelType)) wallArea += width * (r * m);
+    }
+
+    if (params.hasDormer && !['flat', 'shed', 'butterfly', 'pyramid', 'hexagonal', 'm_shaped', 'skillion_leanto', 'dutch_gable', 'combination', 'cross_hipped', 'hip_and_valley'].includes(modelType)) {
+        const dw = params.dormerWidth;
+        const dd = params.dormerDepth;
+        const dh = params.dormerHeight;
+        const dPeak = (dw / 2) * m;
+        let run = (modelType === 'saltbox') ? (width * 0.66) : (width / 2);
+        const yRidge = height + (run * m);
+        const yRoofAtFront = yRidge - (m * dd);
+        const hFront = dh - yRoofAtFront;
+
+        if (hFront > 0) {
+            const frontWallArea = dw * hFront + 0.5 * dw * dPeak;
+            const sideWallArea = dd * hFront; 
+            wallArea += (frontWallArea + sideWallArea);
+            const dSlope = Math.sqrt((dw/2)**2 + dPeak**2);
+            roofArea += (2 * dSlope * dd);
+            ridgeLF += dd;
+            hipLF += 2 * Math.sqrt(dd**2 + (dw/2)**2 + dPeak**2); 
+        }
+    }
+
+    if (['hip', 'mansard', 'pyramid'].includes(modelType)) {
+        hipLF += 4 * Math.sqrt((width/2)**2 + (hipOffset)**2 + ((width/2)*m)**2);
+    }
+
+    const singleRoofPanelArea = slope_len * (selectedRoofWidth / 12);
+    const roofPcs = Math.ceil(roofArea / singleRoofPanelArea);
+
+    const singleWallPanelArea = height * (selectedWallWidth / 12);
+    const wallPcs = Math.ceil(wallArea / singleWallPanelArea);
+
+    cachedScrews = Math.ceil((roofArea + wallArea) * 1.2); 
+
+    const setText = (id, txt) => { const e = document.getElementById(id); if (e) e.innerText = txt; };
+    setText('spec-roof-area', `${roofArea.toFixed(1)} ft²`);
+    setText('spec-wall-area', `${wallArea.toFixed(1)} ft²`);
+    setText('mat-roof-pcs', `${roofPcs} pcs`);
+    setText('mat-wall-pcs', `${wallPcs} pcs`);
+    setText('mat-ridge', `${Math.ceil(ridgeLF / 10)} pcs`);
+    setText('mat-screws', `${cachedScrews} pcs`);
+    
+    const rowHip = document.getElementById('row-hip');
+    if (rowHip) rowHip.style.display = (hipLF > 0) ? 'flex' : 'none';
+    if (hipLF > 0) setText('mat-hip', `${Math.ceil(hipLF / 10)} pcs`);
+}
+
+const btnPrint = document.getElementById('btn-print');
+if (btnPrint) {
+    btnPrint.addEventListener('click', () => {
+        if (!currentHouse) return;
+
+        let printLayout = document.getElementById('print-layout');
+        if (!printLayout) {
+            printLayout = document.createElement('div');
+            printLayout.id = 'print-layout';
+            document.body.appendChild(printLayout);
+            
+            const style = document.createElement('style');
+            style.innerHTML = `
+                @media print {
+                    @page { size: auto; margin: 10mm; }
+                    body { margin: 0; padding: 0; background: #fff !important; }
+                    body * { visibility: hidden; }
+                    #print-layout, #print-layout * { visibility: visible; }
+                    #print-layout {
+                        position: absolute; left: 0; top: 0; right: 0;
+                        display: flex !important; flex-direction: column;
+                        width: 100%; height: 100vh; overflow: hidden; box-sizing: border-box;
+                        background: #fff; padding: 0; font-family: sans-serif;
+                    }
+                    #ui-panel, #canvas-container { display: none !important; }
+                    
+                    .print-header { border-bottom: 2px solid #222; padding-bottom: 5px; margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center;}
+                    .print-header img { height: 35px; filter: invert(1); }
+                    .print-header h1 { margin: 0; font-size: 20px; color: #222; text-transform: uppercase; letter-spacing: 1px;}
+                    
+                    .print-row { display: flex; gap: 10px; margin-bottom: 10px; flex-shrink: 0;}
+                    .print-col { flex: 1; border: 1px solid #ccc; padding: 8px 12px; font-size: 11px; border-radius: 4px; line-height: 1.4; color: #111; background: #fafafa;}
+                    .print-col h2 { margin: 0 0 6px 0; font-size: 13px; text-transform: uppercase; border-bottom: 1px solid #999; padding-bottom: 4px; color: #000; }
+                    .spec-item { display: flex; justify-content: space-between; border-bottom: 1px dashed #ddd; padding: 2px 0; }
+                    .spec-item strong { color: #333; }
+                    
+                    .blueprints-container { display: flex; gap: 5px; justify-content: space-between; align-items: flex-start; height: 45%; margin-top: 5px; }
+                    .bp-card { width: 19.5%; border: 1px solid #aaa; border-radius: 4px; display: flex; flex-direction: column; background: #fff; overflow: hidden;}
+                    .bp-title { text-align: center; font-weight: bold; font-size: 10px; border-bottom: 1px solid #ddd; padding: 4px; text-transform: uppercase; background: #f0f0f0; color: #111;}
+                    .bp-img-wrap { height: 140px; display: flex; justify-content: center; align-items: center; padding: 5px; border-bottom: 1px solid #ddd; }
+                    .bp-img-wrap img { max-width: 100%; max-height: 100%; object-fit: contain; }
+                    
+                    .bp-dims { padding: 4px 6px; font-size: 8.5px; background: #fafafa; flex-grow: 1; }
+                    .dim-row { display: flex; justify-content: space-between; border-bottom: 1px dashed #ddd; padding: 2px 0; }
+                    .dim-row:last-child { border-bottom: none; }
+                    .dim-row span:first-child { font-weight: bold; color: #444; }
+                    .dim-row span:last-child { color: #b30000; font-weight: bold; }
+                }
+            `;
+            document.head.appendChild(style);
+        }
+
+        const box = new THREE.Box3().setFromObject(currentHouse);
+        const size = box.getSize(new THREE.Vector3());
+        const center = box.getCenter(new THREE.Vector3());
+        const maxDim = Math.max(size.x, size.y, size.z) * 1.15; 
+        
+        const originalW = window.innerWidth;
+        const originalH = window.innerHeight;
+        renderer.setSize(512, 512);
+
+        const ortho = new THREE.OrthographicCamera(-maxDim/2, maxDim/2, maxDim/2, -maxDim/2, 0.1, 3000);
+        
+        const oldBg = scene.background;
+        scene.background = new THREE.Color(0xffffff);
+        grid.visible = false;
+        if (grassMesh) grassMesh.visible = false;
+        const oldAmbInt = scene.children.find(c => c.isAmbientLight).intensity;
+        scene.children.find(c => c.isAmbientLight).intensity = 2.0; 
+
+        const images = {};
+        const dist = maxDim + 200;
+        
+        const takeSnap = (name, px, py, pz, rx, ry, rz) => {
+            ortho.position.set(center.x + px, center.y + py, center.z + pz);
+            ortho.rotation.set(rx, ry, rz);
+            ortho.lookAt(center);
+            ortho.updateProjectionMatrix();
+            renderer.render(scene, ortho);
+            images[name] = renderer.domElement.toDataURL('image/png');
+        };
+
+        takeSnap('Top', 0, dist, 0, -Math.PI/2, 0, 0);
+        takeSnap('Front', 0, 0, dist, 0, 0, 0);
+        takeSnap('Back', 0, 0, -dist, 0, Math.PI, 0);
+        takeSnap('Left', -dist, 0, 0, 0, -Math.PI/2, 0);
+        takeSnap('Right', dist, 0, 0, 0, Math.PI/2, 0);
+
+        renderer.setSize(originalW, originalH);
+        scene.background = oldBg;
+        grid.visible = !params.hasEnvironment;
+        if (grassMesh) grassMesh.visible = params.hasEnvironment;
+        scene.children.find(c => c.isAmbientLight).intensity = oldAmbInt;
+        renderer.render(scene, camera);
+
+        const getSelectText = (id) => { const el = document.getElementById(id); return el && el.options.length > 0 ? el.options[el.selectedIndex].text : 'N/A'; };
+        const safeText = (id) => document.getElementById(id) ? document.getElementById(id).innerText : '0';
+        
+        const rH = (box.max.y - params.height).toFixed(1);
+        const wH = params.height.toFixed(1);
+        const mW = params.width.toFixed(1);
+        const mD = params.depth.toFixed(1);
+
+        let dHtmlTop = '', dHtmlFront = '', dHtmlSide = '';
+        if (params.hasDormer && !['flat', 'shed', 'butterfly', 'pyramid', 'hexagonal', 'm_shaped', 'skillion_leanto', 'dutch_gable', 'combination', 'cross_hipped', 'hip_and_valley'].includes(params.modelType)) {
+            const run = (params.modelType === 'saltbox') ? (params.width * 0.66) : (params.width / 2);
+            const yRidge = params.height + run * (params.pitch / 12);
+            const yRoofAtFront = yRidge - (params.pitch / 12) * params.dormerDepth;
+            const dwH = Math.max(0, params.dormerHeight - yRoofAtFront).toFixed(1);
+            const drH = ((params.dormerWidth / 2) * (params.pitch / 12)).toFixed(1);
+            
+            dHtmlTop = `<div class="dim-row"><span>Dormer WxD:</span> <span>${params.dormerWidth}' x ${params.dormerDepth}'</span></div>`;
+            dHtmlFront = `<div class="dim-row"><span>Dormer Width:</span> <span>${params.dormerWidth}'</span></div>
+                          <div class="dim-row"><span>Dormer Wall H:</span> <span>${dwH}'</span></div>
+                          <div class="dim-row"><span>Dormer Roof H:</span> <span>${drH}'</span></div>`;
+            dHtmlSide = `<div class="dim-row"><span>Dormer Depth:</span> <span>${params.dormerDepth}'</span></div>
+                         <div class="dim-row"><span>Dormer Wall H:</span> <span>${dwH}'</span></div>
+                         <div class="dim-row"><span>Dormer Roof H:</span> <span>${drH}'</span></div>`;
+        }
+
+        let extHtmlTop = '', extHtmlFront = '', extHtmlSide = '';
+        if (params.modelType === 'hip_and_valley') {
+            extHtmlTop = `<div class="dim-row"><span>Left Ext W:</span> <span>${params.hvLeftExt}'</span></div>
+                          <div class="dim-row"><span>Right Ext W:</span> <span>${params.hvRightExt}'</span></div>`;
+            extHtmlSide = `<div class="dim-row"><span>Left Ext W:</span> <span>${params.hvLeftExt}'</span></div>
+                           <div class="dim-row"><span>Right Ext W:</span> <span>${params.hvRightExt}'</span></div>`;
+        } else if (params.modelType === 'cross_hipped') {
+            extHtmlTop = `<div class="dim-row"><span>Front Ext D:</span> <span>${params.crossDepth}'</span></div>`;
+            extHtmlSide = `<div class="dim-row"><span>Front Ext D:</span> <span>${params.crossDepth}'</span></div>`;
+        }
+
+        printLayout.innerHTML = `
+            <div class="print-header">
+                <img src="https://westmansteel.com/wp-content/themes/westman-steel/Assets/Img/logotype-invert-westman-steel.svg" alt="Westman Steel">
+                <h1>Architectural Blueprint & Spec Sheet</h1>
+            </div>
+            
+            <div class="print-row">
+                <div class="print-col">
+                    <h2>Design Parameters</h2>
+                    <div class="spec-item"><strong>Model Type:</strong> <span>${getSelectText('building-model-type')}</span></div>
+                    <div class="spec-item"><strong>Main Width:</strong> <span>${mW} ft</span></div>
+                    <div class="spec-item"><strong>Main Depth:</strong> <span>${mD} ft</span></div>
+                    <div class="spec-item"><strong>Eave Height:</strong> <span>${wH} ft</span></div>
+                    <div class="spec-item"><strong>Roof Pitch:</strong> <span>${params.pitch}/12</span></div>
+                    <div class="spec-item"><strong>Hip Offset:</strong> <span>${params.hipOffset} ft</span></div>
+                </div>
+                
+                <div class="print-col">
+                    <h2>Material Estimates</h2>
+                    <div class="spec-item"><strong>Total Roof Area:</strong> <span>${safeText('spec-roof-area')}</span></div>
+                    <div class="spec-item"><strong>Total Wall Area:</strong> <span>${safeText('spec-wall-area')}</span></div>
+                    <div class="spec-item"><strong>Roof Panels (${getSelectText('roof-panel-model')}):</strong> <span>${safeText('mat-roof-pcs')}</span></div>
+                    <div class="spec-item"><strong>Wall Panels (${getSelectText('wall-panel-model')}):</strong> <span>${safeText('mat-wall-pcs')}</span></div>
+                    <div class="spec-item"><strong>Ridge Caps:</strong> <span>${safeText('mat-ridge')}</span></div>
+                    <div class="spec-item"><strong>Hip/Valley Trim:</strong> <span>${safeText('mat-hip')}</span></div>
+                    <div class="spec-item"><strong>Screws/Fasteners:</strong> <span>${safeText('mat-screws')}</span></div>
+                </div>
+            </div>
+
+            <div class="blueprints-container">
+                <div class="bp-card">
+                    <div class="bp-title">Top Plan</div>
+                    <div class="bp-img-wrap"><img src="${images['Top']}"></div>
+                    <div class="bp-dims">
+                        <div class="dim-row"><span>Main Width:</span> <span>${mW}'</span></div>
+                        <div class="dim-row"><span>Main Depth:</span> <span>${mD}'</span></div>
+                        ${extHtmlTop}
+                        ${dHtmlTop}
+                    </div>
+                </div>
+                
+                <div class="bp-card">
+                    <div class="bp-title">Front Elevation</div>
+                    <div class="bp-img-wrap"><img src="${images['Front']}"></div>
+                    <div class="bp-dims">
+                        <div class="dim-row"><span>Main Width:</span> <span>${mW}'</span></div>
+                        <div class="dim-row"><span>Wall Height:</span> <span>${wH}'</span></div>
+                        <div class="dim-row"><span>Roof Height:</span> <span>${rH}'</span></div>
+                        ${dHtmlFront}
+                    </div>
+                </div>
+                
+                <div class="bp-card">
+                    <div class="bp-title">Back Elevation</div>
+                    <div class="bp-img-wrap"><img src="${images['Back']}"></div>
+                    <div class="bp-dims">
+                        <div class="dim-row"><span>Main Width:</span> <span>${mW}'</span></div>
+                        <div class="dim-row"><span>Wall Height:</span> <span>${wH}'</span></div>
+                        <div class="dim-row"><span>Roof Height:</span> <span>${rH}'</span></div>
+                    </div>
+                </div>
+                
+                <div class="bp-card">
+                    <div class="bp-title">Left Elevation</div>
+                    <div class="bp-img-wrap"><img src="${images['Left']}"></div>
+                    <div class="bp-dims">
+                        <div class="dim-row"><span>Main Depth:</span> <span>${mD}'</span></div>
+                        <div class="dim-row"><span>Wall Height:</span> <span>${wH}'</span></div>
+                        <div class="dim-row"><span>Roof Height:</span> <span>${rH}'</span></div>
+                        ${extHtmlSide}
+                        ${dHtmlSide}
+                    </div>
+                </div>
+                
+                <div class="bp-card">
+                    <div class="bp-title">Right Elevation</div>
+                    <div class="bp-img-wrap"><img src="${images['Right']}"></div>
+                    <div class="bp-dims">
+                        <div class="dim-row"><span>Main Depth:</span> <span>${mD}'</span></div>
+                        <div class="dim-row"><span>Wall Height:</span> <span>${wH}'</span></div>
+                        <div class="dim-row"><span>Roof Height:</span> <span>${rH}'</span></div>
+                        ${extHtmlSide}
+                    </div>
+                </div>
+            </div>
+        `;
+
+        setTimeout(() => { window.print(); }, 200);
+    });
+}
+
+function updateScene() {
+    const modelEl = document.getElementById('building-model-type');
+    if (modelEl) params.modelType = modelEl.value;
+    
+    const hipGroup = document.getElementById('hip-offset-group');
+    if (hipGroup) hipGroup.style.display = (['hip', 'mansard', 'jerkinhead', 'dutch_gable', 'combination', 'cross_hipped', 'hip_and_valley'].includes(params.modelType)) ? 'block' : 'none';
+
+    const upGroup = document.getElementById('upper-pitch-group');
+    if (upGroup) upGroup.style.display = (['dutch_gable', 'combination'].includes(params.modelType)) ? 'block' : 'none';
+
+    const hvControls = document.getElementById('hip-valley-controls');
+    if (hvControls) hvControls.style.display = (params.modelType === 'hip_and_valley') ? 'block' : 'none';
+
+    const chControls = document.getElementById('cross-hipped-controls');
+    if (chControls) chControls.style.display = (params.modelType === 'cross_hipped') ? 'block' : 'none';
+
+    const leanToControls = document.getElementById('leanto-controls');
+    if (leanToControls) leanToControls.style.display = (params.modelType === 'skillion_leanto') ? 'block' : 'none';
+
+    const wdWall = document.getElementById('wd-wall');
+    if (wdWall) {
+        const isHV = (params.modelType === 'hip_and_valley');
+        Array.from(wdWall.options).forEach(opt => {
+            if (['left_front', 'left_back', 'right_front', 'right_back', 'wing_l_front', 'wing_l_back', 'wing_l_end', 'wing_r_front', 'wing_r_back', 'wing_r_end'].includes(opt.value)) {
+                opt.style.display = isHV ? 'block' : 'none';
+            } else if (['left', 'right'].includes(opt.value)) {
+                opt.style.display = isHV ? 'none' : 'block';
+            }
+        });
+        if (isHV && ['left', 'right'].includes(wdWall.value)) wdWall.value = 'front';
+        if (!isHV && ['left_front', 'left_back', 'right_front', 'right_back', 'wing_l_front', 'wing_l_back', 'wing_l_end', 'wing_r_front', 'wing_r_back', 'wing_r_end'].includes(wdWall.value)) wdWall.value = 'front';
+    }
+
+    sanitizeAndAlign(); 
+    updateBuildingLimits(); 
+
+    if (currentHouse) {
+        scene.remove(currentHouse);
+        currentHouse.traverse(child => { if (child.isMesh) { child.geometry.dispose(); if(child.material.map) child.material.map.dispose(); } });
+    }
+    currentHouse = HouseGenerator.createBuilding(params, { wall: wallMat, roof: roofMat, gable: gableMat });
+    scene.add(currentHouse);
+    
+    const rCol = document.getElementById('roof-color');
+    const wCol = document.getElementById('wall-color');
+    if(rCol) roofMat.color.setHex(Number(rCol.value));
+    if(wCol) wallMat.color.setHex(Number(wCol.value));
+    const splitLike = (params.modelType === 'split' || params.modelType === 'gambrel');
+    gableMat.color.setHex(splitLike ? Number(rCol.value) : Number(wCol.value));
+    calculateInfo();
+}
+
+setupPanelUI('roof', () => { selectedRoofWidth = parseFloat(document.querySelector('input[name="roof-cov"]:checked')?.value || 36); updateMaterials(); updateScene(); });
+setupPanelUI('wall', () => { selectedWallWidth = parseFloat(document.querySelector('input[name="wall-cov"]:checked')?.value || 36); updateMaterials(); updateScene(); });
+
+WESTMAN_COLORS.forEach(c => { 
+    ['roof-color', 'wall-color'].forEach(id => { 
+        const el = document.getElementById(id); if (el) el.add(new Option(c.name, c.hex)); 
+    }); 
+});
+
+['h-width', 'h-depth', 'h-height', 'h-pitch', 'h-upperPitch', 'h-hipOffset', 'h-dormerWidth', 'h-dormerDepth', 'h-dormerZ', 'h-dormerHeight', 'd-enable', 'h-leanToWidth', 'h-leanToDepth', 'h-leanToHeight', 'h-leanToPitch', 'h-crossDepth', 'h-crossOffset', 'h-hvLeftExt', 'h-hvRightExt', 'h-hvLeftOffset', 'h-hvRightOffset'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.addEventListener('input', (e) => {
+        if(id === 'd-enable') params.hasDormer = e.target.checked;
+        else params[id.replace('h-', '')] = parseFloat(e.target.value);
+        
+        clampOpenings();
+        updateScene(); 
+        
+        const currentVal = id === 'd-enable' ? '' : params[id.replace('h-', '')];
+        let spanId = id.replace('h-','') + '-val';
+        if (id.includes('leanTo')) spanId = 'lt' + id.charAt(8).toLowerCase() + '-val';
+        if (id.includes('cross')) spanId = 'cw' + (id.includes('Width') ? 'w' : 'd') + '-val';
+        if (id === 'h-crossOffset') spanId = 'cx-val';
+        if (id === 'h-hipOffset') spanId = 'ho-val';
+        if (id === 'h-upperPitch') spanId = 'up-val';
+        if (id === 'h-hvLeftExt') spanId = 'hvl-val';
+        if (id === 'h-hvRightExt') spanId = 'hvr-val';
+        if (id === 'h-hvLeftOffset') spanId = 'hvlo-val';
+        if (id === 'h-hvRightOffset') spanId = 'hvro-val';
+        
+        const span = document.getElementById(spanId);
+        if (span && currentVal !== '') span.innerText = currentVal.toFixed(1);
+    });
+});
+
+document.getElementById('env-enable')?.addEventListener('change', (e) => {
+    params.hasEnvironment = e.target.checked;
+    updateEnvironment();
+});
+
+['roof-color', 'wall-color'].forEach(id => {
+    document.getElementById(id)?.addEventListener('change', () => {
+        updateScene();
+    });
+});
+
+document.getElementById('building-model-type')?.addEventListener('change', () => { updateMaterials(); updateScene(); });
+document.getElementById('w-tex-rot')?.addEventListener('change', (e) => { params.horizontalSiding = e.target.checked; updateMaterials(); updateScene(); });
+
+function animate() { requestAnimationFrame(animate); controls.update(); renderer.render(scene, camera); }
+setTimeout(() => { updateBuildingLimits(); updateMaterials(); updateScene(); }, 100); animate();

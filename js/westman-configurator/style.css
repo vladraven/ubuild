@@ -1,0 +1,15 @@
+/*
+Theme Name: Westman 3D Configurator
+Theme URI: https://configurator.westmansteel.com/
+Author: WGI Westman Group
+Author URI: https://westmansteel.com/
+Description: Headless-like custom theme for Three.js Metal Building Configurator.
+Version: 1.0.0
+License: Proprietary
+Text Domain: westman-configurator
+*/
+
+/* 
+  Основные стили приложения лучше держать в /assets/css/main.css, 
+  этот файл нужен преимущественно для инициализации темы ядром WordPress.
+*/

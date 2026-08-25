@@ -1,0 +1,1625 @@
+import * as THREE from 'three';
+import { mergeVertices } from 'three/addons/utils/BufferGeometryUtils.js';
+import { WESTMAN_COLORS } from './colors.js';
+
+export function buildPrintLayout(context) {
+    const { 
+        params, currentHouse, renderer, scene, camera, grid, grassMesh, 
+        cachedScrews, selectedWallWidth, selectedRoofWidth, getSelectText, 
+        productCodes, finalSheetLength, screwType 
+    } = context;
+
+    const isStandardGable = params.modelType === 'standard';
+
+    // --- ПЕРЕМЕННЫЕ ДЛЯ ПОДСЧЕТА ДЛИН ЛИСТОВ ---
+    let totalRoofLF = 0;
+    let maxRoofSheet = 0;
+    let totalWallLF = 0;
+    let maxWallSheet = 0;
+    
+    const roofPanelName = getSelectText('roof-panel-model') || '';
+    const wallPanelName = getSelectText('wall-panel-model') || '';
+    const firstFloorPanelName = getSelectText('first-floor-panel-model') || '';
+
+    // --- КОРРЕКТНАЯ ШИРИНА ЛИСТА КРЫШИ (Фикс для Snap Lok) ---
+    let isSnapRoof = roofPanelName.toUpperCase().includes('SNAP');
+    let actualRoofWidth = selectedRoofWidth || 36;
+    if (isSnapRoof) {
+        const match = roofPanelName.match(/(\d+)(?="|-|\s)/);
+        if (match) actualRoofWidth = parseFloat(match[1]);
+        else actualRoofWidth = 16;
+    }
+    const panelCovRoofW = actualRoofWidth / 12;
+    
+    const CLASS_WALL = 'wall';
+    const CLASS_OPENING = 'wells';
+    const CLASS_ROOF = 'roof';
+
+    const STYLE_VARS = {
+        renderFillColor: 0xffffff,
+        renderLineColor: 0x000000,
+        renderLineWidth: 1,
+        wallOutlineColor: '#333333',
+        wallOutlineThickness: 0.05,
+        wallPanelColor1: '#ffffff',
+        wallPanelColor2: '#f4f7f9',
+        wallSeamColor: '#d11241',
+        wallSeamThickness: 0.03,
+        wallSeamDashType: '0.5,0.5',
+        roofOutlineColor: '#222222',
+        roofOutlineThickness: 0.05,
+        roofSeamColor: '#d11241',
+        roofSeamThickness: 0.03,
+        roofSeamDashType: '0.5,0.5',
+        slopeRoofColor1: '#ffffff',
+        slopeRoofColor2: '#eef2f5',
+        svgOpeningFill: '#ffffff',
+        svgOpeningStroke: '#d11241',
+        svgRoofStroke: '#222222'
+    };
+
+    // МАТЕМАТИКА ВЫРАВНИВАНИЯ ПАНЕЛЕЙ (LEFT, MIDDLE, RIGHT)
+    function getPanelBoundaries(totalWidth, coverage, alignment) {
+        let boundaries = [];
+        if (alignment === 'right') {
+            let firstW = totalWidth % coverage;
+            if (firstW < 0.001) firstW = coverage;
+            if (firstW < totalWidth) {
+                boundaries.push([0, firstW]);
+                for (let x = firstW; x < totalWidth - 0.001; x += coverage) {
+                    boundaries.push([x, Math.min(x + coverage, totalWidth)]);
+                }
+            } else {
+                boundaries.push([0, totalWidth]);
+            }
+        } else if (alignment === 'middle') {
+            let mid = totalWidth / 2;
+            let leftStart = mid;
+            while (leftStart > 0) leftStart -= coverage;
+            for (let x = leftStart; x < totalWidth - 0.001; x += coverage) {
+                let s = Math.max(0, x);
+                let e = Math.min(totalWidth, x + coverage);
+                if (e - s > 0.001) boundaries.push([s, e]);
+            }
+        } else { // default 'left'
+            for (let x = 0; x < totalWidth - 0.001; x += coverage) {
+                boundaries.push([x, Math.min(x + coverage, totalWidth)]);
+            }
+        }
+        return boundaries;
+    }
+
+    let printStyle = document.getElementById('print-style-rules');
+    if (!printStyle) {
+        printStyle = document.createElement('style');
+        printStyle.id = 'print-style-rules';
+        printStyle.innerHTML = `
+            @media screen { #print-layout { display: none !important; } }
+            @media print {
+                * {
+                    -webkit-print-color-adjust: exact !important;
+                    print-color-adjust: exact !important;
+                    color-adjust: exact !important;
+                }
+                body > *:not(#print-layout) { display: none !important; }
+                #print-layout { display: block !important; position: absolute; top: 0; left: 0; width: 100%; background: #fff; z-index: 2147483647; font-family: sans-serif; }
+            }
+        `;
+        document.head.appendChild(printStyle);
+    }
+
+    let printLayout = document.getElementById('print-layout');
+    if (!printLayout) {
+        printLayout = document.createElement('div');
+        printLayout.id = 'print-layout';
+        document.body.appendChild(printLayout);
+    }
+
+    const pc = productCodes || {};
+
+    const getColorStr = (type) => {
+        const hexVal = params.colors[type];
+        if (hexVal && typeof hexVal === 'string' && isNaN(Number(hexVal))) {
+            return String(hexVal).charAt(0).toUpperCase() + String(hexVal).slice(1);
+        }
+        if (hexVal && WESTMAN_COLORS) {
+            const c = WESTMAN_COLORS.find(col => Number(col.hex) === Number(hexVal));
+            if (c) {
+                let qcStr = c.qc || c.code || c.sku || c.id || '';
+                if (!qcStr && c.name.match(/QC\s*\d+/i)) return c.name;
+                if (qcStr) return `${qcStr.toString().toUpperCase().startsWith('QC') ? '' : 'QC'}${qcStr} - ${c.name}`;
+                return `QC - ${c.name}`; 
+            }
+        }
+        const name = getSelectText(type + '-color');
+        return name !== 'N/A' ? name : 'None';
+    };
+
+    let trimCodes = {
+        ridge: "N/A", eave: "N/A", gable_rake: "N/A", valley: "N/A", hip: "N/A",
+        base: "N/A", os_corner: "N/A", is_corner: "N/A", j_trim: "N/A",
+        drip_header: "N/A", sill: "N/A", ohd: "N/A", transition: "N/A", 
+        panel_cap: "", endwall: "N/A", sidewall: "N/A", peak_cap: "N/A"
+    };
+
+    if (isSnapRoof || roofPanelName.toUpperCase().includes('MECH')) {
+        trimCodes.gable_rake = "1015 / 845 / 1000";
+        trimCodes.eave = "934 / 608 / 609 / 805";
+        trimCodes.ridge = "580 / 584 / 578 / 683";
+        trimCodes.valley = "588 / 589";
+        trimCodes.hip = "580 / 584";
+        trimCodes.transition = "1026 / 606";
+        trimCodes.panel_cap = "1022 / 1020 / 1023 / 846";
+        trimCodes.endwall = "603 / 556405";
+        trimCodes.sidewall = "842 / 1016 / 1001";
+        trimCodes.peak_cap = "864 / 723 / 1041";
+    } else {
+        trimCodes.gable_rake = "421 / 426 / 422";
+        trimCodes.eave = "609 / 608 / 934";
+        trimCodes.ridge = "578 / 579 / 584 / 683";
+        trimCodes.valley = "588 / 589 / 587";
+        trimCodes.hip = "584 / 580";
+        trimCodes.transition = "1026 / 606";
+        trimCodes.panel_cap = "1022";
+        trimCodes.endwall = "603";
+        trimCodes.sidewall = "605 / 848";
+        trimCodes.peak_cap = "723 / 864";
+    }
+
+    if (wallPanelName.toUpperCase().includes('AWR') || wallPanelName.toUpperCase().includes('ELITE') || wallPanelName.toUpperCase().includes('ULTRA')) {
+        trimCodes.base = "113 / 1048 / 121";
+        trimCodes.os_corner = "556314 / 556312";
+        trimCodes.is_corner = "556335 / 1008";
+        trimCodes.drip_header = "113 / 556339";
+        trimCodes.j_trim = "556315";
+        trimCodes.sill = "556425 / 556315";
+        trimCodes.ohd = "650 / 651 / 556303";
+    } else if (wallPanelName.toUpperCase().includes('CORRUGATED')) {
+        trimCodes.base = "122 / 121";
+        trimCodes.os_corner = "492 / 496 / CUSTOM";
+        trimCodes.is_corner = "493 / 480 / 1027";
+        trimCodes.drip_header = "113";
+        trimCodes.j_trim = "254 / 250";
+        trimCodes.sill = "556425 / 254 / 250";
+        trimCodes.ohd = "556334 / 650 / 651";
+    } else {
+        trimCodes.base = "121 / 122 / 960";
+        trimCodes.os_corner = "425 / 417 / 418";
+        trimCodes.is_corner = "480 / 498 / 823";
+        trimCodes.drip_header = "113";
+        trimCodes.j_trim = "252";
+        trimCodes.sill = "252 / 834";
+        trimCodes.ohd = "113 / 650 / 651";
+    }
+
+    const O = params.hasOverhang ? Number(params.overhang) : 0;
+    const eaveExtFt = params.hasOverhang ? ((Number(params.eaveOverhangExt) || 0) / 12) : 0;
+    const ventOffFt = params.isVented ? ((Number(params.ventOffset) || 0) / 12) : 0;
+
+    const roofRun = (params.width / 2) + O + eaveExtFt; 
+    const roofRise = roofRun * (params.pitch / 12);
+    const rafter = Math.sqrt(roofRun * roofRun + roofRise * roofRise);
+
+    // ==========================================
+    // 1. ПЕРЕСЧЕТ КРЫШИ (Точная 3D Площадь или Схема)
+    // ==========================================
+    let exactRoofArea = 0;
+    let roofPanelsHtml = '';
+    let standardGableData = null; // Хранилище данных, чтобы отложить генерацию HTML
+    
+    if (isStandardGable) {
+        const slopeFactor = Math.sqrt(1 + Math.pow(params.pitch/12, 2));
+        const halfWidth = (params.width / 2) + O + eaveExtFt;
+        const bldgLength = params.depth + 2*(O + eaveExtFt);
+        
+        let rBoundaries = getPanelBoundaries(bldgLength, panelCovRoofW, params.panelAlignment || 'left');
+        const panelsPerSide = rBoundaries.length;
+        const safeLength = Number(finalSheetLength) || 0;
+        
+        exactRoofArea = (halfWidth * slopeFactor * 2) * bldgLength;
+        maxRoofSheet = safeLength;
+        totalRoofLF = (panelsPerSide * 2) * safeLength;
+
+        let linesHtml = '';
+        rBoundaries.forEach((b, idx) => {
+            if (idx < rBoundaries.length - 1) { 
+                let seamX = b[1];
+                let svgX = (seamX / bldgLength) * 400; 
+                linesHtml += `<line x1="${svgX}" y1="0" x2="${svgX}" y2="200" stroke="#888888" stroke-width="1" />`;
+            }
+        });
+        
+        // Сохраняем данные, чтобы собрать HTML ПОСЛЕ расчета тримов
+        standardGableData = { bldgLength, halfWidth, slopeFactor, panelsPerSide, safeLength, linesHtml };
+
+    } else {
+        // 3D-Развертка для сложных крыш
+        let roofSlopes = [];
+        currentHouse.updateMatrixWorld(true);
+        
+        currentHouse.traverse(child => {
+            if (child.isMesh && child.visible !== false) {
+                let origMat = Array.isArray(child.material) ? child.material[0] : child.material;
+                if (origMat && origMat.transparent && origMat.opacity < 0.05) return;
+                if (origMat && origMat.colorWrite === false) return;
+                
+                const geo = child.geometry;
+                if (!geo || !geo.attributes.position || !geo.index) return;
+                const pos = geo.attributes.position;
+                const idx = geo.index;
+                const matWorld = child.matrixWorld;
+                
+                for (let i = 0; i < idx.count; i += 3) {
+                    let a = idx.getX(i), b = idx.getX(i+1), c = idx.getX(i+2);
+                    let vA = new THREE.Vector3().fromBufferAttribute(pos, a).applyMatrix4(matWorld);
+                    let vB = new THREE.Vector3().fromBufferAttribute(pos, b).applyMatrix4(matWorld);
+                    let vC = new THREE.Vector3().fromBufferAttribute(pos, c).applyMatrix4(matWorld);
+                    
+                    let faceNormal = new THREE.Vector3().subVectors(vB, vA).cross(new THREE.Vector3().subVectors(vC, vA)).normalize();
+                    
+                    if (faceNormal.y > 0.1) { 
+                        let found = false;
+                        for (let s of roofSlopes) {
+                            if (s.normal.angleTo(faceNormal) < 0.08) { 
+                                s.triangles.push([vA, vB, vC]);
+                                found = true; break;
+                            }
+                        }
+                        if (!found) {
+                            roofSlopes.push({ normal: faceNormal, triangles: [[vA, vB, vC]] });
+                        }
+                    }
+                }
+            }
+        });
+
+        roofSlopes = roofSlopes.filter(slope => {
+            slope.area = slope.triangles.reduce((sum, tri) => {
+                return sum + new THREE.Vector3().subVectors(tri[1], tri[0]).cross(new THREE.Vector3().subVectors(tri[2], tri[0])).length() / 2;
+            }, 0);
+            return slope.area > 1.0; 
+        });
+
+        roofSlopes.sort((a,b) => b.area - a.area);
+        exactRoofArea = roofSlopes.reduce((sum, s) => sum + s.area, 0);
+
+        roofSlopes.forEach((slope, index) => {
+            const Z = slope.normal;
+            let isFlat = Math.abs(Z.y) > 0.99 || params.modelType === 'flat';
+            let name = isFlat ? "Flat Roof Sub-Section" : (Math.abs(Z.z) > Math.abs(Z.x) ? (Z.z > 0 ? "Front Slope" : "Back Slope") : (Z.x > 0 ? "Right Slope" : "Left Slope"));
+            name = `${name} #${index + 1}`;
+
+            let up = (Math.abs(Z.y) > 0.99) ? new THREE.Vector3(0, 0, -1) : new THREE.Vector3(0, 1, 0);
+            let X = new THREE.Vector3().crossVectors(up, Z).normalize();
+            if (X.lengthSq() < 0.001) X = new THREE.Vector3(1, 0, 0); 
+            const Y = new THREE.Vector3().crossVectors(Z, X).normalize();
+            
+            let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+            slope.triangles2D = slope.triangles.map(tri => {
+                return tri.map(v => {
+                    let v2 = new THREE.Vector2(v.dot(X), v.dot(Y));
+                    minX = Math.min(minX, v2.x); maxX = Math.max(maxX, v2.x);
+                    minY = Math.min(minY, v2.y); maxY = Math.max(maxY, v2.y);
+                    return v2;
+                });
+            });
+            
+            slope.width = Math.max(maxX - minX, 0.1);
+            slope.height = Math.max(maxY - minY, 0.1);
+
+            let visualScaleY = 1;
+            let visualHeight = slope.height;
+            if (slope.height < 4) {
+                visualScaleY = 4 / Math.max(slope.height, 0.001);
+                visualHeight = 4;
+            }
+            
+            let rPathsHtml = ''; let rDashedHtml = ''; let lengthGroups = {};
+            const fillColors = [STYLE_VARS.slopeRoofColor1, STYLE_VARS.slopeRoofColor2];
+            
+            slope.triangles2D.forEach((tri, tIdx) => {
+                let pts = tri.map(v => `${(v.x - minX).toFixed(3)},${(visualHeight - (v.y - minY) * visualScaleY).toFixed(3)}`).join(' ');
+                let tFill = fillColors[tIdx % fillColors.length];
+                rPathsHtml += `<polygon points="${pts}" fill="${tFill}" stroke="${STYLE_VARS.roofOutlineColor}" stroke-width="${STYLE_VARS.roofOutlineThickness}" stroke-linejoin="round" />`;
+            });
+            
+            let roofBoundaries = getPanelBoundaries(slope.width, panelCovRoofW, params.panelAlignment || 'left');
+            
+            roofBoundaries.forEach((b) => {
+                let pLeft = minX + b[0];
+                let pRight = minX + b[1];
+                let lineX = b[0];
+                let lineMinY = Infinity, lineMaxY = -Infinity;
+                
+                slope.triangles2D.forEach(tri => {
+                    for(let j=0; j<3; j++) {
+                        let p1 = tri[j], p2 = tri[(j+1)%3];
+                        let mnX = Math.min(p1.x, p2.x), mxX = Math.max(p1.x, p2.x);
+                        if (pLeft >= mnX - 1e-4 && pLeft <= mxX + 1e-4) {
+                            if (mxX - mnX > 1e-4) {
+                                let yInt = p1.y + (pLeft - p1.x) * (p2.y - p1.y) / (p2.x - p1.x);
+                                lineMinY = Math.min(lineMinY, yInt); lineMaxY = Math.max(lineMaxY, yInt);
+                            } else {
+                                lineMinY = Math.min(lineMinY, p1.y, p2.y); lineMaxY = Math.max(lineMaxY, p1.y, p2.y);
+                            }
+                        }
+                    }
+                });
+
+                if (b[0] > 0.001 && lineMinY < Infinity && lineMaxY > -Infinity) {
+                    let drawY1 = visualHeight - (lineMaxY - minY) * visualScaleY;
+                    let drawY2 = visualHeight - (lineMinY - minY) * visualScaleY;
+                    rDashedHtml += `<line x1="${lineX}" y1="${drawY1}" x2="${lineX}" y2="${drawY2}" stroke="${STYLE_VARS.roofSeamColor}" stroke-width="${STYLE_VARS.roofSeamThickness}" stroke-dasharray="${STYLE_VARS.roofSeamDashType}" />`;
+                }
+                
+                let panelMaxLen = 0;
+                let xTests = [pLeft, pRight];
+                slope.triangles2D.forEach(tri => tri.forEach(v => { if (v.x > pLeft && v.x < pRight) xTests.push(v.x); }));
+                
+                xTests.forEach(xVal => {
+                    let tMinY = Infinity, tMaxY = -Infinity;
+                    slope.triangles2D.forEach(tri => {
+                        for(let j=0; j<3; j++) {
+                            let p1 = tri[j], p2 = tri[(j+1)%3];
+                            let minPx = Math.min(p1.x, p2.x), maxPx = Math.max(p1.x, p2.x);
+                            if (xVal >= minPx - 1e-4 && xVal <= maxPx + 1e-4) {
+                                if (maxPx - minPx > 1e-4) {
+                                    let yInt = p1.y + (xVal - p1.x) * (p2.y - p1.y) / (p2.x - p1.x);
+                                    tMinY = Math.min(tMinY, yInt); tMaxY = Math.max(tMaxY, yInt);
+                                } else {
+                                    tMinY = Math.min(tMinY, p1.y, p2.y); tMaxY = Math.max(tMaxY, p1.y, p2.y);
+                                }
+                            }
+                        }
+                    });
+                    if (tMaxY > -Infinity && tMinY < Infinity) {
+                        panelMaxLen = Math.max(panelMaxLen, tMaxY - tMinY);
+                    }
+                });
+                
+                if (panelMaxLen > 0.05) {
+                    let lenStr = panelMaxLen.toFixed(2);
+                    lengthGroups[lenStr] = (lengthGroups[lenStr] || 0) + 1;
+                    totalRoofLF += panelMaxLen;
+                    if (panelMaxLen > maxRoofSheet) maxRoofSheet = panelMaxLen;
+                }
+            });
+
+            if (isSnapRoof) {
+                for (let len in lengthGroups) {
+                    if (lengthGroups[len] % 2 !== 0) lengthGroups[len] += 1;
+                }
+            }
+            
+            let sortedLengths = Object.keys(lengthGroups).sort((a,b) => parseFloat(b) - parseFloat(a));
+            const actualPairs = Math.min(4, sortedLengths.length); 
+            const colWidthPct = (100 / (actualPairs || 1)).toFixed(3);
+            let tableHeaderHtml = '';
+            for (let i = 0; i < actualPairs; i++) tableHeaderHtml += `<div style="width: ${colWidthPct}%; display: flex; box-sizing: border-box;"><div style="flex: 1; padding: 4px 8px; text-align: right;">QTY</div><div style="flex: 1; padding: 4px 8px; text-align: right;">CUT LENGTH</div></div>`;
+
+            let tableCells = '';
+            for (let i = 0; i < sortedLengths.length; i += actualPairs) {
+                const rowBg = ((i / actualPairs) % 2 === 0) ? "#f9f9f9" : "#ffffff"; 
+                tableCells += `<div style="display: flex; width: 100%; background-color: ${rowBg}; padding: 2px 0;">`;
+                for (let j = 0; j < actualPairs; j++) {
+                    const len = sortedLengths[i + j];
+                    if (len !== undefined) tableCells += `<div style="width: ${colWidthPct}%; display: flex; box-sizing: border-box;"><div style="flex: 1; padding: 2px 8px; text-align: right; font-weight: bold; color: #333;">${lengthGroups[len]}</div><div style="flex: 1; padding: 2px 8px; text-align: right; font-weight: bold; color: #d11241;">${len}'</div></div>`;
+                    else tableCells += `<div style="width: ${colWidthPct}%;"></div>`;
+                }
+                tableCells += `</div>`;
+            }
+
+            let totalPanelsThisSection = 0; Object.values(lengthGroups).forEach(qty => totalPanelsThisSection += qty);
+
+            roofPanelsHtml += `
+                <div style="border: 2px solid #222; padding: 12px; border-radius: 4px; background: #fff; display: flex; flex-direction: column; page-break-inside: avoid; margin-bottom: 20px;">
+                    <div style="font-size: 11px; font-weight: bold; text-align: left; margin-bottom: 5px; color: #333; text-transform: uppercase;">
+                        ${name} <span style="font-weight:normal; text-transform:none; font-size: 9px; margin-left: 10px;">(${totalPanelsThisSection} Pieces total)</span>
+                    </div>
+                    <div style="width: 100%; text-align: center; margin-bottom: 12px;">
+                        <svg viewBox="-1 -1 ${slope.width + 2} ${visualHeight + 2}" preserveAspectRatio="xMidYMax meet" style="width: 100%; height: auto; max-height: 150px; shape-rendering: crispEdges;">
+                            ${rPathsHtml}
+                            ${rDashedHtml}
+                        </svg>
+                    </div>
+                    <div style="width: 100%; font-size: 8.5px;">
+                        <div style="display: flex; background-color: #222; color: #fff; font-weight: bold; text-transform: uppercase;">
+                            ${tableHeaderHtml}
+                        </div>
+                        <div style="display: flex; flex-direction: column;">
+                            ${tableCells}
+                        </div>
+                    </div>
+                </div>
+            `;
+        });
+    }
+
+    // ==========================================
+    // 2. ПЕРЕСЧЕТ СТЕН И ПРОЕМОВ (С УЧЕТОМ ЭТАЖЕЙ)
+    // ==========================================
+    let exactWallArea = 0; 
+    let jTrimTotal = 0;
+    let doorWidthTotal = 0;
+    let openingAreaTotal = 0;
+    let openingsHtml = '';
+    let hasOpenings = false;
+    
+    const wallLabels = { front: 'Front Wall', back: 'Back Wall', left: 'Left Wall', right: 'Right Wall' };
+
+    Object.keys(params.openings).forEach(wallId => {
+        if (params.openings[wallId] && params.openings[wallId].length > 0) {
+            hasOpenings = true;
+            const wName = wallLabels[wallId] || wallId;
+            openingsHtml += `<div style="background:#eee; padding:4px 8px; margin-top:6px; font-weight:bold; border-radius:3px; font-size:10px;">${wName}</div>`;
+            params.openings[wallId].forEach((op, idx) => {
+                jTrimTotal += (op.w * 2 + op.h * 2);
+                openingAreaTotal += (op.w * op.h);
+                if (op.isDoor) doorWidthTotal += op.w;
+                const typeName = op.isDoor ? 'Door' : 'Window';
+                openingsHtml += `<div style="display: flex; justify-content: space-between; border-bottom: 1px dashed #ddd; padding: 3px 5px; font-size:10px;"><span>${idx+1}. ${typeName}</span> <strong>${Number(op.w).toFixed(1)}' W x ${Number(op.h).toFixed(1)}' H</strong></div>`;
+            });
+        }
+    });
+    if (!hasOpenings) openingsHtml = `<div class="text-muted" style="padding:10px; font-size:10px;">No openings added.</div>`;
+
+    function subtractIntervals(intervals, subtractStart, subtractEnd) {
+        let result = [];
+        for (let i = 0; i < intervals.length; i++) {
+            let min = intervals[i][0]; let max = intervals[i][1];
+            if (subtractEnd <= min || subtractStart >= max) { result.push([min, max]);
+            } else {
+                if (subtractStart > min) result.push([min, subtractStart]);
+                if (subtractEnd < max) result.push([subtractEnd, max]);
+            }
+        }
+        return result;
+    }
+
+    function getWallSegmentsRule(params) {
+        const segments = []; const W = Number(params.width) || 0; const D = Number(params.depth) || 0; const t = Number(params.thickness) || 0.05;
+
+        const pushSeg = (id, len, startX, titleBase, isGableCapable) => {
+            let H = Number(params.height);
+            let FF = Number(params.firstFloorHeight);
+            let WH = Number(params.wainscotHeight);
+            let hasFF = params.hasTwoFloors && FF > 0 && FF < H;
+            let hasWS = params.hasWainscot && WH > 0 && WH < H;
+            let hasGD = params.hasGableDivider && isGableCapable;
+
+            if (hasWS) {
+                segments.push({ id, len, startX, title: `${titleBase} (Wainscot)`, bottom: 0, top: WH, isGableWall: false });
+                if (hasGD) {
+                    segments.push({ id, len, startX, title: `${titleBase} (Upper)`, bottom: WH, top: H, isGableWall: false });
+                    segments.push({ id, len, startX, title: `${titleBase} (Gable Peak)`, bottom: H, top: 'peak', isGableWall: true });
+                } else {
+                    segments.push({ id, len, startX, title: `${titleBase} (Upper)`, bottom: WH, top: isGableCapable ? 'peak' : H, isGableWall: isGableCapable });
+                }
+            } else if (hasFF) {
+                segments.push({ id, len, startX, title: `${titleBase} (1st Floor)`, bottom: 0, top: FF, isGableWall: false });
+                if (hasGD) {
+                    segments.push({ id, len, startX, title: `${titleBase} (2nd Floor)`, bottom: FF, top: H, isGableWall: false });
+                    segments.push({ id, len, startX, title: `${titleBase} (Gable Peak)`, bottom: H, top: 'peak', isGableWall: true });
+                } else {
+                    segments.push({ id, len, startX, title: `${titleBase} (2nd Floor & Peak)`, bottom: FF, top: isGableCapable ? 'peak' : H, isGableWall: isGableCapable });
+                }
+            } else {
+                if (hasGD) {
+                    segments.push({ id, len, startX, title: `${titleBase} (Lower Wall)`, bottom: 0, top: H, isGableWall: false });
+                    segments.push({ id, len, startX, title: `${titleBase} (Upper Gable)`, bottom: H, top: 'peak', isGableWall: true });
+                } else {
+                    segments.push({ id, len, startX, title: `${titleBase} Panels`, bottom: 0, top: isGableCapable ? 'peak' : H, isGableWall: isGableCapable });
+                }
+            }
+        };
+
+        switch (params.modelType) {
+            case 'hexagonal': {
+                const R = W / 2;
+                ['front', 'right', 'back_right', 'back', 'left', 'front_left'].forEach(id => {
+                    pushSeg(id, R, -R/2, `${id.replace('_', ' ').toUpperCase()} Wall`, false);
+                });
+                break;
+            }
+            case 'cross_hipped': {
+                const C = Number(params.crossDepth) || 20; const O = Number(params.crossOffset) || 0; 
+                const Zw_back = O - W/2; const Zw_front = O + W/2;
+                pushSeg('left', D, -D/2, 'Left Eave Wall', false);
+                pushSeg('back', W, -W/2, 'Main Back Wall', false);
+                pushSeg('back', C + t, W/2 - t, 'Wing Back Wall', false);
+                if (Zw_back - (-D/2) > 0.05) pushSeg('right', Zw_back - (-D/2), -D/2, 'Right Back Wall', false);
+                pushSeg('right', W - 2*t, O - W/2 + t, 'Wing End Wall', false);
+                if (D/2 - Zw_front > 0.05) pushSeg('right', D/2 - Zw_front, Zw_front, 'Right Front Wall', false);
+                pushSeg('front', W, -W/2, 'Main Front Wall', false);
+                pushSeg('front', C + t, W/2 - t, 'Wing Front Wall', false);
+                break;
+            }
+            case 'hip_and_valley': {
+                const L = params.hvLeftExt || 0; const R = params.hvRightExt || 0; 
+                const OL = params.hvLeftOffset || 0; const OR = params.hvRightOffset || 0;
+                const Zw_L_front = OL + W/2; const Zw_L_back = OL - W/2;
+                const Zw_R_front = OR + W/2; const Zw_R_back = OR - W/2;
+                
+                pushSeg('front', W, -W/2, 'Main Front Wall', false);
+                pushSeg('back', W, -W/2, 'Main Back Wall', false);
+                if (L > 0.1) {
+                    pushSeg('wing_l_front', L, -L/2, 'Left Wing Front Wall', false);
+                    pushSeg('wing_l_back', L, -L/2, 'Left Wing Back Wall', false);
+                    pushSeg('wing_l_end', W, -W/2, 'Left Wing End Wall', false);
+                    pushSeg('left_front', D/2 - Zw_L_front, Zw_L_front, 'Main Left Front Wall', false);
+                    pushSeg('left_back', Zw_L_back - (-D/2), -D/2, 'Main Left Back Wall', false);
+                } else { pushSeg('left', D, -D/2, 'Left Wall', false); }
+                if (R > 0.1) {
+                    pushSeg('wing_r_front', R, -R/2, 'Right Wing Front Wall', false);
+                    pushSeg('wing_r_back', R, -R/2, 'Right Wing Back Wall', false);
+                    pushSeg('wing_r_end', W, -W/2, 'Right Wing End Wall', false);
+                    pushSeg('right_front', D/2 - Zw_R_front, Zw_R_front, 'Main Right Front Wall', false);
+                    pushSeg('right_back', Zw_R_back - (-D/2), -D/2, 'Main Right Back Wall', false);
+                } else { pushSeg('right', D, -D/2, 'Right Wall', false); }
+                break;
+            }
+            default: {
+                if (['standard', 'saltbox', 'gambrel', 'butterfly', 'm_shaped', 'shed', 'jerkinhead', 'dutch_gable', 'combination'].includes(params.modelType)) {
+                    pushSeg('front', W, -W/2, 'Front', true);
+                    pushSeg('back', W, -W/2, 'Back', true);
+                } else {
+                    pushSeg('front', W, -W/2, 'Front Wall', false);
+                    pushSeg('back', W, -W/2, 'Back Wall', false);
+                }
+                pushSeg('left', D, -D/2, 'Left Eave Wall', false);
+                pushSeg('right', D, -D/2, 'Right Eave Wall', false);
+                break;
+            }
+        }
+        return segments;
+    }
+
+    function generateDynamicCutList(wallId, title, segmentData = null) {
+        const TABLE_PAIRS = 4;
+        const TABLE_LENGTH_COLOR = "#d11241"; 
+        const TABLE_BG_EVEN = "#f9f9f9"; 
+        const TABLE_BG_ODD = "#ffffff";  
+        const TABLE_HEADER_BG = "#222222"; 
+        const TABLE_HEADER_COLOR = "#ffffff"; 
+        
+        let panelCoverage = selectedWallWidth || 36; 
+        const C = panelCoverage / 12;
+        
+        let W = Number((['front', 'back', 'front_gable', 'back_gable'].includes(wallId)) ? params.width : params.depth) || 0;
+        if (segmentData && segmentData.len !== undefined) W = segmentData.len; 
+        let H = Number(params.height) || 0;
+        let P = (Number(params.pitch) || 0) / 12;
+        let UP = (Number(params.upperPitch) || 4) / 12;
+        
+        const type = params.modelType;
+        const isHipLike = ['hip', 'mansard', 'pyramid', 'hexagonal', 'flat', 'hip_and_valley', 'dutch_gable', 'combination'].includes(type);
+
+        const complexTopFunc = (x) => {
+            if (isHipLike) return H;
+            if (['shed', 'skillion_leanto'].includes(type)) return H + (x + W/2) * P;
+            if (type === 'butterfly') return H + Math.abs(x) * P;
+            if (type === 'm_shaped') {
+                const pX = W/4;
+                if (x < 0) return H + (W/4 - Math.abs(x + pX)) * P * 2;
+                else return H + (W/4 - Math.abs(x - pX)) * P * 2;
+            }
+            if (type === 'gambrel') {
+                const breakX = W/3; const p1 = Math.max(P, 1); const yBreak = H + (W/2 - breakX) * p1;
+                if (Math.abs(x) > breakX) return H + (W/2 - Math.abs(x)) * p1;
+                return yBreak + (breakX - Math.abs(x)) * UP;
+            }
+            if (type === 'jerkinhead') {
+                const offsetJ = Math.max(0.1, params.hipOffset || 15);
+                const flatYJ = H + (W/2) * P - offsetJ * P;
+                return Math.min(H + (W/2 - Math.abs(x)) * P, flatYJ);
+            }
+            if (type === 'saltbox') {
+                const peakX = W/2 - W*0.33; const peakY_SB = H + (W*0.66 * P);
+                if (x < peakX) return H + (x - (-W/2)) * P;
+                return peakY_SB - (x - peakX) * (peakY_SB - H) / (W*0.33); 
+            }
+            return H + (W/2 - Math.abs(x)) * P;
+        };
+
+        let getBottomY = (x) => (segmentData && segmentData.bottom !== undefined) ? segmentData.bottom : 0;
+        
+        let getTopY = (x) => {
+            if (['left', 'right', 'wing_l_front', 'wing_l_back', 'wing_r_front', 'wing_r_back', 'wing_l_end', 'wing_r_end', 'left_front', 'left_back', 'right_front', 'right_back'].includes(wallId)) {
+                if (segmentData && segmentData.top !== 'peak' && segmentData.top !== undefined) return segmentData.top;
+                return H;
+            }
+            if (segmentData && segmentData.top !== 'peak' && segmentData.top !== undefined) {
+                return segmentData.top; 
+            } else {
+                return complexTopFunc(x); 
+            }
+        };
+
+        let roofLines = []; 
+        let qtyMultiplier = 1; 
+        let baseWallId = wallId.replace('_gable', '');
+        
+        if (segmentData && segmentData.top === 'peak') {
+            roofLines.push({ x1: -W/2 - O, y1: complexTopFunc(-W/2) - O*P, x2: 0, y2: complexTopFunc(0) + 0.2 });
+            roofLines.push({ x1: 0, y1: complexTopFunc(0) + 0.2, x2: W/2 + O, y2: complexTopFunc(W/2) - O*P });
+        } else if (segmentData && segmentData.top !== undefined) {
+            roofLines.push({ x1: -W/2 - O, y1: segmentData.top, x2: W/2 + O, y2: segmentData.top });
+        } else if (['front', 'back'].includes(wallId)) {
+            if (isHipLike) roofLines.push({ x1: -W/2 - O, y1: H + 0.2, x2: W/2 + O, y2: H + 0.2 });
+            else if (['shed', 'skillion_leanto'].includes(type)) roofLines.push({ x1: -W/2 - O, y1: getTopY(-W/2) - O*P, x2: W/2 + O, y2: getTopY(W/2) + O*P });
+            else if (type === 'butterfly') { roofLines.push({ x1: -W/2 - O, y1: getTopY(-W/2) + O*P, x2: 0, y2: getTopY(0) - 0.2 }); roofLines.push({ x1: 0, y1: getTopY(0) - 0.2, x2: W/2 + O, y2: getTopY(W/2) + O*P }); }
+            else if (type === 'm_shaped') {
+                const pX = W/4;
+                roofLines.push({ x1: -W/2 - O, y1: getTopY(-W/2) - O*P*2, x2: -pX, y2: getTopY(-pX) + 0.2 });
+                roofLines.push({ x1: -pX, y1: getTopY(-pX) + 0.2, x2: 0, y2: getTopY(0) - 0.2 });
+                roofLines.push({ x1: 0, y1: getTopY(0) - 0.2, x2: pX, y2: getTopY(pX) + 0.2 });
+                roofLines.push({ x1: pX, y1: getTopY(pX) + 0.2, x2: W/2 + O, y2: getTopY(W/2) - O*P*2 });
+            } else if (type === 'gambrel') {
+                const breakX = W/3; const p1 = Math.max(P, 1);
+                roofLines.push({ x1: -W/2 - O, y1: getTopY(-W/2) - O*p1, x2: -breakX, y2: getTopY(-breakX) + 0.2 });
+                roofLines.push({ x1: -breakX, y1: getTopY(-breakX) + 0.2, x2: 0, y2: getTopY(0) + 0.2 });
+                roofLines.push({ x1: 0, y1: getTopY(0) + 0.2, x2: breakX, y2: getTopY(breakX) + 0.2 });
+                roofLines.push({ x1: breakX, y1: getTopY(breakX) + 0.2, x2: W/2 + O, y2: getTopY(W/2) - O*p1 });
+            } else if (type === 'jerkinhead') {
+                const offsetJ = Math.max(0.1, params.hipOffset || 15); const flatXJ = W/2 - offsetJ;
+                roofLines.push({ x1: -W/2 - O, y1: getTopY(-W/2) - O*P, x2: -flatXJ, y2: getTopY(-flatXJ) + 0.2 });
+                roofLines.push({ x1: -flatXJ, y1: getTopY(-flatXJ) + 0.2, x2: flatXJ, y2: getTopY(flatXJ) + 0.2 });
+                roofLines.push({ x1: flatXJ, y1: getTopY(flatXJ) + 0.2, x2: W/2 + O, y2: getTopY(W/2) - O*P });
+            } else if (type === 'saltbox') {
+                const peakX = W/2 - W*0.33; const peakY_SB = H + (W*0.66 * P); const pR = (peakY_SB - H) / (W*0.33);
+                roofLines.push({ x1: -W/2 - O, y1: getTopY(-W/2) - O*P, x2: peakX, y2: getTopY(peakX) + 0.2 });
+                roofLines.push({ x1: peakX, y1: getTopY(peakX) + 0.2, x2: W/2 + O, y2: getTopY(W/2) - O*pR });
+            } else {
+                roofLines.push({ x1: -W/2 - O, y1: getTopY(-W/2) - O*P, x2: 0, y2: getTopY(0) + 0.2 });
+                roofLines.push({ x1: 0, y1: getTopY(0) + 0.2, x2: W/2 + O, y2: getTopY(W/2) - O*P });
+            }
+        } 
+        else if (['left', 'right'].includes(wallId)) {
+            roofLines.push({ x1: -W/2 - O, y1: H + 0.2, x2: W/2 + O, y2: H + 0.2 }); 
+        }
+
+        let wallOpenings = params.openings[baseWallId] || [];
+        if (segmentData && segmentData.startX !== undefined) {
+            const parentWallLen = (baseWallId === 'front' || baseWallId === 'back') ? params.width : params.depth;
+            wallOpenings = wallOpenings.filter(op => {
+                let absoluteCx = op.offsetX !== undefined ? (-parentWallLen/2 + op.offsetX) : op.cx;
+                return (absoluteCx >= segmentData.startX && absoluteCx <= segmentData.startX + segmentData.len);
+            }).map(op => {
+                let absoluteCx = op.offsetX !== undefined ? (-parentWallLen/2 + op.offsetX) : op.cx;
+                return { ...op, cx: absoluteCx - segmentData.startX - segmentData.len/2, offsetX: undefined };
+            });
+        }
+
+        let panelPathsHtml = ''; let dashedLinesHtml = ''; let lengthGroups = {}; 
+
+        let maxY = 0;
+        for (let i = 0; i <= Math.ceil(W / C) * 10; i++) {
+            let x_test = -W/2 + (W * (i / (Math.ceil(W / C) * 10)));
+            let yt = getTopY(x_test);
+            if (yt > maxY) maxY = yt;
+        }
+
+        let drawOffsetY = (segmentData && segmentData.bottom !== undefined) ? segmentData.bottom : 0;
+        const svgH = (maxY - drawOffsetY) + Math.max(O*P, 2) + 2; 
+
+        // ИСПОЛЬЗУЕМ НОВУЮ МАТЕМАТИКУ ДЛЯ СТЕН
+        let wallBoundaries = getPanelBoundaries(W, C, params.panelAlignment || 'left');
+
+        wallBoundaries.forEach((b, i) => {
+            let p_left_0 = b[0]; 
+            let p_right_0 = b[1];
+            let px1_3d = -W/2 + p_left_0; 
+            let px2_3d = -W/2 + p_right_0;
+
+            let maxTop = -Infinity;
+            let minBot = Infinity;
+            
+            let topPts = [];
+            let botPts = [];
+            const steps = 10;
+            
+            for(let k = 0; k <= steps; k++) {
+                let x_3d = px1_3d + (px2_3d - px1_3d) * (k/steps);
+                let x_2d = p_left_0 + (p_right_0 - p_left_0) * (k/steps);
+                
+                let yT = getTopY(x_3d);
+                let yB = getBottomY(x_3d);
+                
+                maxTop = Math.max(maxTop, yT);
+                minBot = Math.min(minBot, yB);
+                
+                topPts.push(`${x_2d},${svgH - (yT - drawOffsetY)}`);
+                botPts.unshift(`${x_2d},${svgH - (yB - drawOffsetY)}`);
+            }
+
+            let pieces = [ [minBot, maxTop] ];
+            
+            wallOpenings.forEach(op => {
+                let opW = Number(op.w) || 0; let opH = Number(op.h) || 0;
+                let opCx = Number(op.cx) || 0; if (op.offsetX !== undefined && (!segmentData || segmentData.startX === undefined)) opCx = -W/2 + op.offsetX;
+                let opCy = Number(op.cy) || 0; 
+                
+                let opY_bottom = opCy - (opH / 2);
+                let opY_top = opCy + (opH / 2);
+                let ox_left_based = (opCx + W / 2) - (opW / 2);
+                let ox_right_based = ox_left_based + opW;
+                
+                if (p_left_0 < ox_right_based && p_right_0 > ox_left_based) {
+                    let cutStart = Math.max(opY_bottom, drawOffsetY);
+                    let cutEnd = Math.min(opY_top, (segmentData && segmentData.top !== 'peak' && segmentData.top !== undefined) ? segmentData.top : maxTop);
+                    
+                    if (cutEnd > cutStart) {
+                        if (op.isDoor) {
+                            let completelyInterrupts = (ox_left_based <= p_left_0 + 1e-4) && (ox_right_based >= p_right_0 - 1e-4);
+                            if (completelyInterrupts) {
+                                pieces = subtractIntervals(pieces, cutStart, cutEnd);
+                            }
+                        } else {
+                            return;
+                        }
+                    }
+                }
+            });
+
+            pieces.forEach(p => {
+                let len = p[1] - p[0];
+                if (len > 0.1) { 
+                    let lengthStr = len.toFixed(2);
+                    lengthGroups[lengthStr] = (lengthGroups[lengthStr] || 0) + (1 * qtyMultiplier);
+                    exactWallArea += len * C * qtyMultiplier; 
+                    totalWallLF += len * qtyMultiplier;
+                    if (len > maxWallSheet) maxWallSheet = len;
+                }
+            });
+
+            let tFill = (i % 2 === 0) ? STYLE_VARS.wallPanelColor1 : STYLE_VARS.wallPanelColor2;
+            panelPathsHtml += `<polygon class="${CLASS_WALL}" points="${topPts.join(' ')} ${botPts.join(' ')}" fill="${tFill}" stroke="${STYLE_VARS.wallOutlineColor}" stroke-width="${STYLE_VARS.wallOutlineThickness}" />`;
+            
+            if (b[0] > 0.001) {
+                dashedLinesHtml += `<line class="${CLASS_WALL}" x1="${p_left_0}" y1="${svgH - (getBottomY(px1_3d) - drawOffsetY)}" x2="${p_left_0}" y2="${svgH - (getTopY(px1_3d) - drawOffsetY)}" stroke="${STYLE_VARS.wallSeamColor}" stroke-width="${STYLE_VARS.wallSeamThickness}" stroke-dasharray="${STYLE_VARS.wallSeamDashType}" />`;
+            }
+        });
+
+        const isSnapWall = (segmentData && segmentData.bottom === 0 && params.hasTwoFloors) ? firstFloorPanelName.toUpperCase().includes('SNAP') : wallPanelName.toUpperCase().includes('SNAP');
+        if (isSnapWall) {
+            for (let len in lengthGroups) {
+                if (lengthGroups[len] % 2 !== 0) lengthGroups[len] += 1;
+            }
+        }
+
+        let openingRects = '';
+        wallOpenings.forEach(op => {
+            let opW = Number(op.w) || 0; let opH = Number(op.h) || 0;
+            let opCx = Number(op.cx) || 0; if (op.offsetX !== undefined && (!segmentData || segmentData.startX === undefined)) opCx = -W/2 + op.offsetX;
+            let opCy = Number(op.cy) || 0;
+            let opY_bottom = opCy - (opH / 2); if (op.isDoor || opY_bottom <= 0) opY_bottom = 0.01;
+            
+            let opY_relative = opY_bottom - drawOffsetY;
+            if (opY_relative + opH > 0 && opY_relative < (maxY - drawOffsetY)) {
+                let svgOpX = opCx - (opW / 2) + W/2; 
+                openingRects += `<rect class="${CLASS_OPENING}" x="${svgOpX}" y="${svgH - (opY_relative + opH)}" width="${opW}" height="${opH}" fill="${STYLE_VARS.svgOpeningFill}" stroke="${STYLE_VARS.svgOpeningStroke}" stroke-width="${STYLE_VARS.wallOutlineThickness}" />`;
+                openingRects += `<line class="${CLASS_OPENING}" x1="${svgOpX}" y1="${svgH - (opY_relative + opH)}" x2="${svgOpX + opW}" y2="${svgH - opY_relative}" stroke="${STYLE_VARS.svgOpeningStroke}" stroke-width="${STYLE_VARS.wallSeamThickness}" stroke-dasharray="${STYLE_VARS.wallSeamDashType}" opacity="0.6"/>`;
+                openingRects += `<line class="${CLASS_OPENING}" x1="${svgOpX}" y1="${svgH - opY_relative}" x2="${svgOpX + opW}" y2="${svgH - (opY_relative + opH)}" stroke="${STYLE_VARS.svgOpeningStroke}" stroke-width="${STYLE_VARS.wallSeamThickness}" stroke-dasharray="${STYLE_VARS.wallSeamDashType}" opacity="0.6"/>`;
+            }
+        });
+
+        let roofPathsHtml = '';
+        roofLines.forEach(l => {
+            if ((l.y1 - drawOffsetY) > -0.1 || (l.y2 - drawOffsetY) > -0.1) {
+                let svgX1 = l.x1 + W/2; 
+                let svgX2 = l.x2 + W/2;
+                roofPathsHtml += `<line class="${CLASS_ROOF}" x1="${svgX1}" y1="${svgH - (l.y1 - drawOffsetY)}" x2="${svgX2}" y2="${svgH - (l.y2 - drawOffsetY)}" stroke="${STYLE_VARS.svgRoofStroke}" stroke-width="${STYLE_VARS.wallOutlineThickness}" />`;
+            }
+        });
+
+        let sortedLengths = Object.keys(lengthGroups).sort((a,b) => parseFloat(b) - parseFloat(a));
+        const actualPairs = Math.min(TABLE_PAIRS, sortedLengths.length); 
+        const colWidthPct = (100 / (actualPairs || 1)).toFixed(3);
+        let tableHeaderHtml = '';
+        for (let i = 0; i < actualPairs; i++) tableHeaderHtml += `<div style="width: ${colWidthPct}%; display: flex; box-sizing: border-box;"><div style="flex: 1; padding: 4px 8px; text-align: right;">QTY</div><div style="flex: 1; padding: 4px 8px; text-align: right;">CUT LENGTH</div></div>`;
+
+        let tableCells = '';
+        for (let i = 0; i < sortedLengths.length; i += actualPairs) {
+            const rowBg = ((i / actualPairs) % 2 === 0) ? TABLE_BG_EVEN : TABLE_BG_ODD; 
+            tableCells += `<div style="display: flex; width: 100%; background-color: ${rowBg}; padding: 2px 0;">`;
+            for (let j = 0; j < actualPairs; j++) {
+                const len = sortedLengths[i + j];
+                if (len !== undefined) tableCells += `<div style="width: ${colWidthPct}%; display: flex; box-sizing: border-box;"><div style="flex: 1; padding: 2px 8px; text-align: right; font-weight: bold; color: #333;">${lengthGroups[len]}</div><div style="flex: 1; padding: 2px 8px; text-align: right; font-weight: bold; color: ${TABLE_LENGTH_COLOR};">${len}'</div></div>`;
+                else tableCells += `<div style="width: ${colWidthPct}%;"></div>`;
+            }
+            tableCells += `</div>`;
+        }
+
+        let totalPanelsThisSection = 0; Object.values(lengthGroups).forEach(qty => totalPanelsThisSection += qty);
+        
+        if (totalPanelsThisSection === 0) return '';
+
+        return `
+            <div style="border: 2px solid #222; padding: 12px; border-radius: 4px; background: #fff; display: flex; flex-direction: column; page-break-inside: avoid; margin-bottom: 20px;">
+                <div style="font-size: 11px; font-weight: bold; text-align: left; margin-bottom: 5px; color: #333; text-transform: uppercase;">
+                    ${title} <span style="font-weight:normal; text-transform:none; font-size: 9px; margin-left: 10px;">(${totalPanelsThisSection} Pieces total)</span>
+                </div>
+                <div style="width: 100%; text-align: center; margin-bottom: 12px;">
+                    <svg viewBox="-2 -1 ${W + 4} ${svgH + 2}" preserveAspectRatio="xMidYMax meet" style="width: 100%; height: auto; max-height: 250px; shape-rendering: crispEdges;">
+                        ${panelPathsHtml}
+                        ${dashedLinesHtml}
+                        ${openingRects}
+                        ${roofPathsHtml}
+                    </svg>
+                </div>
+                <div style="width: 100%; font-size: 8.5px;">
+                    <div style="display: flex; background-color: ${TABLE_HEADER_BG}; color: ${TABLE_HEADER_COLOR}; font-weight: bold; text-transform: uppercase;">
+                        ${tableHeaderHtml}
+                    </div>
+                    <div style="display: flex; flex-direction: column;">
+                        ${tableCells}
+                    </div>
+                </div>
+            </div>
+        `;
+    }
+
+    const activeWallSegments = getWallSegmentsRule(params);
+    const dynamicWallCutListHtml = activeWallSegments.map(seg => generateDynamicCutList(seg.id, seg.title, seg)).join('');
+
+    const calcGableArea = 0.5 * params.width * roofRise * 2; 
+    const calcVolume = (params.width * params.depth * params.height) + (0.5 * params.width * roofRise * params.depth);
+    const openingRatio = exactWallArea > 0 ? ((openingAreaTotal / exactWallArea) * 100).toFixed(1) : 0;
+    const wallWrapArea = Math.max(0, exactWallArea - openingAreaTotal);
+
+    // ==========================================
+    // 4. ПОДСЧЕТ ТРИМОВ И РАСЧЕТ ВИНТОВ (ВЫПОЛНЯЕМ ДО ГЕНЕРАЦИИ HTML КРЫШИ)
+    // ==========================================
+    
+    // Считываем новую настройку Trim Length (по умолчанию 10.5)
+    const trimLen = params.trimLength ? Number(params.trimLength) : 10.5;
+    
+    const calcBaseTrim = Math.max(0, (2 * (params.width + params.depth)) - doorWidthTotal);
+    const calcEaveTrim = (params.depth + 2*(O + eaveExtFt)) * 2;
+    const calcRakeTrim = rafter * 4;
+    
+    const calcCornerTrim = params.height * 4; 
+    let isCornerCount = 0;
+    if (params.modelType === 'cross_hipped') {
+        isCornerCount = 4;
+    } else if (params.modelType === 'hip_and_valley') {
+        if ((params.hvLeftExt || 0) > 0.1) isCornerCount += 2;
+        if ((params.hvRightExt || 0) > 0.1) isCornerCount += 2;
+    }
+    const calcInsideCornerTrim = params.height * isCornerCount;
+
+    const calcRidgeCap = params.depth + 2*(O + eaveExtFt) + 1; 
+
+    const baseTrimPcs = Math.ceil(calcBaseTrim / trimLen);
+    const eaveTrimPcs = Math.ceil(calcEaveTrim / trimLen);
+    const rakeTrimPcs = Math.ceil(calcRakeTrim / trimLen);
+    
+    const cornerTrimPcs = Math.ceil(calcCornerTrim / trimLen); 
+    const isCornerTrimPcs = Math.ceil(calcInsideCornerTrim / trimLen); 
+    
+    const jTrimPcs = Math.ceil(jTrimTotal / trimLen);
+    const ridgeCapPcs = Math.ceil(calcRidgeCap / trimLen);
+    const gableDividerPcs = params.hasGableDivider ? Math.ceil((params.width * 2) / trimLen) : 0;
+    
+    let dripLF = 0; let sillLF = 0; let ohdLF = 0;
+    Object.keys(params.openings).forEach(wall => {
+        params.openings[wall].forEach(o => {
+            if (o.isDoor && o.w >= 8) {
+                ohdLF += o.w + (o.h * 2);
+            } else if (o.isDoor) {
+                dripLF += o.w; 
+            } else {
+                dripLF += o.w;
+                sillLF += o.w;
+            }
+        });
+    });
+    
+    const getTrimPcs = (len) => len <= 0 ? 0 : Math.ceil(len / trimLen);
+    const dripTrimPcs = getTrimPcs(dripLF);
+    const sillTrimPcs = getTrimPcs(sillLF);
+    const ohdTrimPcs = getTrimPcs(ohdLF);
+    
+    let hipLF = 0;
+    if (['hip', 'pyramid', 'dutch_gable', 'jerkinhead', 'combination', 'hexagonal', 'hip_and_valley', 'cross_hipped'].includes(params.modelType)) {
+        let hipRafter = Math.sqrt(Math.pow(rafter, 2) + Math.pow(params.width/2, 2));
+        hipLF = hipRafter * 4;
+    }
+    const hipTrimPcs = hipLF > 0 ? getTrimPcs(hipLF/4) * 4 : 0;
+
+    const valleyLF = (params.modelType === 'hip_and_valley' || params.modelType === 'cross_hipped') ? rafter * 4 : 0;
+    const valleyPcs = getTrimPcs(valleyLF);
+    
+    const endwallLF = params.hasDormer ? params.dormerWidth : 0;
+    const endwallPcs = getTrimPcs(endwallLF);
+    
+    const sidewallLF = params.hasDormer ? params.dormerDepth * 2 : 0;
+    const sidewallPcs = getTrimPcs(sidewallLF);
+    
+    const transitionLF = (params.modelType === 'gambrel' || params.modelType === 'split') ? params.depth * 2 : 0;
+    const transitionPcs = getTrimPcs(transitionLF);
+    const panelCapPcs = (params.modelType === 'gambrel' || params.modelType === 'split') ? getTrimPcs(params.depth * 2) : 0;
+
+    let woodScrews = 0;
+    let pancakeScrews = 0;
+    let stitchScrews = 0;
+
+    if (isSnapRoof) {
+        pancakeScrews = Math.ceil(exactRoofArea * 1.15); 
+    } else {
+        woodScrews += Math.ceil(exactRoofArea * 0.8); 
+    }
+    woodScrews += Math.ceil(exactWallArea * 0.8); 
+    stitchScrews += Math.ceil((exactRoofArea + exactWallArea) * 0.15); 
+    
+    // ПРАВКА 1: Переименовали переменную на Fasteners и убрали слово Wood, где оно мешало
+    let screwsStr = isSnapRoof ? `Pancake: ${pancakeScrews}, Stitch: ${stitchScrews}, Wood: ${woodScrews}` : `${woodScrews} pcs`;
+
+    let roofTrimsList = [];
+    const isShed = ['shed', 'skillion_leanto', 'flat'].includes(params.modelType);
+    const isHip = ['hip', 'pyramid', 'hexagonal', 'cross_hipped', 'hip_and_valley'].includes(params.modelType);
+    const isGambrel = ['gambrel', 'split'].includes(params.modelType);
+    const isDutch = ['dutch_gable', 'jerkinhead', 'combination'].includes(params.modelType);
+    const isGable = ['standard', 'butterfly', 'm_shaped', 'saltbox'].includes(params.modelType);
+
+    if (isGable) {
+        roofTrimsList.push({ name: 'GABLE TRIM', code: trimCodes.gable_rake, pcs: rakeTrimPcs });
+        roofTrimsList.push({ name: 'EAVE TRIM', code: trimCodes.eave, pcs: eaveTrimPcs });
+        roofTrimsList.push({ name: 'RIDGE CAP', code: trimCodes.ridge, pcs: ridgeCapPcs });
+    } else if (isHip) {
+        roofTrimsList.push({ name: 'EAVE TRIM', code: trimCodes.eave, pcs: eaveTrimPcs });
+        roofTrimsList.push({ name: 'RIDGE CAP', code: trimCodes.ridge, pcs: ridgeCapPcs });
+        roofTrimsList.push({ name: 'HIP FLASHING', code: trimCodes.hip, pcs: hipTrimPcs });
+        roofTrimsList.push({ name: 'VALLEY FLASHING', code: trimCodes.valley, pcs: valleyPcs });
+    } else if (isGambrel) {
+        roofTrimsList.push({ name: 'GABLE TRIM', code: trimCodes.gable_rake, pcs: rakeTrimPcs });
+        roofTrimsList.push({ name: 'EAVE TRIM', code: trimCodes.eave, pcs: eaveTrimPcs });
+        roofTrimsList.push({ name: 'RIDGE CAP', code: trimCodes.ridge, pcs: ridgeCapPcs });
+        roofTrimsList.push({ name: 'TRANSITION TRIM', code: trimCodes.transition, pcs: transitionPcs });
+        if (trimCodes.panel_cap) roofTrimsList.push({ name: 'PANEL CAP/Z TRIM', code: trimCodes.panel_cap, pcs: panelCapPcs });
+    } else if (isDutch) {
+        roofTrimsList.push({ name: 'GABLE TRIM', code: trimCodes.gable_rake, pcs: rakeTrimPcs });
+        roofTrimsList.push({ name: 'EAVE TRIM', code: trimCodes.eave, pcs: eaveTrimPcs });
+        roofTrimsList.push({ name: 'RIDGE CAP', code: trimCodes.ridge, pcs: ridgeCapPcs });
+        roofTrimsList.push({ name: 'HIP FLASHING', code: trimCodes.hip, pcs: hipTrimPcs });
+        roofTrimsList.push({ name: 'ENDWALL FLASHING', code: trimCodes.endwall, pcs: endwallPcs });
+        roofTrimsList.push({ name: 'TRANSITION TRIM', code: trimCodes.transition, pcs: transitionPcs });
+    } else if (isShed) {
+        roofTrimsList.push({ name: 'GABLE TRIM', code: trimCodes.gable_rake, pcs: rakeTrimPcs });
+        roofTrimsList.push({ name: 'EAVE TRIM', code: trimCodes.eave, pcs: eaveTrimPcs });
+        roofTrimsList.push({ name: 'PEAK CAP TRIM', code: trimCodes.peak_cap, pcs: getTrimPcs(params.depth) });
+    }
+
+    if (params.hasDormer) {
+        roofTrimsList.push({ name: 'DORMER VALLEY', code: trimCodes.valley, pcs: valleyPcs });
+        roofTrimsList.push({ name: 'DORMER ENDWALL', code: trimCodes.endwall, pcs: endwallPcs });
+        roofTrimsList.push({ name: 'DORMER SIDEWALL', code: trimCodes.sidewall, pcs: sidewallPcs });
+    }
+
+    const butylTapeLF = totalRoofLF;
+    roofTrimsList.push({ name: 'BUTYL TAPE (ROOF)', code: 'TAPE', pcs: `${butylTapeLF.toFixed(1)} LF` });
+
+    let roofTrimsHtml = '';
+    roofTrimsList.forEach(t => {
+        if (typeof t.pcs === 'string' || t.pcs > 0) {
+            let qtyStr = typeof t.pcs === 'string' ? t.pcs : `${t.pcs} pcs`;
+            roofTrimsHtml += `<div class="s-row"><strong>${t.name}:</strong> <span>[${t.code}] ${qtyStr}</span></div>`;
+        }
+    });
+
+    const closureModel = params.isVented ? (pc.closure_vented || 'CL-V-88') : (pc.closure_solid || 'CL-S-99');
+
+    const generatePlantTrimTable = () => {
+        let rows = '';
+        const addRow = (desc, qty, langley, airdrie, swift, brandon) => {
+            if (qty <= 0) return;
+            rows += `<tr>
+                <td style="padding: 2px; border-bottom: 1px dashed #ccc; text-align: left;">${desc}</td>
+                <td style="padding: 2px; border-bottom: 1px dashed #ccc; font-weight: bold; color: #d11241;">${qty}</td>
+                <td style="padding: 2px; border-bottom: 1px dashed #ccc;">${langley}</td>
+                <td style="padding: 2px; border-bottom: 1px dashed #ccc;">${airdrie}</td>
+                <td style="padding: 2px; border-bottom: 1px dashed #ccc;">${swift}</td>
+                <td style="padding: 2px; border-bottom: 1px dashed #ccc;">${brandon}</td>
+            </tr>`;
+        };
+
+        if (isSnapRoof) {
+            addRow('GABLE TRIM', rakeTrimPcs, '1015', '1015', '1015', '1015');
+            addRow('EAVE TRIM', eaveTrimPcs, '934', '608 or 609', '934', '608 or 934');
+            addRow('RIDGE CAP', ridgeCapPcs, '580', '683/578/580/584', '580', '578');
+            addRow('Z TRIM / PANEL CAP', panelCapPcs, '1022', '1020 or 1022', '846', '1022');
+            addRow('VALLEY FLASHING', valleyPcs, '588 or 589', '588 or 589', '588 or 589', '588 or 589');
+            addRow('ENDWALL FLASHING', endwallPcs, '603', '603', '603', '603');
+            addRow('SIDEWALL FLASHING', sidewallPcs, '1016', '1016', '1016', '1016');
+        } else {
+            addRow('GABLE TRIM', rakeTrimPcs, '421', '421 or 426', '421 or 426', '421 or 426');
+            addRow('EAVE TRIM', eaveTrimPcs, '609', '608 or 609 or 934', '608 or 609', 'STD or RES');
+            addRow('RIDGE CAP', ridgeCapPcs, '578', '578/579/584/683', '578 or 579', '578');
+            addRow('VALLEY FLASHING', valleyPcs, '588', '588 or 589', '588 or 589', '588 or 589');
+            addRow('ENDWALL FLASHING', endwallPcs, '603', '603', '603', '603');
+            addRow('SIDEWALL FLASHING', sidewallPcs, '606', '605', '605', '605');
+        }
+        addRow('BASE FLASHING', baseTrimPcs, '121', '121 or 960', '121', '121');
+        addRow('O/S CORNER TRIM', cornerTrimPcs, '425', '425', '425', '425');
+        addRow('I/S CORNER TRIM', isCornerTrimPcs, '480', '480 or 498', '823', '480');
+        addRow('DRIP FLASHING', dripTrimPcs, '113', '113 or 556434', '113', '113');
+        addRow('J-TRIM', jTrimPcs, '252', '252', '252', '252');
+        addRow('SILL TRIM', sillTrimPcs, '252', '252 or 834', '252', '252');
+        addRow('OHD TRIM', ohdTrimPcs, '113', '650 or 651', '650', '650 or 651');
+        
+        return `
+            <div style="margin-top: 15px; border: 1px solid #222; font-size: 8px;">
+                <div style="background-color: #eee; padding: 4px; font-weight: bold; text-align: center; border-bottom: 1px solid #222;">RECOMMENDED TRIMS BY PRODUCTION PLANT - STANDARD FLASHING DETAIL (CUSTOM TRIMS AVAILABLE)</div>
+                <table style="width: 100%; border-collapse: collapse; text-align: center;">
+                    <tr style="border-bottom: 1px solid #999; background: #fafafa;">
+                        <th style="padding: 2px; text-align: left;">TRIM DESCRIPTION</th>
+                        <th style="padding: 2px; color: #d11241;">QTY</th>
+                        <th style="padding: 2px;">LANGLEY, BC</th>
+                        <th style="padding: 2px;">AIRDRIE, AB</th>
+                        <th style="padding: 2px;">SWIFT CURRENT, SK</th>
+                        <th style="padding: 2px;">BRANDON, MB</th>
+                    </tr>
+                    ${rows}
+                </table>
+            </div>
+        `;
+    };
+
+    // ПРАВКА 2: Добавлена новая функция для генерации таблиц крепежа в PDF
+    const generateFastenersTable = () => {
+        const roofUpper = roofPanelName.toUpperCase();
+        
+        if (roofUpper.includes('SNAP LOK 16') || roofUpper.includes('SNAP LOK 12')) {
+            return `
+            <div style="margin-top: 15px; border: 1px solid #222; font-size: 8px;">
+                <div style="background-color: #eee; padding: 4px; font-weight: bold; text-align: center; border-bottom: 1px solid #222;">RECOMMENDED FASTENERS FOR SNAP LOK PANELS</div>
+                <table style="width: 100%; border-collapse: collapse; text-align: center;">
+                    <tr style="border-bottom: 1px solid #999; background: #fafafa;">
+                        <th style="padding: 2px; text-align: left;">SKU</th>
+                        <th style="padding: 2px;">FASTENER SIZE</th>
+                        <th style="padding: 2px;">HEAD TYPE</th>
+                        <th style="padding: 2px;">APPLICATION</th>
+                        <th style="padding: 2px;">WEIGHT</th>
+                    </tr>
+                    <tr>
+                        <td style="padding: 2px; border-bottom: 1px dashed #ccc; text-align: left;">PH00011010C</td>
+                        <td style="padding: 2px; border-bottom: 1px dashed #ccc;">#10 x 1"</td>
+                        <td style="padding: 2px; border-bottom: 1px dashed #ccc;">#2 Quadrex</td>
+                        <td style="padding: 2px; border-bottom: 1px dashed #ccc;">Steel/PVC Panel to Wood</td>
+                        <td style="padding: 2px; border-bottom: 1px dashed #ccc;">39 lbs.</td>
+                    </tr>
+                    <tr>
+                        <td style="padding: 2px; border-bottom: 1px dashed #ccc; text-align: left;">PH00011015NW</td>
+                        <td style="padding: 2px; border-bottom: 1px dashed #ccc;">#10 x 1 1/2"</td>
+                        <td style="padding: 2px; border-bottom: 1px dashed #ccc;">#2 Quadrex</td>
+                        <td style="padding: 2px; border-bottom: 1px dashed #ccc;">Steel/PVC Panel to Wood</td>
+                        <td style="padding: 2px; border-bottom: 1px dashed #ccc;">30 lbs.</td>
+                    </tr>
+                    <tr>
+                        <td style="padding: 2px; border-bottom: 1px dashed #ccc; text-align: left;">PH00011210SD</td>
+                        <td style="padding: 2px; border-bottom: 1px dashed #ccc;">#12 x 1" Self Drill</td>
+                        <td style="padding: 2px; border-bottom: 1px dashed #ccc;">#2 Quadrex</td>
+                        <td style="padding: 2px; border-bottom: 1px dashed #ccc;">Steel/PVC Panel to Wood</td>
+                        <td style="padding: 2px; border-bottom: 1px dashed #ccc;">34 lbs.</td>
+                    </tr>
+                </table>
+            </div>`;
+        } else {
+            return `
+            <div style="margin-top: 15px; border: 1px solid #222; font-size: 8px;">
+                <div style="background-color: #eee; padding: 4px; font-weight: bold; text-align: center; border-bottom: 1px solid #222;">RECOMMENDED FASTENERS FOR EXPOSED FASTENER PANELS</div>
+                <table style="width: 100%; border-collapse: collapse; text-align: center;">
+                    <tr style="border-bottom: 1px solid #999; background: #fafafa;">
+                        <th style="padding: 2px; text-align: left;">SKU</th>
+                        <th style="padding: 2px;">FASTENER SIZE</th>
+                        <th style="padding: 2px;">HEX HEAD</th>
+                        <th style="padding: 2px;">APPLICATION</th>
+                        <th style="padding: 2px;">WEIGHT</th>
+                    </tr>
+                    <tr>
+                        <td style="padding: 2px; border-bottom: 1px dashed #ccc; text-align: left;">WS00011010</td>
+                        <td style="padding: 2px; border-bottom: 1px dashed #ccc;">#10 x 1"</td>
+                        <td style="padding: 2px; border-bottom: 1px dashed #ccc;">1/4"</td>
+                        <td style="padding: 2px; border-bottom: 1px dashed #ccc;">Steel Panel to Wood</td>
+                        <td style="padding: 2px; border-bottom: 1px dashed #ccc;">25 lbs.</td>
+                    </tr>
+                    <tr>
+                        <td style="padding: 2px; border-bottom: 1px dashed #ccc; text-align: left;">WS00011015</td>
+                        <td style="padding: 2px; border-bottom: 1px dashed #ccc;">#10 x 1 1/2"</td>
+                        <td style="padding: 2px; border-bottom: 1px dashed #ccc;">1/4"</td>
+                        <td style="padding: 2px; border-bottom: 1px dashed #ccc;">Steel Panel to Wood</td>
+                        <td style="padding: 2px; border-bottom: 1px dashed #ccc;">30 lbs.</td>
+                    </tr>
+                    <tr>
+                        <td style="padding: 2px; border-bottom: 1px dashed #ccc; text-align: left;">WS00011020</td>
+                        <td style="padding: 2px; border-bottom: 1px dashed #ccc;">#10 x 2"</td>
+                        <td style="padding: 2px; border-bottom: 1px dashed #ccc;">1/4"</td>
+                        <td style="padding: 2px; border-bottom: 1px dashed #ccc;">Steel Panel to Wood</td>
+                        <td style="padding: 2px; border-bottom: 1px dashed #ccc;">25 lbs.</td>
+                    </tr>
+                    <tr>
+                        <td style="padding: 2px; border-bottom: 1px dashed #ccc; text-align: left;">WS00011030</td>
+                        <td style="padding: 2px; border-bottom: 1px dashed #ccc;">#10 x 3"</td>
+                        <td style="padding: 2px; border-bottom: 1px dashed #ccc;">1/4"</td>
+                        <td style="padding: 2px; border-bottom: 1px dashed #ccc;">Steel Panel to Wood</td>
+                        <td style="padding: 2px; border-bottom: 1px dashed #ccc;">19 lbs.</td>
+                    </tr>
+                    <tr>
+                        <td style="padding: 2px; border-bottom: 1px dashed #ccc; text-align: left;">WS00011410</td>
+                        <td style="padding: 2px; border-bottom: 1px dashed #ccc;">#14 x 1"</td>
+                        <td style="padding: 2px; border-bottom: 1px dashed #ccc;">3/8"</td>
+                        <td style="padding: 2px; border-bottom: 1px dashed #ccc;">Steel Panel to Wood</td>
+                        <td style="padding: 2px; border-bottom: 1px dashed #ccc;">36 lbs.</td>
+                    </tr>
+                    <tr>
+                        <td style="padding: 2px; border-bottom: 1px dashed #ccc; text-align: left;">WS000114125</td>
+                        <td style="padding: 2px; border-bottom: 1px dashed #ccc;">#14 x 1 1/4"</td>
+                        <td style="padding: 2px; border-bottom: 1px dashed #ccc;">3/8"</td>
+                        <td style="padding: 2px; border-bottom: 1px dashed #ccc;">Steel Panel to Wood</td>
+                        <td style="padding: 2px; border-bottom: 1px dashed #ccc;">40 lbs.</td>
+                    </tr>
+                    <tr>
+                        <td style="padding: 2px; border-bottom: 1px dashed #ccc; text-align: left;">WS00011415</td>
+                        <td style="padding: 2px; border-bottom: 1px dashed #ccc;">#14 x 1 1/2"</td>
+                        <td style="padding: 2px; border-bottom: 1px dashed #ccc;">3/8"</td>
+                        <td style="padding: 2px; border-bottom: 1px dashed #ccc;">Steel Panel to Wood</td>
+                        <td style="padding: 2px; border-bottom: 1px dashed #ccc;">34 lbs.</td>
+                    </tr>
+                    <tr>
+                        <td style="padding: 2px; border-bottom: 1px dashed #ccc; text-align: left;">WS00011420</td>
+                        <td style="padding: 2px; border-bottom: 1px dashed #ccc;">#14 x 2"</td>
+                        <td style="padding: 2px; border-bottom: 1px dashed #ccc;">3/8"</td>
+                        <td style="padding: 2px; border-bottom: 1px dashed #ccc;">Steel Panel to Wood</td>
+                        <td style="padding: 2px; border-bottom: 1px dashed #ccc;">28 lbs.</td>
+                    </tr>
+                </table>
+            </div>`;
+        }
+    };
+
+    // ==========================================
+    // СБОРКА HTML ДЛЯ ПРОСТОЙ КРЫШИ ТЕПЕРЬ ПРОИСХОДИТ ЗДЕСЬ
+    // ==========================================
+    if (isStandardGable && standardGableData) {
+        const d = standardGableData;
+        roofPanelsHtml = `
+            <div style="font-family: sans-serif; padding: 20px; border: 2px solid #222; border-radius: 4px; background: #fff; margin-bottom: 20px; page-break-inside: avoid;">
+                <h2 style="font-size: 16px; margin-bottom: 20px; font-weight: bold; color: #000; text-align: center; text-transform: uppercase;">
+                    Gable Roof - ${params.pitch} / 12 Pitch
+                </h2>
+                
+                <div style="display: flex; gap: 30px; align-items: center; justify-content: center;">
+                    <div style="flex: 1; max-width: 400px;">
+                        <svg viewBox="-30 -20 500 240" style="width: 100%; height: auto; display: block; overflow: visible;">
+                            <text x="200" y="-5" font-size="14" text-anchor="middle" font-weight="bold">${d.bldgLength.toFixed(2)}'</text>
+                            <text x="410" y="50" font-size="14" alignment-baseline="middle" font-weight="bold">${(d.halfWidth * d.slopeFactor).toFixed(2)}'</text>
+                            <text x="410" y="150" font-size="14" alignment-baseline="middle" font-weight="bold">${(d.halfWidth * d.slopeFactor).toFixed(2)}'</text>
+
+                            <rect x="0" y="0" width="400" height="100" fill="#e2e6e9" stroke="#222" stroke-width="2"/>
+                            <rect x="0" y="100" width="400" height="100" fill="#ffffff" stroke="#222" stroke-width="2"/>
+                            
+                            ${d.linesHtml}
+
+                            <rect x="150" y="40" width="100" height="30" fill="#e2e6e9" opacity="0.8" />
+                            <text x="200" y="60" font-size="16" text-anchor="middle" font-weight="bold" fill="#333">ROOF A</text>
+                            
+                            <rect x="150" y="140" width="100" height="30" fill="#ffffff" opacity="0.8" />
+                            <text x="200" y="160" font-size="16" text-anchor="middle" font-weight="bold" fill="#333">ROOF B</text>
+
+                            <line x1="0" y1="100" x2="400" y2="100" stroke="#d11241" stroke-width="3" stroke-dasharray="8,4"/>
+                        </svg>
+                    </div>
+
+                    <div style="flex: 1; display: flex; flex-direction: column; gap: 15px; font-size: 13px; color: #000;">
+                        <div style="background: #f9f9f9; padding: 12px; border: 1px solid #ccc; border-radius: 4px;">
+                            <div style="font-weight: bold; margin-bottom: 8px; font-size: 14px; border-bottom: 2px solid #222; padding-bottom: 4px; text-transform: uppercase;">
+                                Plane Details (Per Side)
+                            </div>
+                            <div style="display: flex; justify-content: space-between; margin-bottom: 6px;">
+                                <span>Panel:</span> <strong>${roofPanelName}</strong>
+                            </div>
+                            <div style="display: flex; justify-content: space-between; margin-bottom: 6px;">
+                                <span>Quantity:</span> <strong>${d.panelsPerSide} sheets</strong>
+                            </div>
+                            <div style="display: flex; justify-content: space-between;">
+                                <span>Length:</span> <strong style="color:#d11241;">${d.safeLength.toFixed(2)}'</strong>
+                            </div>
+                        </div>
+
+                        <div style="background: #f9f9f9; padding: 12px; border: 1px solid #ccc; border-radius: 4px;">
+                            <div style="font-weight: bold; margin-bottom: 8px; font-size: 14px; border-bottom: 2px solid #222; padding-bottom: 4px; text-transform: uppercase;">
+                                Totals & Trims
+                            </div>
+                            <div style="display: flex; justify-content: space-between; margin-bottom: 6px;">
+                                <span>Total Panels:</span> <strong>${d.panelsPerSide * 2} sheets</strong>
+                            </div>
+                            <div style="display: flex; justify-content: space-between; margin-bottom: 6px;">
+                                <span>Eave Trim:</span> <strong>${eaveTrimPcs} pcs</strong>
+                            </div>
+                            <div style="display: flex; justify-content: space-between; margin-bottom: 6px;">
+                                <span>Gable Trim:</span> <strong>${rakeTrimPcs} pcs</strong>
+                            </div>
+                            <div style="display: flex; justify-content: space-between; margin-bottom: 6px;">
+                                <span>Ridge Cap:</span> <strong>${ridgeCapPcs} pcs</strong>
+                            </div>
+                            <!-- ПРАВКА 3: Screws заменены на Fasteners здесь тоже -->
+                            <div style="display: flex; justify-content: space-between;">
+                                <span>Fasteners:</span> <strong>${cachedScrews} pcs</strong>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+    }
+
+    // ==========================================
+    // 5. СЪБИРАНЕ НА 3D СНИМКИ ЗА PDF
+    // ==========================================
+    currentHouse.updateMatrixWorld(true);
+    const box = new THREE.Box3();
+    box.makeEmpty();
+    
+    currentHouse.traverse(child => {
+        if (child.isMesh) {
+            let isHidden = !child.visible;
+            let origMat = Array.isArray(child.material) ? child.material[0] : child.material;
+            if (origMat && origMat.transparent && origMat.opacity < 0.05) isHidden = true;
+            if (origMat && origMat.colorWrite === false) isHidden = true;
+            if (!isHidden && child.geometry) {
+                child.geometry.computeBoundingBox();
+                const childBox = child.geometry.boundingBox.clone();
+                childBox.applyMatrix4(child.matrixWorld);
+                box.union(childBox);
+            }
+        }
+    });
+
+    const size = box.getSize(new THREE.Vector3());
+    const center = box.getCenter(new THREE.Vector3());
+    
+    const rH = Math.max(0, box.max.y - params.height).toFixed(1);
+    const wH = Number(params.height).toFixed(1);
+    const mW = Number(params.width).toFixed(1);
+    const mD = Number(params.depth).toFixed(1);
+    const totalHeight = (Number(wH) + Number(rH)).toFixed(1);
+
+    const maxDim = Math.max(size.x, size.y, size.z);
+    const elevFrustum = maxDim * 1.25; 
+    const isoFrustum = maxDim * 1.5;  
+    const dist = maxDim + 1000;
+
+    const originalW = window.innerWidth;
+    const originalH = window.innerHeight;
+    renderer.setSize(1200, 1200); 
+
+    const oldBg = scene.background;
+    scene.background = new THREE.Color(0xffffff); 
+    
+    const wasGridVisible = grid ? grid.visible : false;
+    if (grid) grid.visible = false;
+    if (grassMesh) grassMesh.visible = false;
+
+    const ambLightNode = scene.children.find(c => c.isAmbientLight || c.type === 'AmbientLight');
+    const oldAmbInt = ambLightNode ? ambLightNode.intensity : 0.4;
+    if (ambLightNode) ambLightNode.intensity = 2.0; 
+
+    const originalMats = new Map();
+    const originalVisibility = new Map();
+    
+    const whiteMat = new THREE.MeshBasicMaterial({ 
+        color: STYLE_VARS.renderFillColor, side: THREE.FrontSide, 
+        transparent: false, depthTest: true, depthWrite: true,
+        polygonOffset: true, polygonOffsetFactor: 1, polygonOffsetUnits: 1
+    });
+
+    const outlineEdges = [];
+    currentHouse.traverse(child => {
+        if (child.isMesh) {
+            originalMats.set(child, child.material);
+            originalVisibility.set(child, child.visible);
+            
+            let isNormallyHidden = !child.visible;
+            let origMat = Array.isArray(child.material) ? child.material[0] : child.material;
+            
+            if (origMat && origMat.transparent && origMat.opacity < 0.05) isNormallyHidden = true; 
+            if (origMat && origMat.colorWrite === false) isNormallyHidden = true;
+
+            if (isNormallyHidden) { child.visible = false; return; }
+
+            if (Array.isArray(child.material)) child.material = child.material.map(() => whiteMat);
+            else child.material = whiteMat;
+
+            if (child.geometry) {
+                let cleanGeo = new THREE.BufferGeometry();
+                if (child.geometry.attributes.position) cleanGeo.setAttribute('position', child.geometry.attributes.position.clone());
+                if (child.geometry.index) cleanGeo.setIndex(child.geometry.index.clone());
+                
+                try {
+                    cleanGeo = mergeVertices(cleanGeo, 1e-3);
+                    cleanGeo.computeVertexNormals(); 
+                } catch (e) {}
+
+                const edgeGeo = new THREE.EdgesGeometry(cleanGeo, 15);
+                const edgeMat = new THREE.LineBasicMaterial({ color: STYLE_VARS.renderLineColor, linewidth: STYLE_VARS.renderLineWidth, transparent: false, depthTest: true });
+                const edgeLine = new THREE.LineSegments(edgeGeo, edgeMat);
+                
+                edgeLine.position.copy(child.position);
+                edgeLine.rotation.copy(child.rotation);
+                edgeLine.scale.copy(child.scale);
+                child.parent.add(edgeLine);
+                outlineEdges.push({parent: child.parent, line: edgeLine});
+            }
+        }
+    });
+
+    const images = {};
+    const orthoElev = new THREE.OrthographicCamera(-elevFrustum/2, elevFrustum/2, elevFrustum/2, -elevFrustum/2, 0.1, 5000);
+    renderer.autoClear = false;
+
+    const takeSnap = (name, px, py, pz, rx, ry, rz) => {
+        orthoElev.position.set(center.x + px, center.y + py, center.z + pz);
+        orthoElev.rotation.set(rx, ry, rz);
+        orthoElev.updateProjectionMatrix();
+        renderer.clear();
+        renderer.render(scene, orthoElev);
+        images[name] = renderer.domElement.toDataURL('image/png');
+    };
+
+    takeSnap('Top', 0, dist, 0, -Math.PI/2, 0, 0);
+    takeSnap('Front', 0, 0, dist, 0, 0, 0);
+    takeSnap('Back', 0, 0, -dist, 0, Math.PI, 0);
+    takeSnap('Left', -dist, 0, 0, 0, -Math.PI/2, 0);
+    takeSnap('Right', dist, 0, 0, 0, Math.PI/2, 0);
+    
+    const orthoIso = new THREE.OrthographicCamera(-isoFrustum/2, isoFrustum/2, isoFrustum/2, -isoFrustum/2, 0.1, 5000);
+    orthoIso.position.set(center.x + dist, center.y + dist, center.z + dist);
+    orthoIso.lookAt(center);
+    orthoIso.updateProjectionMatrix();
+    renderer.clear();
+    renderer.render(scene, orthoIso);
+    images['Iso'] = renderer.domElement.toDataURL('image/png');
+
+    currentHouse.traverse(child => {
+        if (child.isMesh) {
+            if (originalMats.has(child)) child.material = originalMats.get(child);
+            if (originalVisibility.has(child)) child.visible = originalVisibility.get(child);
+        }
+    });
+    outlineEdges.forEach(e => e.parent.remove(e.line));
+
+    renderer.autoClear = true;
+    renderer.setSize(originalW, originalH);
+    scene.background = oldBg;
+    if (grid) grid.visible = wasGridVisible;
+    if (grassMesh) grassMesh.visible = params.hasEnvironment;
+    if (ambLightNode) ambLightNode.intensity = oldAmbInt; 
+    renderer.render(scene, camera);
+
+    const topDims = [{ label: 'Width', value: `${mW}'` }, { label: 'Depth', value: `${mD}'` }];
+    const frontBackDims = [
+        { label: 'Total H', value: `${totalHeight}'` }, { label: 'Eave H', value: `${wH}'` },
+        ...(params.hasTwoFloors ? [{ label: '1st Floor', value: `${Number(params.firstFloorHeight).toFixed(1)}'` }] : []),
+        ...(params.hasWainscot ? [{ label: 'Wainscot', value: `${Number(params.wainscotHeight).toFixed(1)}'` }] : []),
+        { label: 'Roof H', value: `${rH}'` }, { label: 'Width', value: `${mW}'` }, { label: 'Pitch', value: `${params.pitch}/12` }
+    ];
+    const sideDims = [
+        { label: 'Total H', value: `${totalHeight}'` }, { label: 'Eave H', value: `${wH}'` },
+        ...(params.hasTwoFloors ? [{ label: '1st Floor', value: `${Number(params.firstFloorHeight).toFixed(1)}'` }] : []),
+        ...(params.hasWainscot ? [{ label: 'Wainscot', value: `${Number(params.wainscotHeight).toFixed(1)}'` }] : []),
+        { label: 'Roof H', value: `${rH}'` }, { label: 'Depth', value: `${mD}'` }, { label: 'Pitch', value: `${params.pitch}/12` }
+    ];
+    const isoDims = [
+        { label: 'Total H', value: `${totalHeight}'` }, { label: 'Eave H', value: `${wH}'` },
+        ...(params.hasTwoFloors ? [{ label: '1st Floor', value: `${Number(params.firstFloorHeight).toFixed(1)}'` }] : []),
+        ...(params.hasWainscot ? [{ label: 'Wainscot', value: `${Number(params.wainscotHeight).toFixed(1)}'` }] : []),
+        { label: 'Roof H', value: `${rH}'` }, { label: 'Width', value: `${mW}'` }, { label: 'Depth', value: `${mD}'` }, { label: 'Pitch', value: `${params.pitch}/12` }
+    ];
+
+    const createDimCard = (title, imgSrc, dimsList) => {
+        const listHtml = dimsList.map(d => `<div style="margin-bottom:3px; display:flex; justify-content:space-between; gap: 5px;"><span>${d.label}:</span> <strong>${d.value}</strong></div>`).join('');
+        return `<div class="el-card"><div class="el-card-title">${title}</div><div class="el-wrapper"><div class="el-img-container"><img src="${imgSrc}"></div><div class="el-dims-list">${listHtml}</div></div></div>`;
+    };
+
+    // ОРГАНИЗАЦИЯ НА СТРАНИЦИТЕ
+    printLayout.innerHTML = `
+        <style>
+            @media print {
+                @page { size: portrait; margin: 8mm; }
+                .page { page-break-after: always; display: flex; flex-direction: column; width: 100%; min-height: 98vh; }
+                .page-scroll { display: block; width: 100%; height: auto; page-break-after: auto; }
+                .header { border-bottom: 2px solid #222; padding-bottom: 5px; margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center; }
+                .header img { height: 26px; filter: brightness(0); } 
+                .header h1 { margin: 0; font-size: 16px; text-transform: uppercase; letter-spacing: 1px;}
+                .specs-grid { display: flex; gap: 8px; margin-bottom: 6px; flex-shrink: 0;}
+                .spec-box { flex: 1; border: 1px solid #ccc; padding: 4px 8px; background: #fafafa; border-radius: 4px; font-size: 9px; }
+                .spec-box h2 { font-size: 10px; text-transform: uppercase; border-bottom: 1px solid #999; margin: 0 0 4px 0; padding-bottom: 2px; }
+                .s-row { display: flex; justify-content: space-between; border-bottom: 1px dashed #ddd; padding: 2px 0; align-items: center; }
+                .adv-panel { display: flex; gap: 8px; width: 100%; margin-bottom: 8px; flex-shrink: 0;}
+                .elevations-grid { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; }
+                .el-card { flex: 0 0 32.5%; box-sizing: border-box; border: 2px solid #aaa; border-radius: 4px; display: flex; flex-direction: column; margin-bottom: 2px; height: 180px;}
+                .el-card-title { background: #eee; font-weight: bold; padding: 3px; border-bottom: 1px solid #aaa; font-size: 9px; text-transform: uppercase; text-align: center; }
+                .el-wrapper { flex: 1; display: flex; align-items: center; justify-content: space-between; padding: 5px; background: #fff; overflow: hidden; }
+                .el-img-container { flex: 1; height: 100%; display: flex; justify-content: center; align-items: center; }
+                .el-img-container img { max-width: 100%; max-height: 100%; object-fit: contain; }
+                .el-dims-list { width: 70px; font-size: 7.5px; border-left: 1px dashed #ccc; padding-left: 5px; margin-left: 3px; display: flex; flex-direction: column; justify-content: center; color: #222;}
+                .iso-wrapper { flex: 1; display: flex; align-items: center; justify-content: space-between; padding: 15px; background: #fff; overflow: hidden; }
+                .iso-img-container { flex: 1; height: 100%; display: flex; justify-content: center; align-items: center; }
+                .iso-img-container img { max-width: 100%; max-height: 100%; object-fit: contain; }
+                .iso-dims-list { width: 110px; font-size: 10px; border-left: 1px dashed #ccc; padding-left: 10px; margin-left: 10px; display: flex; flex-direction: column; justify-content: center; color: #222;}
+                
+                .terms-page { display: flex; flex-direction: column; justify-content: center; align-items: center; min-height: 98vh; padding: 40px; text-align: justify; font-size: 14px; line-height: 1.8; color: #333; }
+                .terms-title { font-size: 24px; font-weight: bold; text-transform: uppercase; margin-bottom: 30px; text-align: center; border-bottom: 2px solid #d11241; padding-bottom: 10px; }
+            }
+        </style>
+
+        <div class="page">
+            <div class="header"><img src="https://configurator.westmansteel.com/wp-content/themes/westman-configurator/assets/logotype-estimator.svg" alt="Westman Steel"><h1>Blueprint & Specifications (1/6)</h1></div>
+            <div class="specs-grid">
+                <div class="spec-box">
+                    <h2>Design Parameters</h2>
+                    <div class="s-row"><strong>Model:</strong> <span>${getSelectText('building-model-type')}</span></div>
+                    <div class="s-row"><strong>Width x Depth:</strong> <span>${mW}' x ${mD}'</span></div>
+                    <div class="s-row"><strong>Eave Height:</strong> <span>${wH}'</span></div>
+                    ${params.hasTwoFloors ? `<div class="s-row"><strong>1st Floor Height:</strong> <span>${Number(params.firstFloorHeight).toFixed(1)}'</span></div>` : ''}
+                    <div class="s-row"><strong>Roof Pitch:</strong> <span>${params.pitch}/12</span></div>
+                    ${params.hasOverhang ? `<div class="s-row"><strong>Roof Overhang:</strong> <span>${params.overhang.toFixed(1)}'</span></div>` : ''}
+                </div>
+                <!-- ПРАВКА 4: Перенесли Fasteners в блок Options & Add-ons -->
+                <div class="spec-box">
+                    <h2>Options & Add-ons</h2>
+                    <div class="s-row"><strong>Overhang / Soffit:</strong> <span>${params.hasOverhang ? `YES (+${params.eaveOverhangExt}")` : 'NO'}</span></div>
+                    ${params.hasSoffit ? `<div class="s-row"><strong>Soffit Finish:</strong> <span>${getColorStr('soffit')}</span></div>` : ''}
+                    <div class="s-row"><strong>Vented Roof:</strong> <span>${params.isVented ? `YES (-${params.ventOffset}")` : 'NO'}</span></div>
+                    <div class="s-row"><strong>Gable Divider:</strong> <span>${params.hasGableDivider ? `YES (${getColorStr('gable-divider')})` : 'NO'}</span></div>
+                    <div class="s-row"><strong>Closures:</strong> <span>${params.hasClosures ? `YES (${closureModel})` : 'NO'}</span></div>
+                    <div class="s-row"><strong>Fasteners:</strong> <span>${screwsStr}</span></div>
+                </div>
+                <div class="spec-box">
+                    <h2>Materials & Colors</h2>
+                    <div class="s-row"><strong>Roof Panel:</strong> <span>[${pc.roof_panel || 'N/A'}] ${roofPanelName}</span></div>
+                    <div class="s-row"><strong>Upper Wall Panel:</strong> <span>[${pc.wall_panel || 'N/A'}] ${wallPanelName}</span></div>
+                    ${params.hasTwoFloors ? `<div class="s-row"><strong>1st Fl Panel:</strong> <span>[${pc.wall_panel || 'N/A'}] ${firstFloorPanelName}</span></div>` : ''}
+                    <div class="s-row"><strong>Roof Finish:</strong> <span>${getColorStr('roof')}</span></div>
+                    <div class="s-row"><strong>Upper Wall Finish:</strong> <span>${getColorStr('wall')}</span></div>
+                    ${params.hasTwoFloors ? `<div class="s-row"><strong>1st Fl Finish:</strong> <span>${getColorStr('firstFloor')}</span></div>` : ''}
+                    <div class="s-row"><strong>Trim Finish:</strong> <span>${getColorStr('trim')}</span></div>
+                    ${params.hasWainscot ? `<div class="s-row"><strong>Wainscot Finish:</strong> <span>${getColorStr('wainscot')}</span></div>` : ''}
+                </div>
+            </div>
+            <div class="adv-panel">
+                <div class="spec-box"><h2>Sheet Lengths Summary</h2>
+                    <div class="s-row"><strong>Total Roof Length:</strong> <span>${totalRoofLF.toFixed(1)} LF</span></div>
+                    <div class="s-row"><strong>Total Wall Length:</strong> <span>${totalWallLF.toFixed(1)} LF</span></div>
+                    <div class="s-row"><strong>Max Roof Sheet:</strong> <span style="color:#d11241; font-weight:bold;">${maxRoofSheet.toFixed(2)}'</span></div>
+                    <div class="s-row"><strong>Max Wall Sheet:</strong> <span style="color:#d11241; font-weight:bold;">${maxWallSheet.toFixed(2)}'</span></div>
+                </div>
+                <div class="spec-box"><h2>Geometry & Volumes</h2>
+                    <div class="s-row"><strong>Total Wall Area:</strong> <span>${exactWallArea.toFixed(1)} sq.ft</span></div>
+                    <div class="s-row"><strong>Total Roof Area:</strong> <span>${exactRoofArea.toFixed(1)} sq.ft</span></div>
+                    <div class="s-row"><strong>Cubic Volume:</strong> <span>${calcVolume.toFixed(1)} cu.ft</span></div>
+                    <div class="s-row"><strong>Gable Area:</strong> <span>${calcGableArea.toFixed(1)} sq.ft</span></div>
+                    <div class="s-row"><strong>Glazing Ratio:</strong> <span>${openingRatio}%</span></div>
+                </div>
+                <div class="spec-box"><h2>Wall Trims (${trimLen}' lengths)</h2>
+                    <div class="s-row"><strong>Base Trim:</strong> <span>[${trimCodes.base}] ${baseTrimPcs} pcs</span></div>
+                    <div class="s-row"><strong>O/S Corner:</strong> <span>[${trimCodes.os_corner}] ${cornerTrimPcs} pcs</span></div>
+                    ${isCornerTrimPcs > 0 ? `<div class="s-row"><strong>I/S Corner:</strong> <span>[${trimCodes.is_corner}] ${isCornerTrimPcs} pcs</span></div>` : ''}
+                    <div class="s-row"><strong>Drip/Header:</strong> <span>[${trimCodes.drip_header}] ${dripTrimPcs} pcs</span></div>
+                    <div class="s-row"><strong>J-Trim:</strong> <span>[${trimCodes.j_trim}] ${jTrimPcs} pcs</span></div>
+                    <div class="s-row"><strong>Sill Trim:</strong> <span>[${trimCodes.sill}] ${sillTrimPcs} pcs</span></div>
+                    <div class="s-row"><strong>OHD Trim:</strong> <span>[${trimCodes.ohd}] ${ohdTrimPcs} pcs</span></div>
+                </div>
+                <div class="spec-box"><h2>Roof Trims (${trimLen}' lengths)</h2>
+                    ${roofTrimsHtml}
+                    ${params.hasGableDivider ? `<div class="s-row"><strong>Gable Divider:</strong> <span>${gableDividerPcs} pcs</span></div>` : ''}
+                    <div class="s-row"><strong>Roof Vapor Barrier:</strong> <span>${exactRoofArea.toFixed(1)} sq.ft</span></div>
+                    <div class="s-row"><strong>Wall Wrap:</strong> <span>${wallWrapArea.toFixed(1)} sq.ft</span></div>
+                </div>
+                
+                ${params.customTrims && params.customTrims.length > 0 ? `
+                <div class="spec-box" style="border-color: #d11241;">
+                    <h2 style="color: #d11241;">Custom Trims / Extras</h2>
+                    ${params.customTrims.map(ct => `<div class="s-row"><strong>${ct.name}:</strong> <span>${ct.qty} pcs (${ct.length}')</span></div>`).join('')}
+                </div>
+                ` : ''}
+            </div>
+            ${generatePlantTrimTable()}
+            ${generateFastenersTable()}
+        </div>
+
+        <div class="page">
+            <div class="header"><img src="https://configurator.westmansteel.com/wp-content/themes/westman-configurator/assets/logotype-estimator.svg" alt="Westman Steel"><h1>Elevations (2/6)</h1></div>
+            <div class="elevations-grid" style="margin-top: 15px;">
+                ${createDimCard('Top Plan', images['Top'], topDims)}
+                ${createDimCard('Front Elevation', images['Front'], frontBackDims)}
+                ${createDimCard('Left Elevation', images['Left'], sideDims)}
+                ${createDimCard('Back Elevation', images['Back'], frontBackDims)}
+                ${createDimCard('Right Elevation', images['Right'], sideDims)}
+            </div>
+        </div>
+        
+        <div class="page">
+            <div class="header"><img src="https://configurator.westmansteel.com/wp-content/themes/westman-configurator/assets/logotype-estimator.svg" alt="Westman Steel"><h1>Isometric View & Openings (3/6)</h1></div>
+            <div style="display: flex; flex-direction: column; gap: 15px; flex: 1;">
+                <div style="flex: 2; border: 2px solid #aaa; border-radius: 4px; display: flex; flex-direction: column;">
+                    <div class="el-card-title" style="font-size: 11px;">3D Outline Isometric</div>
+                    <div class="iso-wrapper">
+                        <div class="iso-img-container"><img src="${images['Iso']}"></div>
+                        <div class="iso-dims-list">${isoDims.map(d => `<div style="margin-bottom:6px; display:flex; justify-content:space-between; gap: 5px;"><span>${d.label}:</span> <strong>${d.value}</strong></div>`).join('')}</div>
+                    </div>
+                </div>
+                <div style="flex: 1; border: 1px solid #ccc; background: #fafafa; border-radius: 4px; padding: 10px; overflow-y: auto;">
+                    <h2 style="font-size: 11px; text-transform: uppercase; border-bottom: 2px solid #222; margin: 0 0 8px 0; padding-bottom: 3px;">Openings Schedule & Flashings</h2>
+                    <div style="font-size: 9px; line-height: 1.4;">${openingsHtml}</div>
+                    <div style="font-size: 9px; margin-top: 10px; color: #555;"><strong>Flashing Codes:</strong> OHD: [${trimCodes.ohd}], Drip/Header: [${trimCodes.drip_header}], Sill: [${trimCodes.sill}]</div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="page-scroll" style="page-break-before: always;">
+            <div class="header"><img src="https://configurator.westmansteel.com/wp-content/themes/westman-configurator/assets/logotype-estimator.svg" alt="Westman Steel"><h1>Metal Wall Cut List (4/6)</h1></div>
+            <div style="padding: 10px 0;">
+                <h2 style="font-size: 14px; margin: 0 0 5px 0; text-align: center; text-transform: uppercase;">Calculated Wall Siding Panels</h2>
+                <ul style="font-size: 10px; margin-bottom: 15px; padding-left: 20px;">
+                    <li>Panel pieces are exactly calculated around <strong>custom windows and doors</strong>.</li>
+                    <li>Wall Panel Coverage width: <strong>${(selectedWallWidth).toFixed(1)}"</strong>.</li>
+                    ${params.hasTwoFloors ? `<li>Walls are cleanly split at the <strong>First Floor line (${params.firstFloorHeight}')</strong> generating precise lower and upper segments.</li>` : ''}
+                    ${params.hasWainscot ? `<li>Walls are cleanly split at the <strong>Wainscot line (${params.wainscotHeight}')</strong> generating separate cut lists.</li>` : ''}
+                </ul>
+                ${dynamicWallCutListHtml}
+            </div>
+        </div>
+
+        <div class="page-scroll" style="page-break-before: always;">
+            <div class="header"><img src="https://configurator.westmansteel.com/wp-content/themes/westman-configurator/assets/logotype-estimator.svg" alt="Westman Steel"><h1>${isStandardGable ? 'Gable Roof Calculation Sheet (5/6)' : 'Universal Roof Cut List (5/6)'}</h1></div>
+            <div style="padding: 10px 0;">
+                ${isStandardGable ? '' : `
+                <h2 style="font-size: 14px; margin: 0 0 5px 0; text-align: center; text-transform: uppercase;">Exact Mathematically Extracted Roof Planes</h2>
+                <ul style="font-size: 10px; margin-bottom: 15px; padding-left: 20px;">
+                    <li>The system directly scans the 3D geometry, groups planar faces by orientation, and unwraps them into 2D spaces to calculate panels.</li>
+                    <li>Roof Panel Coverage width: <strong>${actualRoofWidth.toFixed(1)}"</strong>.</li>
+                </ul>
+                `}
+                ${roofPanelsHtml}
+            </div>
+        </div>
+        
+        <div class="page" style="page-break-before: always;">
+            <div class="terms-page">
+                <div class="terms-title">Estimating App Terms and Conditions</div>
+                <p>
+                    Westman Steel’s estimating app is provided for convenience only and is intended to assist dealers and contractors in preparing preliminary estimates and submitting order information. Westman Steel makes no representation or warranty, express or implied, as to the accuracy, completeness, or suitability of any estimate, calculation, measurement, quantity, color, size, delivery date, or other project information generated by or submitted through the app.
+                </p>
+                <p>
+                    It is the sole responsibility of the dealer and/or contractor to verify all measurements, quantities, specifications, colors, sizes, delivery requirements, and other project details before authorizing production. Westman Steel shall not be liable for any errors, omissions, or discrepancies arising from information entered into or transmitted through the app, whether caused by the dealer, contractor, or any third party.
+                </p>
+                <p>
+                    Following submission of an order, Westman Steel will issue an order confirmation. It is the responsibility of the dealer to ensure that Westman Steel has accurate and current contact information to receive such confirmations. The dealer must review the order confirmation promptly and acknowledge acceptance in writing by email, referencing both the Westman Steel sales order number and the dealer purchase order number.
+                </p>
+                <p>
+                    If Westman Steel does not receive written acknowledgment of the order confirmation prior to production, Westman Steel may proceed on the basis that the confirmed order details are correct. Any discrepancy, error, or omission not identified and confirmed in writing prior to production shall be the sole responsibility of the dealer and, where applicable, the dealer’s associated buying group. In such cases, the dealer and/or buying group shall be responsible for payment of the invoice in full.
+                </p>
+                <p style="margin-top: 20px; font-weight: bold; text-align: center;">
+                    Use of the estimating app constitutes acceptance of these terms and conditions.
+                </p>
+            </div>
+        </div>
+    `;
+
+    return printLayout;
+}
+
+export function printProjectPDF(context) {
+    const printLayout = buildPrintLayout(context);
+
+    setTimeout(() => {
+        window.print();
+
+        setTimeout(() => {
+            if (printLayout && printLayout.parentNode) {
+                printLayout.parentNode.removeChild(printLayout);
+            }
+        }, 1000);
+    }, 500);
+}
