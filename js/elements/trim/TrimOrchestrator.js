@@ -27,90 +27,8 @@ function assertContext(context) {
     }
 }
 
-// Rake trims are built as separate boxes butted end-to-end at the ridge
-// point, with no mitering - their centerlines meet exactly, but each box's
-// half-width sticks out sideways from that centerline, so the outer/inner
-// corners of the two boxes don't line up at the joint. That leaves a
-// visible notch/gap at the peak unless the boxes are extended slightly
-// past the ridge point so they overlap there instead of just touching.
-//
-// The correct overlap length is NOT a guessed constant - it's a standard
-// miter-joint calculation. Two strips of thickness D meeting at an angle
-// need each strip extended past the joint by (D/2) * cot(half the angle
-// between them). For this roof, the angle between the two rake lines at
-// the peak works out (via the geometry in RoofGeometry.js) to
-// 180deg - 2*pitchAngle, so half that angle is 90deg - pitchAngle, and
-// cot(90deg - pitchAngle) = tan(pitchAngle) = pitchRatio exactly (pitchRatio
-// IS tan(pitchAngle) by definition). So the extension simplifies to:
-//
-//   extension = (depth / 2) * pitchRatio
-//
-// which is why the previous flat 0.09 constant was wrong: for a typical
-// 3:12 roof (pitchRatio ~0.25) the correct value is ~0.0075, and even for
-// a steep 12:12 roof (pitchRatio = 1.0) it only reaches ~0.03 - roughly
-// 3-10x smaller than 0.09. That's exactly why the ridge cap (which used
-// the same flat constant to decide how far to overshoot past the joint)
-// was crawling out over the rake trims.
 const RAKE_TRIM_WIDTH = 0.12;
 const RAKE_TRIM_DEPTH = 0.06;
-
-function computeRidgeJointExtension(pitchRatio) {
-    const ratio = Number(pitchRatio);
-    if (!Number.isFinite(ratio) || ratio <= 0) return 0;
-    return (RAKE_TRIM_DEPTH / 2) * ratio;
-}
-
-// Small downward nudge (world Y) so the ridge cap's base corners sit at/
-// slightly below the rake trims' outer face - i.e. the ridge visually
-// tucks under the trim instead of floating above it with a gap showing
-// through underneath. This one is a genuine finish-level fudge (a true
-// per-corner derivation doesn't reduce to a single vertical shift - see
-// the comment on RIDGE_CAP_TUCK's usage below) but is kept intentionally
-// small so it can't be the source of a visible overlap on its own.
-const RIDGE_CAP_TUCK = 0.015;
-
-function extendSegmentAtRidge(edge, slope, amount) {
-    if (!edge || !slope || !amount) return edge;
-
-    const start = new THREE.Vector3(edge.start.x, edge.start.y, edge.start.z);
-    const end = new THREE.Vector3(edge.end.x, edge.end.y, edge.end.z);
-    const dir = end.clone().sub(start);
-    if (dir.lengthSq() < 1e-8) return edge;
-    dir.normalize();
-
-    if (slope === 'left') {
-        // end === ridge point for the left-hand slope segment
-        end.add(dir.clone().multiplyScalar(amount));
-    } else if (slope === 'right') {
-        // start === ridge point for the right-hand slope segment
-        start.add(dir.clone().multiplyScalar(-amount));
-    } else {
-        return edge;
-    }
-
-    return {
-        start: { x: start.x, y: start.y, z: start.z },
-        end: { x: end.x, y: end.y, z: end.z }
-    };
-}
-
-function extendSegmentBothEnds(edge, amount) {
-    if (!edge || !amount) return edge;
-
-    const start = new THREE.Vector3(edge.start.x, edge.start.y, edge.start.z);
-    const end = new THREE.Vector3(edge.end.x, edge.end.y, edge.end.z);
-    const dir = end.clone().sub(start);
-    if (dir.lengthSq() < 1e-8) return edge;
-    dir.normalize();
-
-    start.add(dir.clone().multiplyScalar(-amount));
-    end.add(dir.clone().multiplyScalar(amount));
-
-    return {
-        start: { x: start.x, y: start.y, z: start.z },
-        end: { x: end.x, y: end.y, z: end.z }
-    };
-}
 
 function resolveMaterial(
     context,
@@ -192,151 +110,116 @@ function createProfileMesh(
         start
             .clone()
             .add(end)
-            .multiplyScalar(0.5)
+            .multiplyScalar(
+                0.5
+            )
     );
 
-    // FIX: quaternion.setFromUnitVectors(Z, direction) only guarantees the
-    // box's length axis (local Z) lands on the segment direction - it says
-    // nothing about roll around that axis, so the profile's width/depth
-    // faces came out at an arbitrary, inconsistent angle per segment. That
-    // is the "trim looks twisted around its own axis" artefact, and it's
-    // also why the trim no longer sat flush against the ridge cap (their
-    // faces weren't co-planar with the roof surface anymore).
-    //
-    // Fix: build an explicit orthonormal basis with world-up as a stable
-    // reference (Gram-Schmidt), instead of letting three.js pick an
-    // unconstrained roll. World Y works as the up-hint for every trim
-    // segment in this model (eaves run along Z, rakes run diagonally in a
-    // vertical X-Y plane) - projecting it perpendicular to the segment
-    // direction consistently puts the box's "width" axis along the
-    // building's depth (Z) axis and its "depth" axis flush against the
-    // roof/wall plane, which is what an L-flashing profile needs.
-    let upHint = new THREE.Vector3(0, 1, 0);
-    if (Math.abs(direction.dot(upHint)) > 0.999) {
-        // Segment is (near) vertical - world Y can't be used as a
-        // reference in that case, fall back to world X.
-        upHint = new THREE.Vector3(1, 0, 0);
-    }
+    let upHint =
+        new THREE.Vector3(
+            0,
+            1,
+            0
+        );
 
-    const xAxis = new THREE.Vector3().crossVectors(upHint, direction).normalize();
-    const yAxis = new THREE.Vector3().crossVectors(direction, xAxis).normalize();
-
-    const basis = new THREE.Matrix4().makeBasis(xAxis, yAxis, direction);
-    mesh.quaternion.setFromRotationMatrix(basis);
-
-    mesh.castShadow = true;
-    mesh.receiveShadow = true;
-
-    return mesh;
-}
-
-/**
- * L-shaped corner (angle) trim — continuous vertical profile
- * that wraps the outside corner of two walls.
- * Matches legacy createCornerTrimGeo behaviour.
- *
- * sx, sz: outward wall direction signs for this corner
- *   (e.g. FL: sx=-1, sz=-1 when front is -Z).
- */
-function createCornerTrimMesh(corner, material) {
     if (
-        !corner ||
-        !corner.edge ||
-        !corner.edge.start ||
-        !corner.edge.end
+        Math.abs(
+            direction.dot(
+                upHint
+            )
+        ) > 0.999
     ) {
-        return null;
+        upHint =
+            new THREE.Vector3(
+                1,
+                0,
+                0
+            );
     }
 
-    const start = corner.edge.start;
-    const end = corner.edge.end;
-    const colH = Math.abs(end.y - start.y);
+    const xAxis =
+        new THREE.Vector3()
+            .crossVectors(
+                upHint,
+                direction
+            )
+            .normalize();
 
-    if (colH <= 0.001) {
-        return null;
-    }
+    const yAxis =
+        new THREE.Vector3()
+            .crossVectors(
+                direction,
+                xAxis
+            )
+            .normalize();
 
-    const tS = 0.10; // overall leg length (same as legacy TRIM_CONFIG.tS)
-    const t = 0.008; // metal thickness
+    const basis =
+        new THREE.Matrix4()
+            .makeBasis(
+                xAxis,
+                yAxis,
+                direction
+            );
 
-    // Outward signs; default to -1 if missing
-    const sx = corner.sx != null ? corner.sx : -1;
-    const sz = corner.sz != null ? corner.sz : -1;
-
-    // Arms of the L point inward from the exterior corner
-    // (dir = -outward), so the profile covers the outside faces.
-    const dirX = -sx;
-    const dirZ = -sz;
-
-    const shape = new THREE.Shape();
-    shape.moveTo(0, 0);
-    shape.lineTo(dirX * tS, 0);
-    shape.lineTo(dirX * tS, dirZ * t);
-    shape.lineTo(dirX * t, dirZ * t);
-    shape.lineTo(dirX * t, dirZ * tS);
-    shape.lineTo(0, dirZ * tS);
-    shape.closePath();
-
-    const geometry = new THREE.ExtrudeGeometry(shape, {
-        depth: colH,
-        bevelEnabled: false,
-        steps: 1,
-        curveSegments: 1
-    });
-
-    // Extrude is along +Z; rotate so extrusion becomes +Y (up the wall)
-    geometry.rotateX(-Math.PI / 2);
-
-    // Flip Z so the profile faces the correct exterior side
-    // (same post-process as legacy)
-    const pos = geometry.attributes.position;
-    for (let i = 0; i < pos.count; i++) {
-        pos.setZ(i, -pos.getZ(i));
-    }
-    pos.needsUpdate = true;
-    geometry.computeVertexNormals();
-
-    const mesh = new THREE.Mesh(geometry, material);
-    mesh.name = corner.id || 'corner-trim';
-
-    // Place at the base of the corner (y = 0), xz at wall corner
-    mesh.position.set(
-        start.x,
-        Math.min(start.y, end.y),
-        start.z
+    mesh.quaternion.setFromRotationMatrix(
+        basis
     );
 
     mesh.castShadow = true;
     mesh.receiveShadow = true;
-    mesh.renderOrder = 8;
 
     return mesh;
 }
 
-function createRidgeMesh(
-    ridge,
-    material
+/*
+ * Creates a rake trim whose longitudinal axis remains exactly on
+ * lineSeg.start -> lineSeg.end.
+ *
+ * The only difference from createProfileMesh() is the final end cut.
+ *
+ * The cut is a 45-degree miter:
+ *
+ *     ─────────────────╲
+ *                      ╲
+ *                       ●
+ *
+ * The centerline itself is NOT rotated.
+ *
+ * The end plane is diagonal across the width of the trim so that
+ * two perpendicular rake trims can meet at one common building
+ * corner/ridge point without producing the old M-shaped overlap.
+ *
+ * miterSide:
+ *     -1 = diagonal runs one way across the profile
+ *     +1 = mirrored diagonal
+ */
+function createRakeTrimMesh(
+    lineSeg,
+    material,
+    width = RAKE_TRIM_WIDTH,
+    depth = RAKE_TRIM_DEPTH,
+    miterSide = 1
 ) {
     if (
-        !ridge ||
-        !ridge.edge ||
-        !ridge.profile
+        !lineSeg ||
+        !lineSeg.start ||
+        !lineSeg.end
     ) {
         return null;
     }
 
     const start =
         new THREE.Vector3(
-            ridge.edge.start.x,
-            ridge.edge.start.y,
-            ridge.edge.start.z
+            lineSeg.start.x,
+            lineSeg.start.y,
+            lineSeg.start.z
         );
 
     const end =
         new THREE.Vector3(
-            ridge.edge.end.x,
-            ridge.edge.end.y,
-            ridge.edge.end.z
+            lineSeg.end.x,
+            lineSeg.end.y,
+            lineSeg.end.z
         );
 
     const direction =
@@ -353,44 +236,421 @@ function createRidgeMesh(
 
     direction.normalize();
 
-    const halfWidth =
-        ridge.profile.halfWidth;
-
-    const pitchRatio =
-        ridge.profile.pitchRatio;
-
     /*
-     * Local triangular profile.
+     * Same stable basis as createProfileMesh().
      *
-     * The apex is exactly at (0, 0).
-     *
-     * The two bottom corners are calculated
-     * from the roof pitch.
-     *
-     * Therefore the two sides have exactly
-     * the same slope as the roof.
+     * local X = width of the trim
+     * local Y = depth/thickness of the trim
+     * local Z = longitudinal direction
      */
 
-    const baseY =
-        -halfWidth *
-        pitchRatio;
+    let upHint =
+        new THREE.Vector3(
+            0,
+            1,
+            0
+        );
+
+    if (
+        Math.abs(
+            direction.dot(
+                upHint
+            )
+        ) > 0.999
+    ) {
+        upHint =
+            new THREE.Vector3(
+                1,
+                0,
+                0
+            );
+    }
+
+    const xAxis =
+        new THREE.Vector3()
+            .crossVectors(
+                upHint,
+                direction
+            )
+            .normalize();
+
+    const yAxis =
+        new THREE.Vector3()
+            .crossVectors(
+                direction,
+                xAxis
+            )
+            .normalize();
+
+    /*
+     * The miter is made across the width of the trim.
+     *
+     * For a 45-degree cut:
+     *
+     * longitudinal offset =
+     * width offset
+     *
+     * The point at one edge of the trim therefore reaches the
+     * nominal end point while the opposite edge finishes one
+     * trim-width earlier.
+     */
+
+    const halfWidth =
+        width / 2;
+
+    const halfDepth =
+        depth / 2;
+
+    const sign =
+        miterSide >= 0
+            ? 1
+            : -1;
+
+    /*
+     * local X positions:
+     *
+     * x0 = left side
+     * x1 = right side
+     *
+     * local Z positions at the cut:
+     *
+     * z = length - sign * x
+     *
+     * Shift x so the centreline still terminates exactly at
+     * lineSeg.end.
+     */
+
+    const cutAt =
+        x => {
+            return (
+                length -
+                sign * x
+            );
+        };
+
+    const x0 =
+        -halfWidth;
+
+    const x1 =
+        halfWidth;
+
+    const z0 =
+        cutAt(x0);
+
+    const z1 =
+        cutAt(x1);
+
+    /*
+     * Clamp the cut so a pathological very short rake cannot
+     * reverse the geometry.
+     */
+
+    const minEnd =
+        Math.min(
+            z0,
+            z1
+        );
+
+    if (
+        minEnd <= 0
+    ) {
+        return createProfileMesh(
+            lineSeg,
+            material,
+            width,
+            depth
+        );
+    }
+
+    /*
+     * Vertices:
+     *
+     * Start rectangle:
+     *
+     *   0 ----- 1
+     *   |       |
+     *   2 ----- 3
+     *
+     * End rectangle is diagonal:
+     *
+     *   4 --------
+     *      \
+     *       \
+     *        5
+     *
+     * We use the complete rectangular thickness at both sides
+     * of the diagonal cut.
+     */
+
+    const vertices = [
+        /*
+         * START - upper side
+         */
+        x0,
+        -halfDepth,
+        0,
+
+        x1,
+        -halfDepth,
+        0,
+
+        /*
+         * START - lower side
+         */
+        x0,
+        halfDepth,
+        0,
+
+        x1,
+        halfDepth,
+        0,
+
+        /*
+         * END - upper side
+         */
+        x0,
+        -halfDepth,
+        z0,
+
+        x1,
+        -halfDepth,
+        z1,
+
+        /*
+         * END - lower side
+         */
+        x0,
+        halfDepth,
+        z0,
+
+        x1,
+        halfDepth,
+        z1
+    ];
+
+    /*
+     * Convert local vertices into world coordinates.
+     */
+
+    const position =
+        new Float32Array(
+            vertices.length
+        );
+
+    for (
+        let i = 0;
+        i < vertices.length;
+        i += 3
+    ) {
+        const local =
+            new THREE.Vector3(
+                vertices[i],
+                vertices[i + 1],
+                vertices[i + 2]
+            );
+
+        const world =
+            start.clone()
+                .add(
+                    xAxis
+                        .clone()
+                        .multiplyScalar(
+                            local.x
+                        )
+                )
+                .add(
+                    yAxis
+                        .clone()
+                        .multiplyScalar(
+                            local.y
+                        )
+                )
+                .add(
+                    direction
+                        .clone()
+                        .multiplyScalar(
+                            local.z
+                        )
+                );
+
+        position[i] =
+            world.x;
+
+        position[i + 1] =
+            world.y;
+
+        position[i + 2] =
+            world.z;
+    }
+
+    /*
+     * Faces.
+     *
+     * The winding is chosen so normals face outward.
+     */
+
+    const indices = [
+        /*
+         * START
+         */
+        0, 2, 1,
+        1, 2, 3,
+
+        /*
+         * TOP
+         */
+        0, 1, 5,
+        0, 5, 4,
+
+        /*
+         * BOTTOM
+         */
+        2, 6, 7,
+        2, 7, 3,
+
+        /*
+         * LEFT SIDE
+         */
+        0, 4, 6,
+        0, 6, 2,
+
+        /*
+         * RIGHT SIDE
+         */
+        1, 3, 7,
+        1, 7, 5,
+
+        /*
+         * DIAGONAL END
+         */
+        4, 5, 7,
+        4, 7, 6
+    ];
+
+    const geometry =
+        new THREE.BufferGeometry();
+
+    geometry.setAttribute(
+        'position',
+        new THREE.BufferAttribute(
+            position,
+            3
+        )
+    );
+
+    geometry.setIndex(
+        indices
+    );
+
+    geometry.computeVertexNormals();
+    geometry.computeBoundingBox();
+    geometry.computeBoundingSphere();
+
+    const mesh =
+        new THREE.Mesh(
+            geometry,
+            material
+        );
+
+    mesh.name =
+        'rake-trim';
+
+    mesh.castShadow = true;
+    mesh.receiveShadow = true;
+
+    return mesh;
+}
+
+/**
+ * L-shaped corner trim — continuous vertical profile
+ * that wraps the outside corner of two walls.
+ *
+ * sx, sz: outward wall direction signs for this corner.
+ */
+function createCornerTrimMesh(
+    corner,
+    material
+) {
+    if (
+        !corner ||
+        !corner.edge ||
+        !corner.edge.start ||
+        !corner.edge.end
+    ) {
+        return null;
+    }
+
+    const start =
+        corner.edge.start;
+
+    const end =
+        corner.edge.end;
+
+    const colH =
+        Math.abs(
+            end.y -
+            start.y
+        );
+
+    if (
+        colH <= 0.001
+    ) {
+        return null;
+    }
+
+    const tS =
+        0.10;
+
+    const t =
+        0.008;
+
+    const sx =
+        corner.sx != null
+            ? corner.sx
+            : -1;
+
+    const sz =
+        corner.sz != null
+            ? corner.sz
+            : -1;
+
+    const dirX =
+        -sx;
+
+    const dirZ =
+        -sz;
 
     const shape =
         new THREE.Shape();
 
     shape.moveTo(
-        -halfWidth,
-        baseY
-    );
-
-    shape.lineTo(
         0,
         0
     );
 
     shape.lineTo(
-        halfWidth,
-        baseY
+        dirX * tS,
+        0
+    );
+
+    shape.lineTo(
+        dirX * tS,
+        dirZ * t
+    );
+
+    shape.lineTo(
+        dirX * t,
+        dirZ * t
+    );
+
+    shape.lineTo(
+        dirX * t,
+        dirZ * tS
+    );
+
+    shape.lineTo(
+        0,
+        dirZ * tS
     );
 
     shape.closePath();
@@ -399,24 +659,34 @@ function createRidgeMesh(
         new THREE.ExtrudeGeometry(
             shape,
             {
-                depth: length,
-                steps: 1,
+                depth: colH,
                 bevelEnabled: false,
+                steps: 1,
                 curveSegments: 1
             }
         );
 
-    /*
-     * ExtrudeGeometry extends along local +Z.
-     *
-     * Center it around the actual ridge line.
-     */
-
-    geometry.translate(
-        0,
-        0,
-        -length / 2
+    geometry.rotateX(
+        -Math.PI / 2
     );
+
+    const pos =
+        geometry.attributes.position;
+
+    for (
+        let i = 0;
+        i < pos.count;
+        i++
+    ) {
+        pos.setZ(
+            i,
+            -pos.getZ(i)
+        );
+    }
+
+    pos.needsUpdate = true;
+
+    geometry.computeVertexNormals();
 
     const mesh =
         new THREE.Mesh(
@@ -424,40 +694,22 @@ function createRidgeMesh(
             material
         );
 
-    mesh.position.copy(
-        start
-            .clone()
-            .add(end)
-            .multiplyScalar(0.5)
+    mesh.name =
+        corner.id ||
+        'corner-trim';
+
+    mesh.position.set(
+        start.x,
+        Math.min(
+            start.y,
+            end.y
+        ),
+        start.z
     );
-
-    // Small downward nudge so the ridge cap's base corners sit at/just
-    // below the rake trims' outer face - tucks the ridge into the trim
-    // instead of floating above it with a visible gap underneath.
-    mesh.position.y -= RIDGE_CAP_TUCK;
-
-    /*
-     * Ridge direction is exactly the roof ridge
-     * direction: front -> back.
-     */
-
-    // FIX: same arbitrary-roll problem as createProfileMesh() above.
-    // This profile is a symmetric triangle straddling the ridge line, so
-    // an undetermined roll doesn't just look twisted - it rotates the
-    // whole triangular cap off-center, so one side digs down into the
-    // roof/rake trim instead of sitting evenly on both slopes. Using the
-    // same explicit up-hint basis keeps it symmetric.
-    let ridgeUpHint = new THREE.Vector3(0, 1, 0);
-    if (Math.abs(direction.dot(ridgeUpHint)) > 0.999) {
-        ridgeUpHint = new THREE.Vector3(1, 0, 0);
-    }
-    const ridgeXAxis = new THREE.Vector3().crossVectors(ridgeUpHint, direction).normalize();
-    const ridgeYAxis = new THREE.Vector3().crossVectors(direction, ridgeXAxis).normalize();
-    const ridgeBasis = new THREE.Matrix4().makeBasis(ridgeXAxis, ridgeYAxis, direction);
-    mesh.quaternion.setFromRotationMatrix(ridgeBasis);
 
     mesh.castShadow = true;
     mesh.receiveShadow = true;
+    mesh.renderOrder = 8;
 
     return mesh;
 }
@@ -479,7 +731,9 @@ function createObject(
         'trims';
 
     root.userData.trimGroups =
-        Object.create(null);
+        Object.create(
+            null
+        );
 
     if (
         !trimsData.enabled
@@ -487,10 +741,6 @@ function createObject(
         return root;
     }
 
-    // FIX: visibility.trims was never checked here - only the geometry's
-    // own trimsData.enabled flag gated this, so toggling trims off in
-    // visibility had no effect (this is what produced the diagonal
-    // corner-trim poles even with everything set to false).
     if (
         context.model?.visibility?.trims === false
     ) {
@@ -510,7 +760,7 @@ function createObject(
         );
 
     /*
-     * EAVE GROUP
+     * EAVE TRIMS
      */
 
     const eaveGroup =
@@ -531,7 +781,9 @@ function createObject(
                 0.06
             );
 
-        if (mesh) {
+        if (
+            mesh
+        ) {
             eaveGroup.add(
                 mesh
             );
@@ -539,7 +791,11 @@ function createObject(
     }
 
     /*
-     * ROOF / RAKE GROUP
+     * RAKE TRIMS
+     *
+     * Each rake remains parallel to its roof/wall direction.
+     *
+     * The only special treatment is the 45-degree end cut.
      */
 
     const roofTrimGroup =
@@ -552,19 +808,30 @@ function createObject(
         const rake
         of trimsData.rake
     ) {
+        /*
+         * Mirror the miter according to the side.
+         *
+         * The two opposite rake trims therefore receive opposite
+         * diagonal end cuts and meet at the same point.
+         */
+
+        const miterSide =
+            rake.slope === 'left'
+                ? 1
+                : -1;
+
         const mesh =
-            createProfileMesh(
-                extendSegmentAtRidge(
-                    rake.edge,
-                    rake.slope,
-                    computeRidgeJointExtension(context.model?.roof?.pitchRatio)
-                ),
+            createRakeTrimMesh(
+                rake.edge,
                 trimMaterial,
                 RAKE_TRIM_WIDTH,
-                RAKE_TRIM_DEPTH
+                RAKE_TRIM_DEPTH,
+                miterSide
             );
 
-        if (mesh) {
+        if (
+            mesh
+        ) {
             roofTrimGroup.add(
                 mesh
             );
@@ -572,39 +839,7 @@ function createObject(
     }
 
     /*
-     * RIDGE GROUP
-     */
-
-    const ridgeGroup =
-        new THREE.Group();
-
-    ridgeGroup.name =
-        'ridge-trim';
-
-    for (
-        const ridge
-        of trimsData.ridge
-    ) {
-        const ridgeOvershoot = computeRidgeJointExtension(context.model?.roof?.pitchRatio);
-        const extendedRidge = ridge && ridge.edge
-            ? { ...ridge, edge: extendSegmentBothEnds(ridge.edge, ridgeOvershoot) }
-            : ridge;
-
-        const mesh =
-            createRidgeMesh(
-                extendedRidge,
-                trimMaterial
-            );
-
-        if (mesh) {
-            ridgeGroup.add(
-                mesh
-            );
-        }
-    }
-
-    /*
-     * CORNER GROUP
+     * CORNER TRIMS
      */
 
     const cornerGroup =
@@ -623,7 +858,9 @@ function createObject(
                 trimMaterial
             );
 
-        if (mesh) {
+        if (
+            mesh
+        ) {
             cornerGroup.add(
                 mesh
             );
@@ -633,7 +870,6 @@ function createObject(
     root.add(
         eaveGroup,
         roofTrimGroup,
-        ridgeGroup,
         cornerGroup
     );
 
@@ -642,9 +878,6 @@ function createObject(
 
     root.userData.trimGroups.roof =
         roofTrimGroup;
-
-    root.userData.trimGroups.ridge =
-        ridgeGroup;
 
     root.userData.trimGroups.corner =
         cornerGroup;
@@ -655,7 +888,9 @@ function createObject(
 function disposeObject(
     object
 ) {
-    if (!object) {
+    if (
+        !object
+    ) {
         return;
     }
 
@@ -671,7 +906,9 @@ function disposeObject(
                 child.geometry
             ) {
                 child.geometry.dispose();
-                child.geometry = null;
+
+                child.geometry =
+                    null;
             }
         }
     );
@@ -696,7 +933,9 @@ export const TrimOrchestrator =
     Object.freeze({
         id: 'trims',
 
-        create(context) {
+        create(
+            context
+        ) {
             return createObject(
                 context
             );
@@ -706,7 +945,9 @@ export const TrimOrchestrator =
             object,
             context
         ) {
-            if (!object) {
+            if (
+                !object
+            ) {
                 return createObject(
                     context
                 );
@@ -721,7 +962,9 @@ export const TrimOrchestrator =
             );
         },
 
-        dispose(object) {
+        dispose(
+            object
+        ) {
             disposeObject(
                 object
             );

@@ -175,7 +175,7 @@ const DEFAULTS = Object.freeze({
         foundation: true,
         panels: true,
         wainscot: true,
-        frames: false,
+        frames: true,
         girts: true,
         purlins: true,
         endWallColumns: true,

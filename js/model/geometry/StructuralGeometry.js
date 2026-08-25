@@ -795,13 +795,131 @@ function createGirts(
     const baseHeight =
         envelope.height;
 
-    const maxWallHeight =
-        baseHeight;
+    const halfWidth =
+        envelope.width / 2;
+
+    const ROOF_THICKNESS =
+        0.10;
+
+    const GIRT_ROOF_CLEARANCE =
+        0.002;
+
+    const girtHalfHeight =
+        GIRT_BEAM / 2;
+
+    function roofTopHeightAtX(x) {
+        const rise =
+            Number(roof.rise) || 0;
+
+        if (
+            roof.type === 'gabled'
+        ) {
+            const distance =
+                Math.abs(x);
+
+            const fraction =
+                Math.min(
+                    1,
+                    Math.max(
+                        0,
+                        distance /
+                        halfWidth
+                    )
+                );
+
+            return (
+                baseHeight +
+                rise *
+                (
+                    1 -
+                    fraction
+                )
+            );
+        }
+
+        if (
+            roof.type === 'left-sloped'
+        ) {
+            const fraction =
+                Math.min(
+                    1,
+                    Math.max(
+                        0,
+                        (
+                            x +
+                            halfWidth
+                        ) /
+                        envelope.width
+                    )
+                );
+
+            return (
+                baseHeight +
+                rise -
+                fraction *
+                rise
+            );
+        }
+
+        if (
+            roof.type === 'right-sloped'
+        ) {
+            const fraction =
+                Math.min(
+                    1,
+                    Math.max(
+                        0,
+                        (
+                            x +
+                            halfWidth
+                        ) /
+                        envelope.width
+                    )
+                );
+
+            return (
+                baseHeight +
+                fraction *
+                rise
+            );
+        }
+
+        return baseHeight;
+    }
+
+    function maxGirtCenterHeightAtX(x) {
+        const roofTop =
+            roofTopHeightAtX(
+                x
+            );
+
+        const roofBottom =
+            roofTop -
+            ROOF_THICKNESS;
+
+        return (
+            roofBottom -
+            girtHalfHeight -
+            GIRT_ROOF_CLEARANCE
+        );
+    }
+
+    function canPlaceGirtAtY(
+        y,
+        x
+    ) {
+        return (
+            y <=
+            maxGirtCenterHeightAtX(
+                x
+            )
+        );
+    }
 
     const elevations =
         createPositions(
             spacing,
-            maxWallHeight,
+            baseHeight,
             spacing
         );
 
@@ -810,8 +928,68 @@ function createGirts(
             (
                 y,
                 index
-            ) =>
-                Object.freeze({
+            ) => {
+                const frontSegments =
+                    canPlaceGirtAtY(
+                        y,
+                        -halfWidth
+                    )
+                        ? createSideSegments(
+                            'F',
+                            y,
+                            envelope,
+                            roof,
+                            openings,
+                            wallThickness
+                        )
+                        : [];
+
+                const backSegments =
+                    canPlaceGirtAtY(
+                        y,
+                        -halfWidth
+                    )
+                        ? createSideSegments(
+                            'B',
+                            y,
+                            envelope,
+                            roof,
+                            openings,
+                            wallThickness
+                        )
+                        : [];
+
+                const leftSegments =
+                    canPlaceGirtAtY(
+                        y,
+                        -halfWidth
+                    )
+                        ? createSideSegments(
+                            'L',
+                            y,
+                            envelope,
+                            roof,
+                            openings,
+                            wallThickness
+                        )
+                        : [];
+
+                const rightSegments =
+                    canPlaceGirtAtY(
+                        y,
+                        halfWidth
+                    )
+                        ? createSideSegments(
+                            'R',
+                            y,
+                            envelope,
+                            roof,
+                            openings,
+                            wallThickness
+                        )
+                        : [];
+
+                return Object.freeze({
                     index,
 
                     elevation:
@@ -819,64 +997,28 @@ function createGirts(
 
                     frontSegments:
                         Object.freeze(
-                            y <= baseHeight
-                                ? createSideSegments(
-                                    'F',
-                                    y,
-                                    envelope,
-                                    roof,
-                                    openings,
-                                    wallThickness
-                                )
-                                : []
+                            frontSegments
                         ),
 
                     backSegments:
                         Object.freeze(
-                            y <= baseHeight
-                                ? createSideSegments(
-                                    'B',
-                                    y,
-                                    envelope,
-                                    roof,
-                                    openings,
-                                    wallThickness
-                                )
-                                : []
+                            backSegments
                         ),
 
                     leftSegments:
                         Object.freeze(
-                            y <= baseHeight
-                                ? createSideSegments(
-                                    'L',
-                                    y,
-                                    envelope,
-                                    roof,
-                                    openings,
-                                    wallThickness
-                                )
-                                : []
+                            leftSegments
                         ),
 
                     rightSegments:
                         Object.freeze(
-                            y <= baseHeight
-                                ? createSideSegments(
-                                    'R',
-                                    y,
-                                    envelope,
-                                    roof,
-                                    openings,
-                                    wallThickness
-                                )
-                                : []
+                            rightSegments
                         )
-                })
+                });
+            }
         )
     );
 }
-
 function createPurlins(
     envelope,
     roof,
