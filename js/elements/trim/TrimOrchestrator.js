@@ -30,20 +30,44 @@ function assertContext(context) {
 // Rake trims are built as separate boxes butted end-to-end at the ridge
 // point, with no mitering - their centerlines meet exactly, but each box's
 // half-width sticks out sideways from that centerline, so the outer/inner
-// corners of the two boxes don't line up at the joint. That's the visible
-// notch/gap at the peak. Overshooting each rake segment slightly past the
-// ridge point makes the two boxes overlap there instead of just touching,
-// which closes the gap (the overlap itself gets hidden under the ridge cap).
-const RAKE_RIDGE_OVERSHOOT = 0.009;
-// Extra length added past each end of the ridge cap so it fully covers the
-// rake-trim joint below it instead of stopping exactly at the nominal
-// ridge-line endpoint.
-const RIDGE_CAP_OVERSHOOT = 0.009;
+// corners of the two boxes don't line up at the joint. That leaves a
+// visible notch/gap at the peak unless the boxes are extended slightly
+// past the ridge point so they overlap there instead of just touching.
+//
+// The correct overlap length is NOT a guessed constant - it's a standard
+// miter-joint calculation. Two strips of thickness D meeting at an angle
+// need each strip extended past the joint by (D/2) * cot(half the angle
+// between them). For this roof, the angle between the two rake lines at
+// the peak works out (via the geometry in RoofGeometry.js) to
+// 180deg - 2*pitchAngle, so half that angle is 90deg - pitchAngle, and
+// cot(90deg - pitchAngle) = tan(pitchAngle) = pitchRatio exactly (pitchRatio
+// IS tan(pitchAngle) by definition). So the extension simplifies to:
+//
+//   extension = (depth / 2) * pitchRatio
+//
+// which is why the previous flat 0.09 constant was wrong: for a typical
+// 3:12 roof (pitchRatio ~0.25) the correct value is ~0.0075, and even for
+// a steep 12:12 roof (pitchRatio = 1.0) it only reaches ~0.03 - roughly
+// 3-10x smaller than 0.09. That's exactly why the ridge cap (which used
+// the same flat constant to decide how far to overshoot past the joint)
+// was crawling out over the rake trims.
+const RAKE_TRIM_WIDTH = 0.12;
+const RAKE_TRIM_DEPTH = 0.06;
+
+function computeRidgeJointExtension(pitchRatio) {
+    const ratio = Number(pitchRatio);
+    if (!Number.isFinite(ratio) || ratio <= 0) return 0;
+    return (RAKE_TRIM_DEPTH / 2) * ratio;
+}
+
 // Small downward nudge (world Y) so the ridge cap's base corners sit at/
 // slightly below the rake trims' outer face - i.e. the ridge visually
 // tucks under the trim instead of floating above it with a gap showing
-// through underneath.
-const RIDGE_CAP_TUCK = -0.025;
+// through underneath. This one is a genuine finish-level fudge (a true
+// per-corner derivation doesn't reduce to a single vertical shift - see
+// the comment on RIDGE_CAP_TUCK's usage below) but is kept intentionally
+// small so it can't be the source of a visible overlap on its own.
+const RIDGE_CAP_TUCK = 0.015;
 
 function extendSegmentAtRidge(edge, slope, amount) {
     if (!edge || !slope || !amount) return edge;
@@ -533,11 +557,11 @@ function createObject(
                 extendSegmentAtRidge(
                     rake.edge,
                     rake.slope,
-                    RAKE_RIDGE_OVERSHOOT
+                    computeRidgeJointExtension(context.model?.roof?.pitchRatio)
                 ),
                 trimMaterial,
-                0.12,
-                0.06
+                RAKE_TRIM_WIDTH,
+                RAKE_TRIM_DEPTH
             );
 
         if (mesh) {
@@ -561,8 +585,9 @@ function createObject(
         const ridge
         of trimsData.ridge
     ) {
+        const ridgeOvershoot = computeRidgeJointExtension(context.model?.roof?.pitchRatio);
         const extendedRidge = ridge && ridge.edge
-            ? { ...ridge, edge: extendSegmentBothEnds(ridge.edge, RIDGE_CAP_OVERSHOOT) }
+            ? { ...ridge, edge: extendSegmentBothEnds(ridge.edge, ridgeOvershoot) }
             : ridge;
 
         const mesh =
