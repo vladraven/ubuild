@@ -30,6 +30,9 @@ function assertContext(context) {
 const RAKE_TRIM_WIDTH = 0.12;
 const RAKE_TRIM_DEPTH = 0.06;
 
+const CORNER_TRIM_LEG = 0.10;
+const CORNER_TRIM_THICKNESS = 0.008;
+
 function resolveMaterial(
     context,
     name = 'trimMetal'
@@ -172,26 +175,17 @@ function createProfileMesh(
 }
 
 /*
- * Creates a rake trim whose longitudinal axis remains exactly on
- * lineSeg.start -> lineSeg.end.
+ * TOP / RAKE TRIM
  *
- * The only difference from createProfileMesh() is the final end cut.
+ * The longitudinal axis remains exactly on lineSeg.
  *
- * The cut is a 45-degree miter:
+ * The terminal plane is cut at 45 degrees
+ * across the width of the profile.
  *
- *     ─────────────────╲
- *                      ╲
- *                       ●
+ * The centerline end remains exactly at lineSeg.end.
  *
- * The centerline itself is NOT rotated.
- *
- * The end plane is diagonal across the width of the trim so that
- * two perpendicular rake trims can meet at one common building
- * corner/ridge point without producing the old M-shaped overlap.
- *
- * miterSide:
- *     -1 = diagonal runs one way across the profile
- *     +1 = mirrored diagonal
+ * The two opposite rake trims therefore receive
+ * mirrored terminal cuts and meet at one point.
  */
 function createRakeTrimMesh(
     lineSeg,
@@ -236,14 +230,6 @@ function createRakeTrimMesh(
 
     direction.normalize();
 
-    /*
-     * Same stable basis as createProfileMesh().
-     *
-     * local X = width of the trim
-     * local Y = depth/thickness of the trim
-     * local Z = longitudinal direction
-     */
-
     let upHint =
         new THREE.Vector3(
             0,
@@ -282,19 +268,6 @@ function createRakeTrimMesh(
             )
             .normalize();
 
-    /*
-     * The miter is made across the width of the trim.
-     *
-     * For a 45-degree cut:
-     *
-     * longitudinal offset =
-     * width offset
-     *
-     * The point at one edge of the trim therefore reaches the
-     * nominal end point while the opposite edge finishes one
-     * trim-width earlier.
-     */
-
     const halfWidth =
         width / 2;
 
@@ -307,26 +280,18 @@ function createRakeTrimMesh(
             : -1;
 
     /*
-     * local X positions:
+     * 45-degree cut:
      *
-     * x0 = left side
-     * x1 = right side
+     * dz / dx = 1
      *
-     * local Z positions at the cut:
-     *
-     * z = length - sign * x
-     *
-     * Shift x so the centreline still terminates exactly at
-     * lineSeg.end.
+     * Therefore the longitudinal displacement
+     * equals the transverse displacement.
      */
 
     const cutAt =
-        x => {
-            return (
-                length -
-                sign * x
-            );
-        };
+        x =>
+            length -
+            sign * x;
 
     const x0 =
         -halfWidth;
@@ -340,19 +305,11 @@ function createRakeTrimMesh(
     const z1 =
         cutAt(x1);
 
-    /*
-     * Clamp the cut so a pathological very short rake cannot
-     * reverse the geometry.
-     */
-
-    const minEnd =
+    if (
         Math.min(
             z0,
             z1
-        );
-
-    if (
-        minEnd <= 0
+        ) <= 0
     ) {
         return createProfileMesh(
             lineSeg,
@@ -362,29 +319,9 @@ function createRakeTrimMesh(
         );
     }
 
-    /*
-     * Vertices:
-     *
-     * Start rectangle:
-     *
-     *   0 ----- 1
-     *   |       |
-     *   2 ----- 3
-     *
-     * End rectangle is diagonal:
-     *
-     *   4 --------
-     *      \
-     *       \
-     *        5
-     *
-     * We use the complete rectangular thickness at both sides
-     * of the diagonal cut.
-     */
-
-    const vertices = [
+    const localVertices = [
         /*
-         * START - upper side
+         * START / TOP
          */
         x0,
         -halfDepth,
@@ -395,7 +332,7 @@ function createRakeTrimMesh(
         0,
 
         /*
-         * START - lower side
+         * START / BOTTOM
          */
         x0,
         halfDepth,
@@ -406,7 +343,7 @@ function createRakeTrimMesh(
         0,
 
         /*
-         * END - upper side
+         * MITER / TOP
          */
         x0,
         -halfDepth,
@@ -417,7 +354,7 @@ function createRakeTrimMesh(
         z1,
 
         /*
-         * END - lower side
+         * MITER / BOTTOM
          */
         x0,
         halfDepth,
@@ -428,29 +365,26 @@ function createRakeTrimMesh(
         z1
     ];
 
-    /*
-     * Convert local vertices into world coordinates.
-     */
-
-    const position =
+    const positions =
         new Float32Array(
-            vertices.length
+            localVertices.length
         );
 
     for (
         let i = 0;
-        i < vertices.length;
+        i < localVertices.length;
         i += 3
     ) {
         const local =
             new THREE.Vector3(
-                vertices[i],
-                vertices[i + 1],
-                vertices[i + 2]
+                localVertices[i],
+                localVertices[i + 1],
+                localVertices[i + 2]
             );
 
         const world =
-            start.clone()
+            start
+                .clone()
                 .add(
                     xAxis
                         .clone()
@@ -473,21 +407,15 @@ function createRakeTrimMesh(
                         )
                 );
 
-        position[i] =
+        positions[i] =
             world.x;
 
-        position[i + 1] =
+        positions[i + 1] =
             world.y;
 
-        position[i + 2] =
+        positions[i + 2] =
             world.z;
     }
-
-    /*
-     * Faces.
-     *
-     * The winding is chosen so normals face outward.
-     */
 
     const indices = [
         /*
@@ -509,19 +437,19 @@ function createRakeTrimMesh(
         2, 7, 3,
 
         /*
-         * LEFT SIDE
+         * LEFT
          */
         0, 4, 6,
         0, 6, 2,
 
         /*
-         * RIGHT SIDE
+         * RIGHT
          */
         1, 3, 7,
         1, 7, 5,
 
         /*
-         * DIAGONAL END
+         * 45-DEGREE END
          */
         4, 5, 7,
         4, 7, 6
@@ -533,7 +461,7 @@ function createRakeTrimMesh(
     geometry.setAttribute(
         'position',
         new THREE.BufferAttribute(
-            position,
+            positions,
             3
         )
     );
@@ -561,11 +489,29 @@ function createRakeTrimMesh(
     return mesh;
 }
 
-/**
- * L-shaped corner trim — continuous vertical profile
- * that wraps the outside corner of two walls.
+/*
+ * CORNER TRIM
  *
- * sx, sz: outward wall direction signs for this corner.
+ * L-shaped vertical profile.
+ *
+ * The profile itself stays vertical and parallel
+ * to the building walls.
+ *
+ * The two free ends of the L are cut at 45 degrees.
+ *
+ * Top view:
+ *
+ *       /
+ *      /
+ *     ┌────────
+ *     │
+ *     │
+ *     │
+ *     └────────
+ *          \
+ *           \
+ *
+ * There is no change to the vertical axis.
  */
 function createCornerTrimMesh(
     corner,
@@ -598,11 +544,11 @@ function createCornerTrimMesh(
         return null;
     }
 
-    const tS =
-        0.10;
+    const leg =
+        CORNER_TRIM_LEG;
 
-    const t =
-        0.008;
+    const thickness =
+        CORNER_TRIM_THICKNESS;
 
     const sx =
         corner.sx != null
@@ -620,38 +566,85 @@ function createCornerTrimMesh(
     const dirZ =
         -sz;
 
+    /*
+     * L profile with 45-degree cuts
+     * on BOTH free ends.
+     *
+     * Without the cuts the profile was:
+     *
+     * 0 ───────────── 1
+     * │               │
+     * │       2 ──────┘
+     * │       │
+     * 5 ──────┘
+     *
+     * The new points move the free ends by
+     * exactly one material thickness.
+     *
+     * Since dx = dz, these are 45-degree cuts.
+     */
+
+    const cut =
+        thickness;
+
     const shape =
         new THREE.Shape();
+
+    /*
+     * Start at the building corner.
+     */
 
     shape.moveTo(
         0,
         0
     );
 
+    /*
+     * FIRST LEG
+     *
+     * 45-degree cut at the outer/free end.
+     */
+
     shape.lineTo(
-        dirX * tS,
+        dirX *
+            (leg - cut),
         0
     );
 
     shape.lineTo(
-        dirX * tS,
-        dirZ * t
+        dirX * leg,
+        dirZ * thickness
     );
 
-    shape.lineTo(
-        dirX * t,
-        dirZ * t
-    );
+    /*
+     * Inside of the L.
+     */
 
     shape.lineTo(
-        dirX * t,
-        dirZ * tS
+        dirX * thickness,
+        dirZ * thickness
+    );
+
+    /*
+     * SECOND LEG
+     *
+     * 45-degree cut at its free end.
+     */
+
+    shape.lineTo(
+        dirX * thickness,
+        dirZ *
+            (leg - cut)
     );
 
     shape.lineTo(
         0,
-        dirZ * tS
+        dirZ * leg
     );
+
+    /*
+     * Back to the building corner.
+     */
 
     shape.closePath();
 
@@ -665,6 +658,10 @@ function createCornerTrimMesh(
                 curveSegments: 1
             }
         );
+
+    /*
+     * Extrusion is the vertical axis.
+     */
 
     geometry.rotateX(
         -Math.PI / 2
@@ -687,6 +684,8 @@ function createCornerTrimMesh(
     pos.needsUpdate = true;
 
     geometry.computeVertexNormals();
+    geometry.computeBoundingBox();
+    geometry.computeBoundingSphere();
 
     const mesh =
         new THREE.Mesh(
@@ -709,7 +708,9 @@ function createCornerTrimMesh(
 
     mesh.castShadow = true;
     mesh.receiveShadow = true;
-    mesh.renderOrder = 8;
+
+    mesh.renderOrder =
+        8;
 
     return mesh;
 }
@@ -791,11 +792,7 @@ function createObject(
     }
 
     /*
-     * RAKE TRIMS
-     *
-     * Each rake remains parallel to its roof/wall direction.
-     *
-     * The only special treatment is the 45-degree end cut.
+     * TOP / RAKE TRIMS
      */
 
     const roofTrimGroup =
@@ -809,10 +806,10 @@ function createObject(
         of trimsData.rake
     ) {
         /*
-         * Mirror the miter according to the side.
+         * Opposite rake sides get opposite
+         * 45-degree terminal cuts.
          *
-         * The two opposite rake trims therefore receive opposite
-         * diagonal end cuts and meet at the same point.
+         * The rake itself is never rotated.
          */
 
         const miterSide =
