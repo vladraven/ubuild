@@ -26,26 +26,31 @@ const OPENING_DEFS = Object.freeze({
         height: 1.0,
         yOff: 1.0
     }),
+
     'Walk Door Solid': Object.freeze({
         width: 1.0,
         height: 2.1,
         yOff: 0
     }),
+
     'Walk Door Solid Double': Object.freeze({
         width: 2.0,
         height: 2.1,
         yOff: 0
     }),
+
     'Overhead Panel Door': Object.freeze({
         width: 3.0,
         height: 3.0,
         yOff: 0
     }),
+
     'Bi-Fold Door': Object.freeze({
         width: 4.0,
         height: 3.0,
         yOff: 0
     }),
+
     'Hydraulic Door': Object.freeze({
         width: 4.0,
         height: 3.0,
@@ -79,13 +84,13 @@ const DEFAULT_COLORS = Object.freeze({
     trim: '#FFFFFF',
     eaveTrim: '#FFFFFF',
     rakeTrim: '#FFFFFF',
-    frame: '#444444',
-    steel: '#444444',
+    frame: '#FFFFFF',
+    steel: '#FFFFFF',
     concrete: '#B8B8B8',
     glass: '#9FC5E8',
     ceiling: '#FFFFFF',
     mezzanine: '#FFFFFF',
-    interiorWall: '#EEEEEE'
+    interiorWall: '#FFFFFF'
 });
 
 const DEFAULTS = Object.freeze({
@@ -97,13 +102,17 @@ const DEFAULTS = Object.freeze({
 
     roof: Object.freeze({
         type: 'gabled',
-        pitchRatio: 0.1666666667,
-        overhangs: Object.freeze({
-            front: 0,
-            back: 0,
-            left: 0,
-            right: 0
-        })
+
+        pitchRatio:
+            0.1666666667,
+
+        overhangs:
+            Object.freeze({
+                front: 0,
+                back: 0,
+                left: 0,
+                right: 0
+            })
     }),
 
     walls: Object.freeze({
@@ -112,61 +121,77 @@ const DEFAULTS = Object.freeze({
 
     panels: Object.freeze({
         profile: 'awr',
-        wallHeight: 4.8768,
-        wainscotHeight: 0.9144
-    }),
 
-    foundation: Object.freeze({
-        enabled: true,
-        height: 0.3048
+        wallHeight:
+            4.8768,
+
+        wainscotHeight:
+            0.9144
     }),
 
     colors: DEFAULT_COLORS,
 
-    openings: Object.freeze([]),
+    foundation: Object.freeze({
+        enabled: true,
 
-    awnings: DEFAULT_AWNINGS,
+        height:
+            0.3048
+    }),
+
+    openings:
+        Object.freeze([]),
+
+    awnings:
+        DEFAULT_AWNINGS,
 
     liner: Object.freeze({
         enabled: false,
+
         height: 0,
+
         thickness: 0
     }),
 
     mezzanine: Object.freeze({
         enabled: false,
+
         coverage: 0,
+
         z: 0,
+
         height: 0,
+
         color: null
     }),
 
     crane: Object.freeze({
         enabled: false,
+
         z: 0,
+
         zPercent: 0
     }),
 
     driveway: Object.freeze({
         enabled: false,
+
         width: 0,
+
         length: 0,
+
         height: 0
     }),
 
-    /*
-     * Legacy logo defaults.
-     *
-     * The logo exists by default.
-     * It can still be disabled explicitly
-     * with logo.enabled = false.
-     */
     logo: Object.freeze({
-        enabled: true,
-        width: 1.0,
-        height: 0.33,
-        thickness: 0.08,
-        margin: 0.5
+        enabled: false,
+
+        width: 0,
+
+        height: 0,
+
+        thickness: 0,
+
+        margin: 0
     }),
 
     visibility: Object.freeze({
@@ -194,39 +219,40 @@ const DEFAULTS = Object.freeze({
 
 const LIMITS = Object.freeze({
     width: Object.freeze({
-        min: 3.0,
-        max: 60.0
+        min: 6.096,
+        max: 24.384
     }),
 
     length: Object.freeze({
-        min: 3.0,
-        max: 120.0
+        min: 12.192,
+        max: 45.72
     }),
 
     height: Object.freeze({
-        min: 2.0,
-        max: 20.0
+        min: 3.048,
+        max: 7.3152
     }),
 
     overhang: Object.freeze({
         min: 0,
-        max: 5.0
+        max: 1.524
     }),
 
     foundationHeight: Object.freeze({
         min: 0,
-        max: 2.0
+        max: 0.6096
     }),
 
     wallThickness: Object.freeze({
-        min: 0.01,
-        max: 1.0
-    }),
-
-    craneZPercent: Object.freeze({
         min: 0,
         max: 1
-    })
+    }),
+
+    craneZPercent:
+        Object.freeze({
+            min: 0,
+            max: 1
+        })
 });
 
 function clone(value) {
@@ -406,7 +432,9 @@ function validateRoof(
         ]
     ) {
         assertRange(
-            model.roof.overhangs[side],
+            model.roof.overhangs[
+                side
+            ],
             LIMITS.overhang.min,
             LIMITS.overhang.max,
             `roof.overhangs.${side}`
@@ -429,8 +457,10 @@ function validatePanels(
     model
 ) {
     if (
-        typeof model.panels.profile !== 'string' ||
-        model.panels.profile.trim() === ''
+        typeof model.panels.profile !==
+            'string' ||
+        model.panels.profile.trim() ===
+            ''
     ) {
         throw new TypeError(
             'panels.profile is required'
@@ -446,6 +476,71 @@ function validatePanels(
         model.panels.wainscotHeight,
         'panels.wainscotHeight'
     );
+
+    if (
+        model.panels.wallHeight <= 0
+    ) {
+        throw new RangeError(
+            'panels.wallHeight must be greater than zero'
+        );
+    }
+
+    if (
+        model.panels.wallHeight >
+        model.dimensions.height
+    ) {
+        throw new RangeError(
+            'panels.wallHeight cannot exceed building height'
+        );
+    }
+
+    if (
+        model.panels.wainscotHeight < 0
+    ) {
+        throw new RangeError(
+            'panels.wainscotHeight cannot be negative'
+        );
+    }
+
+    if (
+        model.panels.wainscotHeight >
+        model.panels.wallHeight
+    ) {
+        throw new RangeError(
+            'panels.wainscotHeight cannot exceed panel wall height'
+        );
+    }
+}
+
+function validateColors(
+    model
+) {
+    if (
+        !model.colors ||
+        typeof model.colors !== 'object' ||
+        Array.isArray(model.colors)
+    ) {
+        throw new TypeError(
+            'colors must be an object'
+        );
+    }
+
+    for (
+        const [name, value]
+        of Object.entries(DEFAULT_COLORS)
+    ) {
+        const color =
+            model.colors[name];
+
+        if (
+            typeof color !== 'string' ||
+            !/^#[0-9A-Fa-f]{6}$/.test(color)
+        ) {
+            throw new TypeError(
+                `colors.${name} must be a #RRGGBB color`
+            );
+        }
+    }
 }
 
 function validateFoundation(
@@ -459,72 +554,185 @@ function validateFoundation(
     );
 }
 
-function validateLogo(
-    model
+function validateAwningSide(
+    side,
+    name
 ) {
     if (
-        typeof model.logo.enabled !== 'boolean'
+        !side ||
+        typeof side !== 'object'
     ) {
         throw new TypeError(
-            'logo.enabled must be boolean'
+            `${name} must be an object`
+        );
+    }
+
+    for (
+        const field
+        of [
+            'depth',
+            'drop',
+            'pitch',
+            'cutL',
+            'cutR'
+        ]
+    ) {
+        assertFinite(
+            side[field],
+            `${name}.${field}`
+        );
+
+        if (
+            side[field] < 0
+        ) {
+            throw new RangeError(
+                `${name}.${field} cannot be negative`
+            );
+        }
+    }
+}
+
+function validateAwnings(
+    model
+) {
+    for (
+        const side
+        of SIDES
+    ) {
+        validateAwningSide(
+            model.awnings[side],
+            `awnings.${side}`
+        );
+    }
+}
+
+function validateCrane(
+    model
+) {
+    const crane =
+        model.crane;
+
+    assertRange(
+        crane.z,
+        LIMITS.craneZPercent.min,
+        LIMITS.craneZPercent.max,
+        'crane.z'
+    );
+
+    assertRange(
+        crane.zPercent,
+        LIMITS.craneZPercent.min,
+        LIMITS.craneZPercent.max,
+        'crane.zPercent'
+    );
+
+    if (
+        crane.z !==
+        crane.zPercent
+    ) {
+        throw new RangeError(
+            'crane.z and crane.zPercent must represent the same position'
+        );
+    }
+}
+
+function validateOpening(
+    opening,
+    index
+) {
+    if (
+        !opening ||
+        typeof opening !== 'object'
+    ) {
+        throw new TypeError(
+            `openings[${index}] must be an object`
+        );
+    }
+
+    if (
+        typeof opening.id !==
+            'string' ||
+        opening.id.trim() ===
+            ''
+    ) {
+        throw new TypeError(
+            `openings[${index}].id is required`
+        );
+    }
+
+    if (
+        !OPENING_TYPES.includes(
+            opening.type
+        )
+    ) {
+        throw new RangeError(
+            `Unsupported opening type: ${opening.type}`
+        );
+    }
+
+    if (
+        !SIDES.includes(
+            opening.side
+        )
+    ) {
+        throw new RangeError(
+            `Unsupported opening side: ${opening.side}`
         );
     }
 
     assertFinite(
-        model.logo.width,
-        'logo.width'
+        opening.width,
+        `openings[${index}].width`
     );
 
     assertFinite(
-        model.logo.height,
-        'logo.height'
+        opening.height,
+        `openings[${index}].height`
     );
 
     assertFinite(
-        model.logo.thickness,
-        'logo.thickness'
+        opening.x,
+        `openings[${index}].x`
     );
 
     assertFinite(
-        model.logo.margin,
-        'logo.margin'
+        opening.yOff,
+        `openings[${index}].yOff`
     );
 
     if (
-        model.logo.enabled
+        opening.width <= 0
     ) {
-        if (
-            model.logo.width <= 0
-        ) {
-            throw new RangeError(
-                'logo.width must be greater than zero'
-            );
-        }
-
-        if (
-            model.logo.height <= 0
-        ) {
-            throw new RangeError(
-                'logo.height must be greater than zero'
-            );
-        }
-
-        if (
-            model.logo.thickness <= 0
-        ) {
-            throw new RangeError(
-                'logo.thickness must be greater than zero'
-            );
-        }
-
-        if (
-            model.logo.margin < 0
-        ) {
-            throw new RangeError(
-                'logo.margin must not be negative'
-            );
-        }
+        throw new RangeError(
+            `openings[${index}].width must be greater than zero`
+        );
     }
+
+    if (
+        opening.height <= 0
+    ) {
+        throw new RangeError(
+            `openings[${index}].height must be greater than zero`
+        );
+    }
+}
+
+function validateOpenings(
+    model
+) {
+    if (
+        !Array.isArray(
+            model.openings
+        )
+    ) {
+        throw new TypeError(
+            'openings must be an array'
+        );
+    }
+
+    model.openings.forEach(
+        validateOpening
+    );
 }
 
 function validate(
@@ -546,11 +754,23 @@ function validate(
         model
     );
 
+    validateColors(
+        model
+    );
+
     validateFoundation(
         model
     );
 
-    validateLogo(
+    validateAwnings(
+        model
+    );
+
+    validateCrane(
+        model
+    );
+
+    validateOpenings(
         model
     );
 
@@ -567,16 +787,20 @@ export function createBuildingModel(
         );
 
     if (
-        model.crane.zPercent === undefined &&
-        model.crane.z !== undefined
+        model.crane.zPercent ===
+        undefined &&
+        model.crane.z !==
+            undefined
     ) {
         model.crane.zPercent =
             model.crane.z;
     }
 
     if (
-        model.crane.z === undefined &&
-        model.crane.zPercent !== undefined
+        model.crane.z ===
+        undefined &&
+        model.crane.zPercent !==
+            undefined
     ) {
         model.crane.z =
             model.crane.zPercent;

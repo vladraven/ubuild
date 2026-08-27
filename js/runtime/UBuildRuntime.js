@@ -1,296 +1,653 @@
 import * as THREE from 'three';
-import { createBuildingModel } from '../model/buildingModel.js';
-import { createBuildingGeometry } from '../model/geometry/buildingGeometry.js';
-import { createElementRegistry } from '../elements/ElementRegistry.js';
-import { WallOrchestrator } from '../elements/wall/WallOrchestrator.js';
-import { RoofOrchestrator } from '../elements/roof/RoofOrchestrator.js';
-import { FoundationOrchestrator } from '../elements/foundation/FoundationOrchestrator.js';
-import { StructuralOrchestrator } from '../elements/structural/StructuralOrchestrator.js';
-import { OpeningOrchestrator } from '../elements/opening/OpeningOrchestrator.js';
-import { WainscotOrchestrator } from '../elements/wainscot/WainscotOrchestrator.js';
-import { TrimOrchestrator } from '../elements/trim/TrimOrchestrator.js';
-import { GuttersOrchestrator } from '../elements/gutters/GuttersOrchestrator.js';
-import { RidgeOrchestrator } from '../elements/ridge/RidgeOrchestrator.js';
-import { MezzanineOrchestrator } from '../elements/mezzanine/MezzanineOrchestrator.js';
-import { CraneOrchestrator } from '../elements/crane/CraneOrchestrator.js';
-import { LinerOrchestrator } from '../elements/liner/LinerOrchestrator.js';
-import { DrivewayOrchestrator } from '../elements/driveway/DrivewayOrchestrator.js';
-import { LogoOrchestrator } from '../elements/logo/LogoOrchestrator.js';
-import { AwningElement } from '../elements/awning/AwningElement.js';
-import { createEnvironmentSystem } from '../environment/EnvironmentSystem.js';
-import { createLightingSystem } from '../lighting/LightingSystem.js';
-import { getSolarState } from '../lighting/SolarPosition.js';
-import { createCameraControls } from '../interaction/CameraControls.js';
-import { createOpeningInteraction } from '../interaction/OpeningInteraction.js';
-import { createMaterialCatalog } from '../resources/materials/MaterialCatalog.js';
-import { createMaterial, updateMaterialColor, disposeMaterial } from '../resources/materials/MaterialFactory.js';
-import { createColorPalette } from '../resources/colors/ColorPalette.js';
-import { createTextureCatalog } from '../resources/textures/TextureCatalog.js';
-import { createTextureManager } from '../resources/textures/TextureManager.js';
-import { createReferenceModelsOrchestrator } from '../elements/referenceModels/ReferenceModelsOrchestrator.js';
-import { createReferenceModelInteraction } from '../interaction/ReferenceModelInteraction.js';
-import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
-import { disposePanelNormalMaps } from '../panels/PanelProfiles.js';
+
+import {
+    createBuildingModel
+}
+from '../model/buildingModel.js';
+import {
+    createBuildingGeometry
+}
+from '../model/geometry/buildingGeometry.js';
+import {
+    createElementRegistry
+}
+from '../elements/ElementRegistry.js';
+
+import {
+    WallOrchestrator
+}
+from '../elements/wall/WallOrchestrator.js';
+import {
+    RoofOrchestrator
+}
+from '../elements/roof/RoofOrchestrator.js';
+import {
+    FoundationOrchestrator
+}
+from '../elements/foundation/FoundationOrchestrator.js';
+import {
+    StructuralOrchestrator
+}
+from '../elements/structural/StructuralOrchestrator.js';
+import {
+    OpeningOrchestrator
+}
+from '../elements/opening/OpeningOrchestrator.js';
+import {
+    WainscotOrchestrator
+}
+from '../elements/wainscot/WainscotOrchestrator.js';
+import {
+    TrimOrchestrator
+}
+from '../elements/trim/TrimOrchestrator.js';
+import {
+    GuttersOrchestrator
+}
+from '../elements/gutters/GuttersOrchestrator.js';
+import {
+    RidgeOrchestrator
+}
+from '../elements/ridge/RidgeOrchestrator.js';
+import {
+    MezzanineOrchestrator
+}
+from '../elements/mezzanine/MezzanineOrchestrator.js';
+import {
+    CraneOrchestrator
+}
+from '../elements/crane/CraneOrchestrator.js';
+import {
+    LinerOrchestrator
+}
+from '../elements/liner/LinerOrchestrator.js';
+import {
+    DrivewayOrchestrator
+}
+from '../elements/driveway/DrivewayOrchestrator.js';
+import {
+    LogoOrchestrator
+}
+from '../elements/logo/LogoOrchestrator.js';
+import {
+    AwningElement
+}
+from '../elements/awning/AwningElement.js';
+
+import {
+    createEnvironmentSystem
+}
+from '../environment/EnvironmentSystem.js';
+import {
+    createLightingSystem
+}
+from '../lighting/LightingSystem.js';
+import {
+    getSolarState
+}
+from '../lighting/SolarPosition.js';
+import {
+    createCameraControls
+}
+from '../interaction/CameraControls.js';
+import {
+    createOpeningInteraction
+}
+from '../interaction/OpeningInteraction.js';
 
 function assertContainer(container) {
-    if (!container || typeof container.appendChild !== 'function') {
-        throw new TypeError('A valid DOM container element is required');
+    if (
+        !container ||
+        typeof container.appendChild !== 'function') {
+        throw new TypeError(
+            'A valid DOM container element is required');
     }
 }
 
 function createScene() {
-    const scene = new THREE.Scene();
-    // Background & fog are driven by EnvironmentSystem (season / time / weather)
-    scene.background = new THREE.Color(0x76b6e4);
-    scene.fog = new THREE.FogExp2(0x76b6e4, 0.0008);
+    const scene =
+        new THREE.Scene();
+
+    scene.background =
+        new THREE.Color(
+            0x8ec3eb);
+
     return scene;
 }
 
-function createCamera(container, geometry) {
-    const width = Math.max(container.clientWidth, 1);
-    const height = Math.max(container.clientHeight, 1);
-    const camera = new THREE.PerspectiveCamera(45, width / height, 0.1, 5000);
-    const center = geometry.bounds.center;
-    const size = Math.max(
-        geometry.bounds.width,
-        geometry.bounds.height,
-        geometry.bounds.length,
-        1
-    );
+function createCamera(
+    container,
+    geometry) {
+    const width =
+        Math.max(
+            container.clientWidth,
+            1);
+
+    const height =
+        Math.max(
+            container.clientHeight,
+            1);
+
+    const camera =
+        new THREE.PerspectiveCamera(
+            45,
+            width / height,
+            0.1,
+            5000);
+
+    const bounds =
+        geometry.bounds;
+
+    const center =
+        bounds.center;
+
+    const size =
+        Math.max(
+            bounds.width,
+            bounds.height,
+            bounds.length,
+            1);
+
     camera.position.set(
-        center.x + size * 1.3,
-        center.y + size * 0.8,
-        center.z + size * 1.3
-    );
-    camera.lookAt(center.x, center.y, center.z);
+        center.x + size * 1.4,
+        center.y + size * 0.9,
+        center.z + size * 1.4);
+
+    camera.lookAt(
+        center.x,
+        center.y,
+        center.z);
+
     return camera;
 }
 
-function createRenderer(container) {
-    const renderer = new THREE.WebGLRenderer({
-        antialias: true,
-        powerPreference: 'high-performance',
-        preserveDrawingBuffer: true
-    });
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+function createRenderer(
+    container) {
+    const renderer =
+        new THREE.WebGLRenderer({
+            antialias: true,
+            powerPreference:
+            'high-performance',
+            preserveDrawingBuffer: true
+        });
+
+    renderer.setPixelRatio(
+        Math.min(
+            window.devicePixelRatio || 1,
+            2));
+
     renderer.setSize(
-        Math.max(container.clientWidth, 1),
-        Math.max(container.clientHeight, 1)
-    );
-    renderer.shadowMap.enabled = true;
-    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
-    renderer.outputColorSpace = THREE.SRGBColorSpace;
-    // FIX: toneMapping defaults to THREE.NoToneMapping, which hard-clips any
-    // colour channel above 1.0 instead of rolling it off. LightingSystem's
-    // combined sun+ambient+hemisphere intensity is bright enough to push
-    // ground/grass textures' red & green channels past 1.0 while blue lags
-    // behind, so they clip to a washed-out yellow-white instead of green.
-    renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    renderer.toneMappingExposure = 1.0;
-    container.appendChild(renderer.domElement);
+        Math.max(
+            container.clientWidth,
+            1),
+        Math.max(
+            container.clientHeight,
+            1));
+
+    renderer.shadowMap.enabled =
+        true;
+
+    renderer.shadowMap.type =
+        THREE.PCFSoftShadowMap;
+
+    renderer.outputColorSpace =
+        THREE.SRGBColorSpace;
+
+    container.appendChild(
+        renderer.domElement);
+
     return renderer;
 }
 
-function isManagedProceduralTexture(texture) {
-    if (!texture) return true;
-    const data = texture.userData || {};
-    return data.isSharedProcedural === true || data.isProceduralClone === true;
-}
-
-function assignTextureMaps(material, textureBundle) {
-    if (!material || !textureBundle || typeof textureBundle !== 'object') {
-        return;
+function normalizeColor(
+    value,
+    fallback) {
+    if (
+        value instanceof THREE.Color) {
+        return value.clone();
     }
 
-    const incoming = {
-        map: textureBundle.colorMap,
-        normalMap: textureBundle.normalMap,
-        bumpMap: textureBundle.bumpMap,
-        roughnessMap: textureBundle.roughnessMap
-    };
+    if (
+        typeof value === 'number' &&
+        Number.isFinite(value)) {
+        return new THREE.Color(
+            value);
+    }
 
-    for (const slot of Object.keys(incoming)) {
-        if (incoming[slot] === undefined) continue;
-
-        const prev = material[slot];
-        const next = incoming[slot];
+    if (
+        typeof value === 'string') {
+        const normalized =
+            value.trim();
 
         if (
-            prev &&
-            prev !== next &&
-            !isManagedProceduralTexture(prev)
-        ) {
-            prev.dispose();
+            normalized !== '') {
+            try {
+                return new THREE.Color(
+                    normalized);
+            } catch {}
         }
-
-        material[slot] = next;
     }
 
-    material.needsUpdate = true;
+    return new THREE.Color(
+        fallback);
 }
 
-function createRuntimeMaterialSystem(
-    paletteOverrides = {},
-    catalogOverrides = {},
-    textureCatalogOverrides = {}
-) {
-    const catalog = createMaterialCatalog(catalogOverrides);
-    const palette = createColorPalette(paletteOverrides);
-    const textureCatalog = createTextureCatalog(textureCatalogOverrides);
-    const textureManager = createTextureManager({
-        loader: new THREE.TextureLoader(),
-        catalog: textureCatalog
-    });
-    const materialsMap = new Map();
+function createMaterialSystem(
+    model) {
+    const colors =
+        model.colors || {};
 
-    const materialColors = Object.freeze({
-        steel: 'steel',
-        structuralSteel: 'steel',
-        wallMetal: 'wall',
-        wainscotMetal: 'wainscot',
-        roofMetal: 'roof',
-        trimMetal: 'trim',
-        concrete: 'concrete',
-        glass: 'glass',
-        ceiling: 'ceiling',
-        interiorWall: 'interiorWall',
-        mezzanine: 'mezzanine'
-    });
+    const materials =
+        new Map([
+                [
+                    'wallMetal',
+                    new THREE.MeshStandardMaterial({
+                        color: normalizeColor(
+                            colors.wall,
+                            0xffffff),
+                        metalness: 0.35,
+                        roughness: 0.7
+                    })
+                ],
 
-    const materialTextures = Object.freeze({
-        wallMetal: 'wallPanel',
-        wainscotMetal: 'wainscotPanel',
-        roofMetal: 'roofPanel',
-        trimMetal: 'trim',
-        structuralSteel: 'steel',
-        steel: 'steel',
-        concrete: 'concrete',
-        glass: 'glass',
-        ceiling: 'ceiling',
-        interiorWall: 'interiorWall',
-        mezzanine: 'mezzanine'
-    });
+                [
+                    'roofMetal',
+                    new THREE.MeshStandardMaterial({
+                        color: normalizeColor(
+                            colors.roof,
+                            0xffffff),
+                        metalness: 0.4,
+                        roughness: 0.65
+                    })
+                ],
 
-    function get(name, colorOverride = null, textureOverride = null) {
-        const colorName = materialColors[name] || 'steel';
-        const color = colorOverride || palette[colorName] || palette.wall;
-        const key = `${name}_${color}`;
+                [
+                    'structuralSteel',
+                    new THREE.MeshStandardMaterial({
+                        color: normalizeColor(
+                            colors.steel ??
+                            colors.frame,
+                            0xffffff),
+                        metalness: 0.65,
+                        roughness: 0.45
+                    })
+                ],
 
-        if (materialsMap.has(key)) {
-            const material = materialsMap.get(key);
-            if (textureOverride && typeof textureOverride === 'object') {
-                assignTextureMaps(material, textureOverride);
-            }
-            return material;
+                [
+                    'steel',
+                    new THREE.MeshStandardMaterial({
+                        color: normalizeColor(
+                            colors.steel ??
+                            colors.frame,
+                            0xffffff),
+                        metalness: 0.65,
+                        roughness: 0.45
+                    })
+                ],
+
+                [
+                    'concrete',
+                    new THREE.MeshStandardMaterial({
+                        color: normalizeColor(
+                            colors.concrete,
+                            0xb8b8b8),
+                        roughness: 0.9
+                    })
+                ],
+
+                [
+                    'trimMetal',
+                    new THREE.MeshStandardMaterial({
+                        color: normalizeColor(
+                            colors.trim,
+                            0xffffff),
+                        metalness: 0.55,
+                        roughness: 0.5
+                    })
+                ],
+
+                [
+                    'eaveTrim',
+                    new THREE.MeshStandardMaterial({
+                        color: normalizeColor(
+                            colors.eaveTrim ??
+                            colors.trim,
+                            0xffffff),
+                        metalness: 0.55,
+                        roughness: 0.5
+                    })
+                ],
+
+                [
+                    'doorTrim',
+                    new THREE.MeshStandardMaterial({
+                        color: normalizeColor(
+                            colors.trim,
+                            0xffffff),
+                        metalness: 0.55,
+                        roughness: 0.5
+                    })
+                ],
+
+                [
+                    'doorFrame',
+                    new THREE.MeshStandardMaterial({
+                        color: normalizeColor(
+                            colors.trim,
+                            0xffffff),
+                        metalness: 0.55,
+                        roughness: 0.5
+                    })
+                ],
+
+                [
+                    'frame',
+                    new THREE.MeshStandardMaterial({
+                        color: normalizeColor(
+                            colors.frame ??
+                            colors.steel,
+                            0xffffff),
+                        metalness: 0.55,
+                        roughness: 0.5
+                    })
+                ],
+
+                [
+                    'doorPanel',
+                    new THREE.MeshStandardMaterial({
+                        color: normalizeColor(
+                            colors.wall,
+                            0xffffff),
+                        metalness: 0.2,
+                        roughness: 0.8
+                    })
+                ],
+
+                [
+                    'glass',
+                    new THREE.MeshStandardMaterial({
+                        color: normalizeColor(
+                            colors.glass,
+                            0x9fc5e8),
+                        transparent: true,
+                        opacity: 0.45,
+                        roughness: 0.1,
+                        metalness: 0
+                    })
+                ],
+
+                [
+                    'mezzanine',
+                    new THREE.MeshStandardMaterial({
+                        color: normalizeColor(
+                            colors.mezzanine,
+                            0xffffff),
+                        metalness: 0.4,
+                        roughness: 0.6
+                    })
+                ],
+
+                [
+                    'interiorWall',
+                    new THREE.MeshStandardMaterial({
+                        color: normalizeColor(
+                            colors.interiorWall ??
+                            colors.wall,
+                            0xffffff),
+                        metalness: 0.1,
+                        roughness: 0.8
+                    })
+                ],
+
+                [
+                    'wall',
+                    new THREE.MeshStandardMaterial({
+                        color: normalizeColor(
+                            colors.wall,
+                            0xffffff),
+                        metalness: 0.35,
+                        roughness: 0.7
+                    })
+                ]
+            ]);
+
+    function applyColors(
+        nextColors = {}) {
+        const wall =
+            normalizeColor(
+                nextColors.wall,
+                0xffffff);
+
+        const roof =
+            normalizeColor(
+                nextColors.roof,
+                0xffffff);
+
+        const trim =
+            normalizeColor(
+                nextColors.trim,
+                0xffffff);
+
+        const eaveTrim =
+            normalizeColor(
+                nextColors.eaveTrim ??
+                nextColors.trim,
+                0xffffff);
+
+        const frame =
+            normalizeColor(
+                nextColors.frame ??
+                nextColors.steel,
+                0xffffff);
+
+        const steel =
+            normalizeColor(
+                nextColors.steel ??
+                nextColors.frame,
+                0xffffff);
+
+        const concrete =
+            normalizeColor(
+                nextColors.concrete,
+                0xb8b8b8);
+
+        const glass =
+            normalizeColor(
+                nextColors.glass,
+                0x9fc5e8);
+
+        const mezzanine =
+            normalizeColor(
+                nextColors.mezzanine,
+                0xffffff);
+
+        const interiorWall =
+            normalizeColor(
+                nextColors.interiorWall ??
+                nextColors.wall,
+                0xffffff);
+
+        materials.get(
+            'wallMetal').color.copy(wall);
+
+        materials.get(
+            'wall').color.copy(wall);
+
+        materials.get(
+            'doorPanel').color.copy(wall);
+
+        materials.get(
+            'roofMetal').color.copy(roof);
+
+        materials.get(
+            'trimMetal').color.copy(trim);
+
+        materials.get(
+            'doorTrim').color.copy(trim);
+
+        materials.get(
+            'doorFrame').color.copy(trim);
+
+        materials.get(
+            'eaveTrim').color.copy(eaveTrim);
+
+        materials.get(
+            'frame').color.copy(frame);
+
+        materials.get(
+            'structuralSteel').color.copy(steel);
+
+        materials.get(
+            'steel').color.copy(steel);
+
+        materials.get(
+            'concrete').color.copy(concrete);
+
+        materials.get(
+            'glass').color.copy(glass);
+
+        materials.get(
+            'mezzanine').color.copy(mezzanine);
+
+        materials.get(
+            'interiorWall').color.copy(
+            interiorWall);
+
+        for (
+            const material
+            of materials.values()) {
+            material.needsUpdate =
+                true;
         }
-
-        const definition = catalog[name] || catalog.steel;
-        const material = createMaterial(definition, color);
-
-        let textureBundle = null;
-        if (typeof textureOverride === 'string') {
-            textureBundle = textureManager.get(textureOverride);
-        } else if (textureOverride && typeof textureOverride === 'object') {
-            textureBundle = textureOverride;
-        } else {
-            const textureName = materialTextures[name];
-            if (textureName) textureBundle = textureManager.get(textureName);
-        }
-
-        if (textureBundle) {
-            assignTextureMaps(material, textureBundle);
-        }
-
-        materialsMap.set(key, material);
-        return material;
     }
 
-    function updatePalette(newPaletteOverrides = {}) {
-        const updatedPalette = createColorPalette(newPaletteOverrides);
-        for (const [key, material] of materialsMap.entries()) {
-            const separator = key.indexOf('_');
-            const materialName = separator === -1 ? key : key.slice(0, separator);
-            const colorName = materialColors[materialName];
-            if (colorName && updatedPalette[colorName]) {
-                updateMaterialColor(material, updatedPalette[colorName]);
-            }
-        }
-        return updatedPalette;
-    }
-
-    function dispose() {
-        for (const material of materialsMap.values()) {
-            material.map = null;
-            material.normalMap = null;
-            material.bumpMap = null;
-            material.roughnessMap = null;
-            disposeMaterial(material);
-        }
-        materialsMap.clear();
-        textureManager.clearAll();
-    }
+    applyColors(
+        colors);
 
     return Object.freeze({
-        catalog,
-        palette,
-        textureCatalog,
-        textureManager,
-        get,
-        updatePalette,
-        dispose
+        get(name) {
+            return (
+                materials.get(name) ??
+                materials.get('steel'));
+        },
+
+        applyColors,
+
+        dispose() {
+            for (
+                const mat
+                of materials.values()) {
+                mat.dispose();
+            }
+
+            materials.clear();
+        }
     });
 }
 
-function createColorsFromModel(model) {
+function createColors(
+    model) {
     return Object.freeze({
-        wall: model.colors?.wall || '#FFFFFF',
-        wainscot: model.colors?.wainscot || '#FFFFFF',
-        roof: model.colors?.roof || '#FFFFFF',
-        trim: model.colors?.trim || '#FFFFFF',
-        eaveTrim: model.colors?.eaveTrim || '#FFFFFF',
-        rakeTrim: model.colors?.rakeTrim || '#FFFFFF',
-        frame: model.colors?.frame || '#444444',
-        steel: model.colors?.steel || '#444444',
-        structuralSteel: model.colors?.structuralSteel || model.colors?.steel || '#444444',
-        concrete: model.colors?.concrete || '#B8B8B8',
-        glass: model.colors?.glass || '#9FC5E8',
-        ceiling: model.colors?.ceiling || '#FFFFFF',
-        mezzanine: model.colors?.mezzanine || '#FFFFFF',
-        interiorWall: model.colors?.interiorWall || '#EEEEEE'
+        ...(model.colors || {})
     });
 }
 
 function createRegistry() {
-    const registry = createElementRegistry();
-    registry.register('foundation', FoundationOrchestrator);
-    registry.register('structural', StructuralOrchestrator);
-    registry.register('walls', WallOrchestrator);
-    registry.register('roof', RoofOrchestrator);
-    registry.register('wainscot', WainscotOrchestrator);
-    registry.register('openings', OpeningOrchestrator);
-    registry.register('trims', TrimOrchestrator);
-    registry.register('ridge', RidgeOrchestrator);
-    registry.register('gutters', GuttersOrchestrator);
-    registry.register('mezzanine', MezzanineOrchestrator);
-    registry.register('crane', CraneOrchestrator);
-    registry.register('liner', LinerOrchestrator);
-    registry.register('driveway', DrivewayOrchestrator);
-    registry.register('logo', LogoOrchestrator);
-    registry.register('awnings', AwningElement);
+    const registry =
+        createElementRegistry();
+
+    registry.register(
+        'foundation',
+        FoundationOrchestrator);
+
+    registry.register(
+        'structural',
+        StructuralOrchestrator);
+
+    registry.register(
+        'walls',
+        WallOrchestrator);
+
+    registry.register(
+        'roof',
+        RoofOrchestrator);
+
+    registry.register(
+        'wainscot',
+        WainscotOrchestrator);
+
+    registry.register(
+        'openings',
+        OpeningOrchestrator);
+
+    registry.register(
+        'trims',
+        TrimOrchestrator);
+
+    registry.register(
+        'ridge',
+        RidgeOrchestrator);
+
+    registry.register(
+        'gutters',
+        GuttersOrchestrator);
+
+    registry.register(
+        'mezzanine',
+        MezzanineOrchestrator);
+
+    registry.register(
+        'crane',
+        CraneOrchestrator);
+
+    registry.register(
+        'liner',
+        LinerOrchestrator);
+
+    registry.register(
+        'driveway',
+        DrivewayOrchestrator);
+
+    registry.register(
+        'logo',
+        LogoOrchestrator);
+
+    registry.register(
+        'awnings',
+        AwningElement);
+
     return registry;
 }
 
-function createContext({ model, geometry, materials, colors, scene, camera, renderer }) {
+function createContext({
+    model,
+    geometry,
+    materials,
+    colors,
+    scene,
+    camera,
+    renderer
+}) {
     return {
         model,
         geometry,
-        panelGeometry: geometry.panels,
+        panelGeometry:
+        geometry.panels,
+
         structuralGeometry: {
-            frames: geometry.frames,
-            girts: geometry.girts,
-            purlins: geometry.purlins,
-            endWallColumns: geometry.endWallColumns
+            frames:
+            geometry.frames,
+
+            girts:
+            geometry.girts,
+
+            purlins:
+            geometry.purlins,
+
+            endWallColumns:
+            geometry.endWallColumns
         },
+
         materials,
         colors,
         scene,
@@ -299,22 +656,35 @@ function createContext({ model, geometry, materials, colors, scene, camera, rend
     };
 }
 
-function addInstances(root, instances) {
-    for (const [id, instance] of instances) {
-        if (!instance) continue;
-        const object = instance.object ?? instance;
-        if (object?.isObject3D) {
-            object.name = id;
-            root.add(object);
+function addInstances(
+    root,
+    instances) {
+    for (
+        const [id, instance]
+        of instances) {
+        if (!instance) {
+            continue;
+        }
+
+        const obj =
+            instance.object ??
+            instance;
+
+        if (
+            obj &&
+            obj.isObject3D) {
+            obj.name = id;
+            root.add(obj);
         }
     }
 }
 
-function clearRoot(root) {
-    if (!root) return;
-    const children = root.children.slice();
-    for (let i = 0; i < children.length; i++) {
-        root.remove(children[i]);
+function clearRoot(
+    root) {
+    while (
+        root.children.length > 0) {
+        root.remove(
+            root.children[0]);
     }
 }
 
@@ -324,264 +694,449 @@ export function createUBuildRuntime({
     environment = {},
     lighting = {}
 } = {}) {
-    assertContainer(container);
+    assertContainer(
+        container);
 
-    let buildingModel = createBuildingModel(model);
-    let buildingGeometry = createBuildingGeometry(buildingModel);
-    const scene = createScene();
-    const camera = createCamera(container, buildingGeometry);
-    const renderer = createRenderer(container);
-    // onNeedRender wired after render() is defined (see below)
-    const environmentSystem = createEnvironmentSystem(environment);
-    scene.add(environmentSystem.group);
-    const lightingSystem = createLightingSystem(scene);
-    let colors = createColorsFromModel(buildingModel);
-    const materials = createRuntimeMaterialSystem(colors);
-    const registry = createRegistry();
-    const buildingRoot = new THREE.Group();
-    buildingRoot.name = 'u-build-building';
-    scene.add(buildingRoot);
+    let buildingModel =
+        createBuildingModel(
+            model);
 
-    let context = createContext({
-        model: buildingModel,
-        geometry: buildingGeometry,
-        materials,
-        colors,
-        scene,
-        camera,
-        renderer
-    });
-    let currentInstances = registry.createAll(context);
-    addInstances(buildingRoot, currentInstances);
-    let disposed = false;
+    let buildingGeometry =
+        createBuildingGeometry(
+            buildingModel);
 
-    const cameraControls = createCameraControls({
-        camera,
-        domElement: renderer.domElement,
-        onUpdate: render
-    });
+    const scene =
+        createScene();
 
-    const gltfLoader = new GLTFLoader();
-    const referenceModels = createReferenceModelsOrchestrator();
-    scene.add(referenceModels.group);
-    const referenceModelInteraction = createReferenceModelInteraction({
-        camera,
-        domElement: renderer.domElement,
-        group: referenceModels.group,
-        onDragEnd: render
-    });
-    const referenceModelsApi = Object.freeze({
-        toggle(fileName, enabled, onLoaded) {
-            const themeUri = (window.ConfiguratorData && window.ConfiguratorData.themeUri) || '';
-            referenceModels.toggleModel(fileName, enabled, gltfLoader, themeUri, buildingGeometry.bounds, () => {
-                render();
-                if (typeof onLoaded === 'function') onLoaded();
-            });
-        },
-        clearAll() {
-            [...referenceModels.group.children].forEach((child) => referenceModels.group.remove(child));
-            render();
-        },
-        get group() {
-            return referenceModels.group;
-        }
-    });
+    const camera =
+        createCamera(
+            container,
+            buildingGeometry);
 
-    const openingInteraction = createOpeningInteraction({
-        camera,
-        domElement: renderer.domElement,
-        buildingRoot,
-        onOpeningChange(change) {
-            const nextOpenings = buildingModel.openings.map((opening) =>
-                opening.id === change.id
-                    ? { ...opening, x: change.x, yOff: change.yOff }
-                    : opening
-            );
-            update({ ...buildingModel, openings: nextOpenings });
-        }
-    });
+    const renderer =
+        createRenderer(
+            container);
 
-    let lightingConfig = {
-        date: lighting.date ?? '2026-06-21',
-        time: lighting.time ?? '12:00',
-        timezone: lighting.timezone ?? 'America/Winnipeg',
-        latitude: lighting.latitude ?? 49.8951,
-        longitude: lighting.longitude ?? -97.1384
-    };
+    const environmentSystem =
+        createEnvironmentSystem(
+            environment);
 
-    function updateLightingAndEnvironment() {
-        const solarState = getSolarState(lightingConfig);
-        lightingSystem.update(solarState, buildingGeometry.bounds);
-        // weather / hemisphere stay in environmentSystem state unless setDateTimeLocation changes them
-        environmentSystem.update({
-            date: lightingConfig.date,
-            solar: solarState,
-            phase: solarState.phase
-        });
-        environmentSystem.updateBounds(buildingGeometry.bounds);
-        if (typeof environmentSystem.applyToScene === 'function') {
-            environmentSystem.applyToScene(scene);
-        }
-    }
+    scene.add(
+        environmentSystem.group);
 
-    function resize() {
-        if (disposed) return;
-        const width = Math.max(container.clientWidth, 1);
-        const height = Math.max(container.clientHeight, 1);
-        camera.aspect = width / height;
-        camera.updateProjectionMatrix();
-        renderer.setSize(width, height);
-        render();
-    }
+    const lightingSystem =
+        createLightingSystem(
+            scene);
 
-    function render() {
-        if (disposed) return;
-        if (typeof environmentSystem.tick === 'function') {
-            environmentSystem.tick();
-        }
-        renderer.render(scene, camera);
-    }
+    const materials =
+        createMaterialSystem(
+            buildingModel);
 
-    // Re-render when async ground textures finish loading
-    if (typeof environmentSystem.setOnNeedRender === 'function') {
-        environmentSystem.setOnNeedRender(() => {
-            if (!disposed) render();
-        });
-    }
+    let colors =
+        createColors(
+            buildingModel);
 
-    function update(nextModel) {
-        if (disposed) throw new Error('UBuild runtime is disposed');
+    const registry =
+        createRegistry();
 
-        const nextBuildingModel = createBuildingModel(nextModel);
-        const nextBuildingGeometry = createBuildingGeometry(nextBuildingModel);
-        const nextColors = createColorsFromModel(nextBuildingModel);
-        const nextContext = createContext({
-            model: nextBuildingModel,
-            geometry: nextBuildingGeometry,
+    const buildingRoot =
+        new THREE.Group();
+
+    buildingRoot.name =
+        'u-build-building';
+
+    scene.add(
+        buildingRoot);
+
+    const context =
+        createContext({
+            model: buildingModel,
+            geometry:
+            buildingGeometry,
             materials,
-            colors: nextColors,
+            colors,
             scene,
             camera,
             renderer
         });
 
-        const nextInstances = registry.updateAll(currentInstances, nextContext);
+    let currentInstances =
+        registry.createAll(
+            context);
 
-        clearRoot(buildingRoot);
-        addInstances(buildingRoot, nextInstances);
+    addInstances(
+        buildingRoot,
+        currentInstances);
 
-        buildingModel = nextBuildingModel;
-        buildingGeometry = nextBuildingGeometry;
-        colors = nextColors;
-        currentInstances = nextInstances;
+    let disposed = false;
+
+    const cameraControls =
+        createCameraControls({
+            camera,
+            domElement:
+            renderer.domElement,
+            onUpdate: render
+        });
+
+    const openingInteraction =
+        createOpeningInteraction({
+            camera,
+            domElement:
+            renderer.domElement,
+            buildingRoot,
+
+            onOpeningChange(
+                change) {
+                const nextOpenings =
+                    buildingModel.openings.map(
+                        op => {
+                        if (
+                            op.id ===
+                            change.id) {
+                            return {
+                                ...op,
+                                x:
+                                change.x,
+                                yOff:
+                                change.yOff
+                            };
+                        }
+
+                        return op;
+                    });
+
+                update({
+                    ...buildingModel,
+                    openings:
+                    nextOpenings
+                });
+            }
+        });
+
+    let lightingConfig = {
+        date:
+        lighting.date ??
+        '2026-06-21',
+
+        time:
+        lighting.time ??
+        '12:00',
+
+        timezone:
+        lighting.timezone ??
+        'America/Winnipeg',
+
+        latitude:
+        lighting.latitude ??
+        49.8951,
+
+        longitude:
+        lighting.longitude ??
+        -97.1384
+    };
+
+    function updateLightingAndEnvironment() {
+        const solarState =
+            getSolarState(
+                lightingConfig);
+
+        lightingSystem.update(
+            solarState,
+            buildingGeometry.bounds);
+
+        environmentSystem.updateBounds(
+            buildingGeometry.bounds);
+
+        const envState =
+            environmentSystem.getState();
+
+        if (
+            solarState.phase ===
+            'night') {
+            scene.background.setHex(
+                0x0a1424);
+        } else {
+            scene.background.setHex(
+                envState
+                .atmosphericProfile
+                .fogColor);
+        }
+    }
+
+    function resize() {
+        if (disposed) {
+            return;
+        }
+
+        const width =
+            Math.max(
+                container.clientWidth,
+                1);
+
+        const height =
+            Math.max(
+                container.clientHeight,
+                1);
+
+        camera.aspect =
+            width / height;
+
+        camera.updateProjectionMatrix();
+
+        renderer.setSize(
+            width,
+            height);
+
+        render();
+    }
+
+    function render() {
+        if (disposed) {
+            return;
+        }
+
+        renderer.render(
+            scene,
+            camera);
+    }
+
+    function update(
+        nextModel) {
+        if (disposed) {
+            throw new Error(
+                'UBuild runtime is disposed');
+        }
+
+        buildingModel =
+            createBuildingModel(
+                nextModel);
+
+        buildingGeometry =
+            createBuildingGeometry(
+                buildingModel);
+
+        colors =
+            createColors(
+                buildingModel);
+
+        materials.applyColors(
+            buildingModel.colors);
+
+        const nextContext =
+            createContext({
+                model:
+                buildingModel,
+
+                geometry:
+                buildingGeometry,
+
+                materials,
+
+                colors,
+
+                scene,
+
+                camera,
+
+                renderer
+            });
+
+        currentInstances =
+            registry.updateAll(
+                currentInstances,
+                nextContext);
+
+        clearRoot(
+            buildingRoot);
+
+        addInstances(
+            buildingRoot,
+            currentInstances);
 
         updateLightingAndEnvironment();
+
         render();
+
         return buildingModel;
     }
 
     function autoFrame() {
-        cameraControls.frameBounds(buildingGeometry.bounds);
+        cameraControls.frameBounds(
+            buildingGeometry.bounds);
+
         render();
     }
 
-    function setDateTimeLocation(config = {}) {
-        if (disposed) throw new Error('UBuild runtime is disposed');
-        if (config.date !== undefined) lightingConfig.date = config.date;
-        if (config.time !== undefined) lightingConfig.time = config.time;
-        if (config.timezone !== undefined) lightingConfig.timezone = config.timezone;
-        if (config.latitude !== undefined) lightingConfig.latitude = config.latitude;
-        if (config.longitude !== undefined) lightingConfig.longitude = config.longitude;
+    function setDateTimeLocation(
+        config = {}) {
+        if (disposed) {
+            throw new Error(
+                'UBuild runtime is disposed');
+        }
+
+        if (
+            config.date !==
+            undefined) {
+            lightingConfig.date =
+                config.date;
+        }
+
+        if (
+            config.time !==
+            undefined) {
+            lightingConfig.time =
+                config.time;
+        }
+
+        if (
+            config.timezone !==
+            undefined) {
+            lightingConfig.timezone =
+                config.timezone;
+        }
+
+        if (
+            config.latitude !==
+            undefined) {
+            lightingConfig.latitude =
+                config.latitude;
+        }
+
+        if (
+            config.longitude !==
+            undefined) {
+            lightingConfig.longitude =
+                config.longitude;
+        }
+
         environmentSystem.update({
-            date: lightingConfig.date,
+            date:
+            lightingConfig.date,
+
             hemisphere:
-                config.hemisphere ||
-                (lightingConfig.latitude >= 0 ? 'north' : 'south'),
-            weather: config.weather || 'clear',
+            config.hemisphere ||
+            (
+                lightingConfig.latitude >=
+                0
+                 ? 'north'
+                 : 'south'),
+
+            weather:
+            config.weather ||
+            'clear',
+
             location: {
-                latitude: lightingConfig.latitude,
-                longitude: lightingConfig.longitude,
-                timezone: lightingConfig.timezone
+                latitude:
+                lightingConfig.latitude,
+
+                longitude:
+                lightingConfig.longitude,
+
+                timezone:
+                lightingConfig.timezone
             }
         });
+
         updateLightingAndEnvironment();
+
         render();
     }
 
     function start() {
-        if (disposed) throw new Error('UBuild runtime is disposed');
-        updateLightingAndEnvironment();
-        resize();
-        autoFrame();
-        // FIX: without this nothing ever drives a continuous render loop -
-        // render() is otherwise only called on-demand (resize, model
-        // updates, drag). That left the sky's idle auto-rotate AND the
-        // cloud drift (environmentSystem.tick() advances uTime only when
-        // render() runs) completely frozen until the user next interacted.
-        cameraControls.setAutoRotate(true);
-        // Safety: textures may still be loading — force a couple of follow-up frames
-        if (typeof requestAnimationFrame === 'function') {
-            requestAnimationFrame(() => {
-                if (!disposed) render();
-                requestAnimationFrame(() => {
-                    if (!disposed) render();
-                });
-            });
+        if (disposed) {
+            throw new Error(
+                'UBuild runtime is disposed');
         }
-        // Extra pass after network textures typically arrive
-        setTimeout(() => {
-            if (!disposed) render();
-        }, 150);
-        setTimeout(() => {
-            if (!disposed) render();
-        }, 500);
+
+        updateLightingAndEnvironment();
+
+        resize();
+
+        autoFrame();
+
         return api;
     }
 
     function dispose() {
-        if (disposed) return;
+        if (disposed) {
+            return;
+        }
+
         disposed = true;
+
         cameraControls.dispose();
+
         openingInteraction.dispose();
-        referenceModelInteraction.dispose();
-        referenceModels.dispose();
-        registry.disposeAll(currentInstances);
+
+        registry.disposeAll(
+            currentInstances);
+
         lightingSystem.dispose();
+
         environmentSystem.dispose();
+
         materials.dispose();
-        disposePanelNormalMaps();
+
         renderer.dispose();
+
         renderer.domElement.remove();
-        window.removeEventListener('resize', resize);
+
+        window.removeEventListener(
+            'resize',
+            resize);
     }
 
-    const api = Object.freeze({
-        get model() {
-            return buildingModel;
-        },
-        get geometry() {
-            return buildingGeometry;
-        },
-        scene,
-        camera,
-        renderer,
-        environment: environmentSystem,
-        lighting: lightingSystem,
-        controls: cameraControls,
-        interaction: openingInteraction,
-        referenceModels: referenceModelsApi,
-        materials,
-        registry,
-        root: buildingRoot,
-        start,
-        render,
-        resize,
-        update,
-        autoFrame,
-        setDateTimeLocation,
-        dispose
-    });
+    const api =
+        Object.freeze({
+            get model() {
+                return buildingModel;
+            },
 
-    window.addEventListener('resize', resize);
+            get geometry() {
+                return buildingGeometry;
+            },
+
+            scene,
+            camera,
+            renderer,
+
+            environment:
+            environmentSystem,
+
+            lighting:
+            lightingSystem,
+
+            controls:
+            cameraControls,
+
+            interaction:
+            openingInteraction,
+
+            materials,
+
+            registry,
+
+            root:
+            buildingRoot,
+
+            start,
+
+            render,
+
+            resize,
+
+            update,
+
+            autoFrame,
+
+            setDateTimeLocation,
+
+            dispose
+        });
+
+    window.addEventListener(
+        'resize',
+        resize);
+
     return api;
 }
