@@ -1,464 +1,160 @@
+// js/model/geometry/OpeningGeometry.js
+
 import {
     OPENING_TYPES,
-    OPENING_DEFINITIONS,
-    getOpeningDefinition,
-    normalizeOpening
+    OPENING_DEFAULTS,
+    validateOpening,
+    clampOpeningToWall
 } from '../openings/OpeningSchema.js';
 
-const SIDE_TO_WALL = Object.freeze({
-    F: 'front',
-    B: 'back',
-    L: 'left',
-    R: 'right'
-});
-
-function point(
-    x,
-    y,
-    z
-) {
-    return Object.freeze({
-        x,
-        y,
-        z
-    });
+function point(x, y, z) {
+    return Object.freeze({ x, y, z });
 }
 
-function bounds(
-    min,
-    max
-) {
+function bounds(min, max) {
     return Object.freeze({
         min,
         max,
-
-        width:
-            max.x -
-            min.x,
-
-        height:
-            max.y -
-            min.y,
-
-        length:
-            max.z -
-            min.z,
-
-        center:
-            point(
-                (
-                    min.x +
-                    max.x
-                ) / 2,
-
-                (
-                    min.y +
-                    max.y
-                ) / 2,
-
-                (
-                    min.z +
-                    max.z
-                ) / 2
-            )
-    });
-}
-
-function validateOpeningBounds(
-    opening,
-    model,
-    wall
-) {
-    const wallLength =
-        opening.side === 'F' ||
-        opening.side === 'B'
-            ? model.dimensions.width
-            : model.dimensions.length;
-
-    const start =
-        opening.x -
-        opening.width / 2;
-
-    const end =
-        opening.x +
-        opening.width / 2;
-
-    const localCenter =
-        wallLength / 2 +
-        opening.x;
-
-    if (
-        localCenter -
-            opening.width / 2 <
-            0 ||
-        localCenter +
-            opening.width / 2 >
-            wallLength
-    ) {
-        throw new RangeError(
-            `Opening ${opening.id} exceeds wall boundaries`
-        );
-    }
-
-    if (
-        opening.yOff < 0 ||
-        opening.yOff +
-            opening.height >
-            wall.bounds.height
-    ) {
-        throw new RangeError(
-            `Opening ${opening.id} exceeds wall height`
-        );
-    }
-
-    return {
-        start,
-        end,
-        localCenter
-    };
-}
-
-function createFrontBackOpening(
-    opening,
-    wall,
-    isBack
-) {
-    const centerX =
-        opening.x;
-
-    const minX =
-        centerX -
-        opening.width / 2;
-
-    const maxX =
-        centerX +
-        opening.width / 2;
-
-    const minY =
-        opening.yOff;
-
-    const maxY =
-        minY +
-        opening.height;
-
-    const z =
-        isBack
-            ? wall.bounds.max.z
-            : wall.bounds.min.z;
-
-    return Object.freeze({
-        id:
-            opening.id,
-
-        type:
-            opening.type,
-
-        side:
-            opening.side,
-
-        anchor:
-            point(
-                centerX,
-                minY +
-                    opening.height / 2,
-                z
-            ),
-
-        bounds:
-            bounds(
-                point(
-                    minX,
-                    minY,
-                    z
-                ),
-
-                point(
-                    maxX,
-                    maxY,
-                    z
-                )
-            ),
-
-        dimensions:
-            Object.freeze({
-                width:
-                    opening.width,
-
-                height:
-                    opening.height
-            }),
-
-        normal:
-            point(
-                0,
-                0,
-                isBack
-                    ? -1
-                    : 1
-            ),
-
-        parameters:
-            Object.freeze({
-                ...opening
-            })
-    });
-}
-
-function createLeftRightOpening(
-    opening,
-    wall,
-    isRight
-) {
-    const centerZ =
-        opening.x;
-
-    const minZ =
-        centerZ -
-        opening.width / 2;
-
-    const maxZ =
-        centerZ +
-        opening.width / 2;
-
-    const minY =
-        opening.yOff;
-
-    const maxY =
-        minY +
-        opening.height;
-
-    const x =
-        isRight
-            ? wall.bounds.max.x
-            : wall.bounds.min.x;
-
-    return Object.freeze({
-        id:
-            opening.id,
-
-        type:
-            opening.type,
-
-        side:
-            opening.side,
-
-        anchor:
-            point(
-                x,
-                minY +
-                    opening.height / 2,
-                centerZ
-            ),
-
-        bounds:
-            bounds(
-                point(
-                    x,
-                    minY,
-                    minZ
-                ),
-
-                point(
-                    x,
-                    maxY,
-                    maxZ
-                )
-            ),
-
-        dimensions:
-            Object.freeze({
-                width:
-                    opening.width,
-
-                height:
-                    opening.height
-            }),
-
-        normal:
-            point(
-                isRight
-                    ? -1
-                    : 1,
-                0,
-                0
-            ),
-
-        parameters:
-            Object.freeze({
-                ...opening
-            })
-    });
-}
-
-function createOpening(
-    opening,
-    walls
-) {
-    const wall =
-        walls[
-            SIDE_TO_WALL[
-                opening.side
-            ]
-        ];
-
-    if (!wall) {
-        throw new Error(
-            `Wall geometry not found: ${opening.side}`
-        );
-    }
-
-    if (
-        opening.side === 'F' ||
-        opening.side === 'B'
-    ) {
-        return createFrontBackOpening(
-            opening,
-            wall,
-            opening.side === 'B'
-        );
-    }
-
-    return createLeftRightOpening(
-        opening,
-        wall,
-        opening.side === 'R'
-    );
-}
-
-function validateCollisions(
-    openings
-) {
-    for (
-        let i = 0;
-        i < openings.length;
-        i++
-    ) {
-        for (
-            let j = i + 1;
-            j < openings.length;
-            j++
-        ) {
-            const a =
-                openings[i];
-
-            const b =
-                openings[j];
-
-            if (
-                a.side !==
-                b.side
-            ) {
-                continue;
-            }
-
-            const aStart =
-                a.x -
-                a.width / 2;
-
-            const aEnd =
-                a.x +
-                a.width / 2;
-
-            const bStart =
-                b.x -
-                b.width / 2;
-
-            const bEnd =
-                b.x +
-                b.width / 2;
-
-            const horizontalOverlap =
-                aStart < bEnd &&
-                bStart < aEnd;
-
-            const verticalOverlap =
-                a.yOff <
-                    b.yOff +
-                        b.height &&
-                b.yOff <
-                    a.yOff +
-                        a.height;
-
-            if (
-                horizontalOverlap &&
-                verticalOverlap
-            ) {
-                throw new RangeError(
-                    `Openings ${a.id} and ${b.id} overlap`
-                );
-            }
-        }
-    }
-}
-
-export function createOpeningGeometry(
-    model,
-    envelope,
-    walls
-) {
-    if (!model) {
-        throw new TypeError(
-            'BuildingModel is required'
-        );
-    }
-
-    if (!envelope) {
-        throw new TypeError(
-            'BuildingEnvelope is required'
-        );
-    }
-
-    if (!walls) {
-        throw new TypeError(
-            'WallGeometry is required'
-        );
-    }
-
-    const source =
-        Array.isArray(
-            model.openings
+        width: max.x - min.x,
+        height: max.y - min.y,
+        length: max.z - min.z,
+        center: point(
+            (min.x + max.x) / 2,
+            (min.y + max.y) / 2,
+            (min.z + max.z) / 2
         )
-            ? model.openings
-            : [];
-
-    const normalized =
-        source.map(
-            normalizeOpening
-        );
-
-    const geometries =
-        normalized.map(
-            opening => {
-                const wall =
-                    walls[
-                        SIDE_TO_WALL[
-                            opening.side
-                        ]
-                    ];
-
-                validateOpeningBounds(
-                    opening,
-                    model,
-                    wall
-                );
-
-                return createOpening(
-                    opening,
-                    walls
-                );
-            }
-        );
-
-    validateCollisions(
-        normalized
-    );
-
-    return Object.freeze(
-        geometries
-    );
+    });
 }
 
-export {
-    OPENING_TYPES,
-    OPENING_DEFINITIONS
-};
+function calculateSpatialData(opening, envelope) {
+    const halfW = opening.width / 2;
+    const bottomY = opening.yOff;
+    const topY = opening.yOff + opening.height;
+    const centerY = bottomY + opening.height / 2;
+
+    let anchor;
+    let normal;
+    let openingBounds;
+    let cutout;
+
+    switch (opening.side) {
+        case 'F': {
+            const z = envelope.bounds.min.z;
+            anchor = point(opening.x, centerY, z);
+            normal = point(0, 0, -1);
+            openingBounds = bounds(
+                point(opening.x - halfW, bottomY, z - 0.1),
+                point(opening.x + halfW, topY, z + 0.1)
+            );
+            cutout = Object.freeze({
+                minX: opening.x - halfW,
+                maxX: opening.x + halfW,
+                minY: bottomY,
+                maxY: topY
+            });
+            break;
+        }
+        case 'B': {
+            const z = envelope.bounds.max.z;
+            anchor = point(opening.x, centerY, z);
+            normal = point(0, 0, 1);
+            openingBounds = bounds(
+                point(opening.x - halfW, bottomY, z - 0.1),
+                point(opening.x + halfW, topY, z + 0.1)
+            );
+            cutout = Object.freeze({
+                minX: opening.x - halfW,
+                maxX: opening.x + halfW,
+                minY: bottomY,
+                maxY: topY
+            });
+            break;
+        }
+        case 'L': {
+            const x = envelope.bounds.min.x;
+            anchor = point(x, centerY, opening.x);
+            normal = point(-1, 0, 0);
+            openingBounds = bounds(
+                point(x - 0.1, bottomY, opening.x - halfW),
+                point(x + 0.1, topY, opening.x + halfW)
+            );
+            cutout = Object.freeze({
+                minX: opening.x - halfW,
+                maxX: opening.x + halfW,
+                minY: bottomY,
+                maxY: topY
+            });
+            break;
+        }
+        case 'R': {
+            const x = envelope.bounds.max.x;
+            anchor = point(x, centerY, opening.x);
+            normal = point(1, 0, 0);
+            openingBounds = bounds(
+                point(x - 0.1, bottomY, opening.x - halfW),
+                point(x + 0.1, topY, opening.x + halfW)
+            );
+            cutout = Object.freeze({
+                minX: envelope.length - opening.x - halfW,
+                maxX: envelope.length - opening.x + halfW,
+                minY: bottomY,
+                maxY: topY
+            });
+            break;
+        }
+        default:
+            throw new RangeError(`Unknown opening side: ${opening.side}`);
+    }
+
+    return { anchor, normal, openingBounds, cutout };
+}
+
+export function createOpeningGeometry(model, envelope) {
+    if (!model || typeof model !== 'object') {
+        throw new TypeError('BuildingModel is required');
+    }
+    if (!envelope || typeof envelope !== 'object') {
+        throw new TypeError('BuildingEnvelope is required');
+    }
+
+    const rawOpenings = Array.isArray(model.openings) ? model.openings : [];
+    const processedOpenings = [];
+
+    for (const rawOp of rawOpenings) {
+        const defaults = OPENING_DEFAULTS[rawOp.type] || OPENING_DEFAULTS[OPENING_TYPES.WINDOW];
+        const normalized = {
+            id: String(rawOp.id || `op_${Date.now()}`),
+            type: rawOp.type || OPENING_TYPES.WINDOW,
+            side: rawOp.side || 'F',
+            width: Number(rawOp.width) > 0 ? Number(rawOp.width) : defaults.width,
+            height: Number(rawOp.height) > 0 ? Number(rawOp.height) : defaults.height,
+            x: Number.isFinite(rawOp.x) ? Number(rawOp.x) : 0,
+            yOff: Number.isFinite(rawOp.yOff) ? Number(rawOp.yOff) : defaults.yOff
+        };
+
+        const clamped = clampOpeningToWall(normalized, model.dimensions);
+        validateOpening(clamped);
+
+        const { anchor, normal, openingBounds, cutout } = calculateSpatialData(clamped, envelope);
+
+        processedOpenings.push(Object.freeze({
+            id: clamped.id,
+            type: clamped.type,
+            side: clamped.side,
+            x: clamped.x,
+            yOff: clamped.yOff,
+            width: clamped.width,
+            height: clamped.height,
+            dimensions: Object.freeze({
+                width: clamped.width,
+                height: clamped.height
+            }),
+            anchor,
+            normal,
+            bounds: openingBounds,
+            cutout
+        }));
+    }
+
+    return Object.freeze(processedOpenings);
+}
