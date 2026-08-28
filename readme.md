@@ -1,76 +1,78 @@
-# UIAdapter.js: разбивка на контроллеры (коммит ab9b6df)
+# U-Build: цвета — исправления (коммит d4ce9cc)
 
-`UIAdapter.js` был 2075 строк и совмещал 8+ ролей. Разбил на отдельные
-файлы-контроллеры под `js/ui/controllers/`, `UIAdapter.js` теперь только
-создаёт их и связывает — сам не содержит доменной логики.
+## Баг 1 — Wainscot всегда серый/белый, независимо от выбора
 
-## Как распаковать
+**Файл:** `js/runtime/UBuildRuntime.js`
 
-Разархивируйте прямо в ваш `js/`-каталог — структура внутри архива уже
-`js/ui/...`, файлы лягут куда нужно. `UIAdapter.js` заменит существующий,
-`js/ui/controllers/` — новая папка.
+В системе материалов (`createMaterialSystem`) вообще не было записи
+`wainscotMetal` — ни в самом `Map` материалов, ни в `applyColors()`
+(которая копирует цвета из модели в материалы при каждом обновлении).
 
-## Что куда переехало
+`WainscotOrchestrator.js` запрашивает материал так:
+```js
+context.materials.get('wainscotMetal', context.colors?.wainscot, { normalMap })
+```
+А публичный `get(name)` в рантайме устроен так:
+```js
+get(name) {
+    return materials.get(name) ?? materials.get('steel');
+}
+```
+Раз ключа `'wainscotMetal'` в Map не было — `materials.get('wainscotMetal')`
+возвращал `undefined`, и код молча откатывался на материал `'steel'`.
+То есть дропдаун Wainscot Color красил материал, который вообще нигде
+не использовался — отсюда серый/белый цвет независимо от выбора.
 
-| Было в UIAdapter.js | Стало |
-|---|---|
-| toDisplay/toMeters, isImperial, bindUnits, syncDistSlidersToUnit, unit-label sync | `js/ui/controllers/units-controller.js` |
-| bindDimension, handleDimensionChange, showDimensionToast, width/length/height sync | `js/ui/controllers/dimensions-controller.js` |
-| bindPitch, bindRoofControls, getPitchLimits, updatePitchControls, formatPitchRatio, parsePitchInput, roof type/profile/wall-profile sync | `js/ui/controllers/roof-controller.js` |
-| bindOverhangs, overhang F/B/L/R sync | `js/ui/controllers/overhangs-controller.js` |
-| bindWainscot, wainscot sync | `js/ui/controllers/wainscot-controller.js` |
-| normalizeColorKey, getColorTarget, setColor, bindColors, color sync | `js/ui/controllers/colors-controller.js` |
-| bindVisibility, visibility checkbox sync | `js/ui/controllers/visibility-controller.js` |
-| bindReferenceModels | `js/ui/controllers/reference-models-controller.js` |
-| bindInformationNotice | `js/ui/controllers/information-notice-controller.js` |
-| setElementVal, setElementChecked (использовались вообще всеми) | `js/ui/dom-helpers.js` |
-| `updateInputsFromModel()` (был один гигантский метод на 300 строк) | **разнесён по контроллерам** — каждый контроллер сам умеет `syncFromModel()` для своей части DOM. `UIAdapter.js` просто вызывает их все по очереди в `syncAll()`. Отдельного "ModelSync"-файла нарочно не делал: DOM-синхронизация — не отдельная роль, а часть каждого домена (синхронизировать поля ширины — работа Dimensions-контроллера, а не какого-то стороннего синхронизатора). |
-| Actions orchestration | не трогал — `UIActions.js` уже был отдельным файлом, как и был |
+**Исправление:** добавил `wainscotMetal` в `Map` материалов (с теми же
+параметрами metalness/roughness, что у wall) и добавил недостающую
+строку в `applyColors()`:
+```js
+materials.get('wainscotMetal').color.copy(wainscot);
+```
 
-## Что НЕ трогал специально
+## Баг 2 — "по умолчанию нет выбранного цвета" + цвета не совпадают с PHP
 
-- **`js/ui/UIActions.js`** — уже был отдельным файлом, не относится к
-  распухшему `UIAdapter.js`, оставил как есть.
-- **`js/ui/UIColorAdapter.js`** — нашёл в кодовой базе при разборе. Это
-  мёртвый код: 834 строки, `createUIColorAdapter()` нигде не
-  импортируется и не вызывается — ни из `app-new.js`, ни из старого
-  `UIAdapter.js`. Не относится к текущей задаче (это не то, что было
-  внутри `UIAdapter.js`, а отдельный неиспользуемый файл), поэтому не
-  трогал и не удалял — заметил на всякий случай, если захотите
-  разобраться отдельно.
+**Файл:** `js/ui/controllers/colors-controller.js`
 
-## На что обратить внимание при точной проверке поведения
+`window.ConfiguratorData` в шаблоне (`3d-design-tool-new.php`) передаёт
+в JS только `themeUri` — цвета, которые PHP выбрал по умолчанию через
+`selected` (Stone Grey для крыши, Royal Blue для трима и т.д., из БД
+через `get_colors_by_category_optimized`), в JS вообще не попадают.
 
-Постарался сохранить оригинальное поведение один в один, включая пару
-неочевидных мест:
+Модель на JS-стороне стартует с `DEFAULT_COLORS` из `buildingModel.js`
+— **везде белый `#FFFFFF`**. При инициализации `syncFromModel()`
+записывает эти белые значения обратно в `<select>.value` — а поскольку
+ни в одной из палитр (загруженных из БД) скорее всего нет варианта
+именно с хекс-кодом `#FFFFFF`, присваивание `select.value = '#FFFFFF'`
+молча ни на что не попадает, и браузер показывает select **пустым**
+— это и есть "нет выбранного цвета по умолчанию". По той же причине
+3D-модель при первой загрузке рендерится с белыми/несовпадающими
+материалами, пока пользователь вручную не перевыберет каждый dropdown
+— из-за этого казалось, что часть цветов (например Eave Trim) вообще
+не работает: сама привязка на самом деле в порядке, просто стартовое
+состояние было бессмысленным.
 
-- **`colors-controller.js`** (`setColor`) и **`visibility-controller.js`**
-  — в оригинале эти два места звали `runtime.update()` **напрямую**, без
-  последующего вызова `updateInputsFromModel()` на весь UI (в отличие от
-  dimensions/roof/overhangs/wainscot, которые всегда дёргали полный
-  ресинк). Сохранил это как есть — то есть смена цвета или галочки
-  visibility не будет заново перерисовывать все остальные контролы,
-  ровно как было раньше.
-- **`roof-controller.js`** (`applyRoofType`, переключение
-  gabled/left-sloped/right-sloped) — в оригинале после
-  `runtime.update(nextModel)` шёл прямой вызов `updateInputsFromModel()`.
-  Сделал то же самое через `syncAll` (а не через общий `update(patch)`),
-  чтобы не было двойного `runtime.update()` подряд.
+**Исправление:** добавил `seedModelFromDom()` — при `bind()`, ДО того
+как навешиваются обработчики `change`, читаю реальное текущее значение
+(`.value`) каждого цветового контрола (то есть то, что PHP уже выбрал
+через `selected`) и одним вызовом `runtime.update()` записываю это в
+`runtime.model.colors`. После этого первый рендер соответствует тому,
+что реально выбрано в HTML, а не белым JS-заглушкам.
 
-## Публичный API не изменился
+## Что НЕ было отдельным багом
 
-`app-new.js` дёргает только `createUIAdapter(runtime).init()` — эта
-сигнатура не тронута. `UIAdapter.js` по-прежнему возвращает `{ init,
-updateInputsFromModel, toDisplay, toMeters, saveDesign, renderGallery,
-renderCompare }` — на случай, если что-то ещё в шаблоне или консоли
-браузера дергает эти методы напрямую.
+Проверил материалы для `roofMetal`/`trimMetal`/`eaveTrim` — всё
+корректно связано с `context.materials.get(...)` и `applyColors()`, в
+отличие от wainscot. Судя по всему, ощущение "roof/eaveTrim не
+работают" было следствием Бага 2 (стартовое рассинхронизированное
+состояние), а не отдельной поломкой этих конкретных цветов.
 
-## Проверка
+Про угловые вертикальные тримы отдельно не нашёл специфичного бага —
+они используют тот же `trimMetal`, что и остальной trim, так что после
+фикса Бага 2 должны красится вместе с Trim Color. Если после
+применения патча они всё ещё не красятся — пришлите новый скриншот,
+разберусь отдельно.
 
-Прогнал весь граф модулей через Node с замоканным `document`/`window` —
-`init()`, `toDisplay`/`toMeters`, `updateInputsFromModel()` отрабатывают
-без ошибок, все контроллеры создаются и связываются корректно. Полный
-рендер в браузере (реальный DOM/Three.js) не тестировал — рекомендую
-пройтись по всем контролам глазами после установки: размеры, крыша
-(тип/профиль/pitch), свесы, wainscot, цвета, чекбоксы visibility,
-единицы измерения, reference-модели.
+## Как применить
+
+Скопируйте оба файла из архива поверх соответствующих в вашем `js/`.

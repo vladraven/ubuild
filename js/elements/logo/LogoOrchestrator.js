@@ -7,9 +7,11 @@ function resolveLogoUrl() {
             window.ConfiguratorData &&
             window.ConfiguratorData.themeUri) ||
         '';
+
     if (themeUri) {
         return `${String(themeUri).replace(/\/$/, '')}/js/U-build-logo.png`;
     }
+
     return 'https://ubuildsb.com/wp-content/themes/U-Build/js/U-build-logo.png';
 }
 
@@ -20,7 +22,10 @@ const PLATE_THICKNESS = 0.08;
 let logoTexture = null;
 
 function assertContext(context) {
-    if (!context || typeof context !== 'object') {
+    if (
+        !context ||
+        typeof context !== 'object'
+    ) {
         throw new TypeError(
             'Element context is required'
         );
@@ -46,14 +51,22 @@ function assertContext(context) {
 }
 
 function applyTextureColorEncoding(texture) {
-    // Three r0.136 uses .encoding / sRGBEncoding.
-    // Newer Three uses .colorSpace / SRGBColorSpace.
-    if ('colorSpace' in texture && THREE.SRGBColorSpace !== undefined) {
-        texture.colorSpace = THREE.SRGBColorSpace;
-    } else if ('encoding' in texture && THREE.sRGBEncoding !== undefined) {
-        texture.encoding = THREE.sRGBEncoding;
+    if (
+        'colorSpace' in texture &&
+        THREE.SRGBColorSpace !== undefined
+    ) {
+        texture.colorSpace =
+            THREE.SRGBColorSpace;
+    } else if (
+        'encoding' in texture &&
+        THREE.sRGBEncoding !== undefined
+    ) {
+        texture.encoding =
+            THREE.sRGBEncoding;
     }
-    texture.needsUpdate = true;
+
+    texture.needsUpdate =
+        true;
 }
 
 function loadLogoTexture() {
@@ -61,31 +74,48 @@ function loadLogoTexture() {
         return logoTexture;
     }
 
-    const url = resolveLogoUrl();
-    const loader = new THREE.TextureLoader();
+    const url =
+        resolveLogoUrl();
 
-    logoTexture = loader.load(
-        url,
-        texture => {
-            applyTextureColorEncoding(texture);
-        },
-        undefined,
-        error => {
-            console.error(
-                'UBuild logo texture failed to load:',
-                url,
-                error
-            );
-        }
+    const loader =
+        new THREE.TextureLoader();
+
+    logoTexture =
+        loader.load(
+            url,
+            texture => {
+                applyTextureColorEncoding(
+                    texture
+                );
+            },
+            undefined,
+            error => {
+                console.error(
+                    'UBuild logo texture failed to load:',
+                    url,
+                    error
+                );
+            }
+        );
+
+    applyTextureColorEncoding(
+        logoTexture
     );
 
-    applyTextureColorEncoding(logoTexture);
+    logoTexture.wrapS =
+        THREE.ClampToEdgeWrapping;
 
-    logoTexture.wrapS = THREE.ClampToEdgeWrapping;
-    logoTexture.wrapT = THREE.ClampToEdgeWrapping;
-    logoTexture.minFilter = THREE.LinearMipmapLinearFilter;
-    logoTexture.magFilter = THREE.LinearFilter;
-    logoTexture.generateMipmaps = true;
+    logoTexture.wrapT =
+        THREE.ClampToEdgeWrapping;
+
+    logoTexture.minFilter =
+        THREE.LinearMipmapLinearFilter;
+
+    logoTexture.magFilter =
+        THREE.LinearFilter;
+
+    logoTexture.generateMipmaps =
+        true;
 
     return logoTexture;
 }
@@ -137,8 +167,11 @@ function createPlate(
     mesh.name =
         'logo-plate';
 
-    mesh.castShadow = true;
-    mesh.receiveShadow = true;
+    mesh.castShadow =
+        true;
+
+    mesh.receiveShadow =
+        true;
 
     return mesh;
 }
@@ -172,8 +205,11 @@ function createFrame(
     mesh.position.z =
         -PLATE_THICKNESS / 2;
 
-    mesh.castShadow = true;
-    mesh.receiveShadow = true;
+    mesh.castShadow =
+        true;
+
+    mesh.receiveShadow =
+        true;
 
     return mesh;
 }
@@ -228,28 +264,15 @@ function createObject(
     root.name =
         'logo';
 
-    /*
-     * Legacy behavior:
-     *
-     * If geometry.logo exists,
-     * create the logo.
-     *
-     * Do not make creation depend
-     * on model.logo.enabled.
-     */
-
     if (
         !logoData.position
     ) {
         return root;
     }
 
-    // FIX: visibility.logo (the UI show/hide toggle) was never checked -
-    // separate from model.logo.enabled above, which is intentionally not
-    // gated per the comment. See the same fix on Ridge/Trim/Foundation/
-    // Gutters orchestrators.
     if (
-        context.model?.visibility?.logo === false
+        context.model?.visibility?.logo ===
+        false
     ) {
         return root;
     }
@@ -291,10 +314,20 @@ function createObject(
         ) || 0
     );
 
+    /*
+     * The logo geometry position is already
+     * calculated in world/building coordinates.
+     *
+     * Keep the root unrotated so the local
+     * plate/image offsets do not get reversed.
+     *
+     * Apply the requested orientation only
+     * to the image plane.
+     */
     if (
         logoData.rotation
     ) {
-        root.rotation.set(
+        image.rotation.set(
             Number(
                 logoData.rotation.x
             ) || 0,
@@ -309,12 +342,17 @@ function createObject(
 
     root.traverse(
         child => {
-            if (!child.isMesh) {
+            if (
+                !child.isMesh
+            ) {
                 return;
             }
 
-            child.castShadow = true;
-            child.receiveShadow = true;
+            child.castShadow =
+                true;
+
+            child.receiveShadow =
+                true;
         }
     );
 
@@ -324,13 +362,17 @@ function createObject(
 function disposeObject(
     object
 ) {
-    if (!object) {
+    if (
+        !object
+    ) {
         return;
     }
 
     object.traverse(
         child => {
-            if (!child.isMesh) {
+            if (
+                !child.isMesh
+            ) {
                 return;
             }
 
@@ -338,7 +380,9 @@ function disposeObject(
                 child.geometry
             ) {
                 child.geometry.dispose();
-                child.geometry = null;
+
+                child.geometry =
+                    null;
             }
 
             if (
@@ -375,7 +419,8 @@ function disposeObject(
                     child.material.dispose();
                 }
 
-                child.material = null;
+                child.material =
+                    null;
             }
         }
     );
@@ -409,7 +454,9 @@ export const LogoOrchestrator =
             object,
             context
         ) {
-            if (!object) {
+            if (
+                !object
+            ) {
                 return createObject(
                     context
                 );

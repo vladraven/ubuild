@@ -96,28 +96,6 @@ function createProfileMesh(
 
     direction.normalize();
 
-    const geometry =
-        new THREE.BoxGeometry(
-            width,
-            depth,
-            length
-        );
-
-    const mesh =
-        new THREE.Mesh(
-            geometry,
-            material
-        );
-
-    mesh.position.copy(
-        start
-            .clone()
-            .add(end)
-            .multiplyScalar(
-                0.5
-            )
-    );
-
     let upHint =
         new THREE.Vector3(
             0,
@@ -156,6 +134,28 @@ function createProfileMesh(
             )
             .normalize();
 
+    const geometry =
+        new THREE.BoxGeometry(
+            width,
+            depth,
+            length
+        );
+
+    const mesh =
+        new THREE.Mesh(
+            geometry,
+            material
+        );
+
+    mesh.position.copy(
+        start
+            .clone()
+            .add(end)
+            .multiplyScalar(
+                0.5
+            )
+    );
+
     const basis =
         new THREE.Matrix4()
             .makeBasis(
@@ -168,25 +168,15 @@ function createProfileMesh(
         basis
     );
 
-    mesh.castShadow = true;
-    mesh.receiveShadow = true;
+    mesh.castShadow =
+        true;
+
+    mesh.receiveShadow =
+        true;
 
     return mesh;
 }
 
-/*
- * TOP / RAKE TRIM
- *
- * The longitudinal axis remains exactly on lineSeg.
- *
- * The terminal plane is cut at 45 degrees
- * across the width of the profile.
- *
- * The centerline end remains exactly at lineSeg.end.
- *
- * The two opposite rake trims therefore receive
- * mirrored terminal cuts and meet at one point.
- */
 function createRakeTrimMesh(
     lineSeg,
     material,
@@ -279,15 +269,6 @@ function createRakeTrimMesh(
             ? 1
             : -1;
 
-    /*
-     * 45-degree cut:
-     *
-     * dz / dx = 1
-     *
-     * Therefore the longitudinal displacement
-     * equals the transverse displacement.
-     */
-
     const cutAt =
         x =>
             length -
@@ -320,9 +301,6 @@ function createRakeTrimMesh(
     }
 
     const localVertices = [
-        /*
-         * START / TOP
-         */
         x0,
         -halfDepth,
         0,
@@ -331,9 +309,6 @@ function createRakeTrimMesh(
         -halfDepth,
         0,
 
-        /*
-         * START / BOTTOM
-         */
         x0,
         halfDepth,
         0,
@@ -342,9 +317,6 @@ function createRakeTrimMesh(
         halfDepth,
         0,
 
-        /*
-         * MITER / TOP
-         */
         x0,
         -halfDepth,
         z0,
@@ -353,9 +325,6 @@ function createRakeTrimMesh(
         -halfDepth,
         z1,
 
-        /*
-         * MITER / BOTTOM
-         */
         x0,
         halfDepth,
         z0,
@@ -418,39 +387,21 @@ function createRakeTrimMesh(
     }
 
     const indices = [
-        /*
-         * START
-         */
         0, 2, 1,
         1, 2, 3,
 
-        /*
-         * TOP
-         */
         0, 1, 5,
         0, 5, 4,
 
-        /*
-         * BOTTOM
-         */
         2, 6, 7,
         2, 7, 3,
 
-        /*
-         * LEFT
-         */
         0, 4, 6,
         0, 6, 2,
 
-        /*
-         * RIGHT
-         */
         1, 3, 7,
         1, 7, 5,
 
-        /*
-         * 45-DEGREE END
-         */
         4, 5, 7,
         4, 7, 6
     ];
@@ -483,36 +434,15 @@ function createRakeTrimMesh(
     mesh.name =
         'rake-trim';
 
-    mesh.castShadow = true;
-    mesh.receiveShadow = true;
+    mesh.castShadow =
+        true;
+
+    mesh.receiveShadow =
+        true;
 
     return mesh;
 }
 
-/*
- * CORNER TRIM
- *
- * L-shaped vertical profile.
- *
- * The profile itself stays vertical and parallel
- * to the building walls.
- *
- * The two free ends of the L are cut at 45 degrees.
- *
- * Top view:
- *
- *       /
- *      /
- *     ┌────────
- *     │
- *     │
- *     │
- *     └────────
- *          \
- *           \
- *
- * There is no change to the vertical axis.
- */
 function createCornerTrimMesh(
     corner,
     material
@@ -560,29 +490,18 @@ function createCornerTrimMesh(
             ? corner.sz
             : -1;
 
+    /*
+     * sx / sz already describe the
+     * outward direction of the corner.
+     *
+     * Do NOT invert them.
+     */
+
     const dirX =
-        -sx;
+        sx;
 
     const dirZ =
-        -sz;
-
-    /*
-     * L profile with 45-degree cuts
-     * on BOTH free ends.
-     *
-     * Without the cuts the profile was:
-     *
-     * 0 ───────────── 1
-     * │               │
-     * │       2 ──────┘
-     * │       │
-     * 5 ──────┘
-     *
-     * The new points move the free ends by
-     * exactly one material thickness.
-     *
-     * Since dx = dz, these are 45-degree cuts.
-     */
+        sz;
 
     const cut =
         thickness;
@@ -590,20 +509,10 @@ function createCornerTrimMesh(
     const shape =
         new THREE.Shape();
 
-    /*
-     * Start at the building corner.
-     */
-
     shape.moveTo(
         0,
         0
     );
-
-    /*
-     * FIRST LEG
-     *
-     * 45-degree cut at the outer/free end.
-     */
 
     shape.lineTo(
         dirX *
@@ -616,20 +525,10 @@ function createCornerTrimMesh(
         dirZ * thickness
     );
 
-    /*
-     * Inside of the L.
-     */
-
     shape.lineTo(
         dirX * thickness,
         dirZ * thickness
     );
-
-    /*
-     * SECOND LEG
-     *
-     * 45-degree cut at its free end.
-     */
 
     shape.lineTo(
         dirX * thickness,
@@ -641,10 +540,6 @@ function createCornerTrimMesh(
         0,
         dirZ * leg
     );
-
-    /*
-     * Back to the building corner.
-     */
 
     shape.closePath();
 
@@ -658,10 +553,6 @@ function createCornerTrimMesh(
                 curveSegments: 1
             }
         );
-
-    /*
-     * Extrusion is the vertical axis.
-     */
 
     geometry.rotateX(
         -Math.PI / 2
@@ -681,7 +572,8 @@ function createCornerTrimMesh(
         );
     }
 
-    pos.needsUpdate = true;
+    pos.needsUpdate =
+        true;
 
     geometry.computeVertexNormals();
     geometry.computeBoundingBox();
@@ -706,8 +598,11 @@ function createCornerTrimMesh(
         start.z
     );
 
-    mesh.castShadow = true;
-    mesh.receiveShadow = true;
+    mesh.castShadow =
+        true;
+
+    mesh.receiveShadow =
+        true;
 
     mesh.renderOrder =
         8;
@@ -743,7 +638,8 @@ function createObject(
     }
 
     if (
-        context.model?.visibility?.trims === false
+        context.model?.visibility?.trims ===
+        false
     ) {
         return root;
     }
@@ -760,9 +656,13 @@ function createObject(
             'eaveTrim'
         );
 
-    /*
-     * EAVE TRIMS
-     */
+    console.log(
+        'TRIM MATERIAL',
+        trimMaterial?.uuid,
+        trimMaterial?.color?.getHexString?.(),
+        context.colors?.trim,
+        context.colors?.wall
+    );
 
     const eaveGroup =
         new THREE.Group();
@@ -791,10 +691,6 @@ function createObject(
         }
     }
 
-    /*
-     * TOP / RAKE TRIMS
-     */
-
     const roofTrimGroup =
         new THREE.Group();
 
@@ -805,13 +701,6 @@ function createObject(
         const rake
         of trimsData.rake
     ) {
-        /*
-         * Opposite rake sides get opposite
-         * 45-degree terminal cuts.
-         *
-         * The rake itself is never rotated.
-         */
-
         const miterSide =
             rake.slope === 'left'
                 ? 1
@@ -835,10 +724,6 @@ function createObject(
         }
     }
 
-    /*
-     * CORNER TRIMS
-     */
-
     const cornerGroup =
         new THREE.Group();
 
@@ -858,6 +743,16 @@ function createObject(
         if (
             mesh
         ) {
+            console.log(
+                'CORNER TRIM MATERIAL',
+                mesh.material?.uuid,
+                mesh.material?.color?.getHexString?.(),
+                'trim=',
+                context.colors?.trim,
+                'wall=',
+                context.colors?.wall
+            );
+
             cornerGroup.add(
                 mesh
             );

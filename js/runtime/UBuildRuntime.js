@@ -95,6 +95,7 @@ import {
 }
 from '../interaction/OpeningInteraction.js';
 
+
 function assertContainer(container) {
     if (
         !container ||
@@ -103,6 +104,7 @@ function assertContainer(container) {
             'A valid DOM container element is required');
     }
 }
+
 
 function createScene() {
     const scene =
@@ -115,9 +117,11 @@ function createScene() {
     return scene;
 }
 
+
 function createCamera(
     container,
     geometry) {
+
     const width =
         Math.max(
             container.clientWidth,
@@ -161,8 +165,10 @@ function createCamera(
     return camera;
 }
 
+
 function createRenderer(
     container) {
+
     const renderer =
         new THREE.WebGLRenderer({
             antialias: true,
@@ -193,15 +199,23 @@ function createRenderer(
     renderer.outputColorSpace =
         THREE.SRGBColorSpace;
 
+    renderer.toneMapping =
+        THREE.ACESFilmicToneMapping;
+
+    renderer.toneMappingExposure =
+        1;
+
     container.appendChild(
         renderer.domElement);
 
     return renderer;
 }
 
+
 function normalizeColor(
     value,
     fallback) {
+
     if (
         value instanceof THREE.Color) {
         return value.clone();
@@ -216,14 +230,18 @@ function normalizeColor(
 
     if (
         typeof value === 'string') {
+
         const normalized =
             value.trim();
 
         if (
             normalized !== '') {
+
             try {
+
                 return new THREE.Color(
                     normalized);
+
             } catch {}
         }
     }
@@ -232,187 +250,202 @@ function normalizeColor(
         fallback);
 }
 
+
 function createMaterialSystem(
     model) {
+
     const colors =
         model.colors || {};
 
     const materials =
         new Map([
-                [
-                    'wallMetal',
-                    new THREE.MeshStandardMaterial({
-                        color: normalizeColor(
-                            colors.wall,
-                            0xffffff),
-                        metalness: 0.35,
-                        roughness: 0.7
-                    })
-                ],
+            [
+                'wallMetal',
+                new THREE.MeshStandardMaterial({
+                    color: normalizeColor(
+                        colors.wall,
+                        0xffffff),
+                    metalness: 0.35,
+                    roughness: 0.7
+                })
+            ],
 
-                [
-                    'roofMetal',
-                    new THREE.MeshStandardMaterial({
-                        color: normalizeColor(
-                            colors.roof,
-                            0xffffff),
-                        metalness: 0.4,
-                        roughness: 0.65
-                    })
-                ],
+            [
+                'roofMetal',
+                new THREE.MeshStandardMaterial({
+                    color: normalizeColor(
+                        colors.roof,
+                        0xffffff),
+                    metalness: 0.4,
+                    roughness: 0.65
+                })
+            ],
 
-                [
-                    'structuralSteel',
-                    new THREE.MeshStandardMaterial({
-                        color: normalizeColor(
-                            colors.steel ??
-                            colors.frame,
-                            0xffffff),
-                        metalness: 0.65,
-                        roughness: 0.45
-                    })
-                ],
+            [
+                'structuralSteel',
+                new THREE.MeshStandardMaterial({
+                    color: normalizeColor(
+                        colors.steel ??
+                        colors.frame,
+                        0xffffff),
+                    metalness: 0.65,
+                    roughness: 0.45
+                })
+            ],
 
-                [
-                    'steel',
-                    new THREE.MeshStandardMaterial({
-                        color: normalizeColor(
-                            colors.steel ??
-                            colors.frame,
-                            0xffffff),
-                        metalness: 0.65,
-                        roughness: 0.45
-                    })
-                ],
+            [
+                'steel',
+                new THREE.MeshStandardMaterial({
+                    color: normalizeColor(
+                        colors.steel ??
+                        colors.frame,
+                        0xffffff),
+                    metalness: 0.65,
+                    roughness: 0.45
+                })
+            ],
 
-                [
-                    'concrete',
-                    new THREE.MeshStandardMaterial({
-                        color: normalizeColor(
-                            colors.concrete,
-                            0xb8b8b8),
-                        roughness: 0.9
-                    })
-                ],
+            [
+                'concrete',
+                new THREE.MeshStandardMaterial({
+                    color: normalizeColor(
+                        colors.concrete,
+                        0xb8b8b8),
+                    roughness: 0.9
+                })
+            ],
 
-                [
-                    'trimMetal',
-                    new THREE.MeshStandardMaterial({
-                        color: normalizeColor(
-                            colors.trim,
-                            0xffffff),
-                        metalness: 0.55,
-                        roughness: 0.5
-                    })
-                ],
+            [
+                'trimMetal',
+                new THREE.MeshStandardMaterial({
+                    color: normalizeColor(
+                        colors.trim,
+                        0xffffff),
+                    metalness: 0.55,
+                    roughness: 0.5
+                })
+            ],
 
-                [
-                    'eaveTrim',
-                    new THREE.MeshStandardMaterial({
-                        color: normalizeColor(
-                            colors.eaveTrim ??
-                            colors.trim,
-                            0xffffff),
-                        metalness: 0.55,
-                        roughness: 0.5
-                    })
-                ],
+            [
+                'eaveTrim',
+                new THREE.MeshStandardMaterial({
+                    color: normalizeColor(
+                        colors.eaveTrim ??
+                        colors.trim,
+                        0xffffff),
+                    metalness: 0.55,
+                    roughness: 0.5
+                })
+            ],
 
-                [
-                    'doorTrim',
-                    new THREE.MeshStandardMaterial({
-                        color: normalizeColor(
-                            colors.trim,
-                            0xffffff),
-                        metalness: 0.55,
-                        roughness: 0.5
-                    })
-                ],
+            [
+                'doorTrim',
+                new THREE.MeshStandardMaterial({
+                    color: normalizeColor(
+                        colors.trim,
+                        0xffffff),
+                    metalness: 0.55,
+                    roughness: 0.5
+                })
+            ],
 
-                [
-                    'doorFrame',
-                    new THREE.MeshStandardMaterial({
-                        color: normalizeColor(
-                            colors.trim,
-                            0xffffff),
-                        metalness: 0.55,
-                        roughness: 0.5
-                    })
-                ],
+            [
+                'doorFrame',
+                new THREE.MeshStandardMaterial({
+                    color: normalizeColor(
+                        colors.trim,
+                        0xffffff),
+                    metalness: 0.55,
+                    roughness: 0.5
+                })
+            ],
 
-                [
-                    'frame',
-                    new THREE.MeshStandardMaterial({
-                        color: normalizeColor(
-                            colors.frame ??
-                            colors.steel,
-                            0xffffff),
-                        metalness: 0.55,
-                        roughness: 0.5
-                    })
-                ],
+            [
+                'frame',
+                new THREE.MeshStandardMaterial({
+                    color: normalizeColor(
+                        colors.frame ??
+                        colors.steel,
+                        0xffffff),
+                    metalness: 0.55,
+                    roughness: 0.5
+                })
+            ],
 
-                [
-                    'doorPanel',
-                    new THREE.MeshStandardMaterial({
-                        color: normalizeColor(
-                            colors.wall,
-                            0xffffff),
-                        metalness: 0.2,
-                        roughness: 0.8
-                    })
-                ],
+            [
+                'doorPanel',
+                new THREE.MeshStandardMaterial({
+                    color: normalizeColor(
+                        colors.wall,
+                        0xffffff),
+                    metalness: 0.2,
+                    roughness: 0.8
+                })
+            ],
 
-                [
-                    'glass',
-                    new THREE.MeshStandardMaterial({
-                        color: normalizeColor(
-                            colors.glass,
-                            0x9fc5e8),
-                        transparent: true,
-                        opacity: 0.45,
-                        roughness: 0.1,
-                        metalness: 0
-                    })
-                ],
+            [
+                'glass',
+                new THREE.MeshStandardMaterial({
+                    color: normalizeColor(
+                        colors.glass,
+                        0x9fc5e8),
+                    transparent: true,
+                    opacity: 0.45,
+                    roughness: 0.1,
+                    metalness: 0
+                })
+            ],
 
-                [
-                    'mezzanine',
-                    new THREE.MeshStandardMaterial({
-                        color: normalizeColor(
-                            colors.mezzanine,
-                            0xffffff),
-                        metalness: 0.4,
-                        roughness: 0.6
-                    })
-                ],
+            [
+                'mezzanine',
+                new THREE.MeshStandardMaterial({
+                    color: normalizeColor(
+                        colors.mezzanine,
+                        0xffffff),
+                    metalness: 0.4,
+                    roughness: 0.6
+                })
+            ],
 
-                [
-                    'interiorWall',
-                    new THREE.MeshStandardMaterial({
-                        color: normalizeColor(
-                            colors.interiorWall ??
-                            colors.wall,
-                            0xffffff),
-                        metalness: 0.1,
-                        roughness: 0.8
-                    })
-                ],
+            [
+                'interiorWall',
+                new THREE.MeshStandardMaterial({
+                    color: normalizeColor(
+                        colors.interiorWall ??
+                        colors.wall,
+                        0xffffff),
+                    metalness: 0.1,
+                    roughness: 0.8
+                })
+            ],
 
-                [
-                    'wall',
-                    new THREE.MeshStandardMaterial({
-                        color: normalizeColor(
-                            colors.wall,
-                            0xffffff),
-                        metalness: 0.35,
-                        roughness: 0.7
-                    })
-                ]
-            ]);
+            [
+                'wall',
+                new THREE.MeshStandardMaterial({
+                    color: normalizeColor(
+                        colors.wall,
+                        0xffffff),
+                    metalness: 0.35,
+                    roughness: 0.7
+                })
+            ],
+
+            [
+                'wainscotMetal',
+                new THREE.MeshStandardMaterial({
+                    color: normalizeColor(
+                        colors.wainscot,
+                        0xffffff),
+                    metalness: 0.35,
+                    roughness: 0.7
+                })
+            ]
+        ]);
+
 
     function applyColors(
         nextColors = {}) {
+
         const wall =
             normalizeColor(
                 nextColors.wall,
@@ -467,6 +500,12 @@ function createMaterialSystem(
                 nextColors.wall,
                 0xffffff);
 
+        const wainscot =
+            normalizeColor(
+                nextColors.wainscot,
+                0xffffff);
+
+
         materials.get(
             'wallMetal').color.copy(wall);
 
@@ -511,32 +550,46 @@ function createMaterialSystem(
 
         materials.get(
             'interiorWall').color.copy(
-            interiorWall);
+                interiorWall);
+
+        materials.get(
+            'wainscotMetal').color.copy(
+                wainscot);
+
 
         for (
             const material
             of materials.values()) {
+
             material.needsUpdate =
                 true;
         }
     }
 
+
     applyColors(
         colors);
 
+
     return Object.freeze({
+
         get(name) {
+
             return (
                 materials.get(name) ??
                 materials.get('steel'));
         },
 
+
         applyColors,
 
+
         dispose() {
+
             for (
                 const mat
                 of materials.values()) {
+
                 mat.dispose();
             }
 
@@ -545,79 +598,100 @@ function createMaterialSystem(
     });
 }
 
+
 function createColors(
     model) {
+
     return Object.freeze({
         ...(model.colors || {})
     });
 }
 
+
 function createRegistry() {
+
     const registry =
         createElementRegistry();
+
 
     registry.register(
         'foundation',
         FoundationOrchestrator);
 
+
     registry.register(
         'structural',
         StructuralOrchestrator);
+
 
     registry.register(
         'walls',
         WallOrchestrator);
 
+
     registry.register(
         'roof',
         RoofOrchestrator);
+
 
     registry.register(
         'wainscot',
         WainscotOrchestrator);
 
+
     registry.register(
         'openings',
         OpeningOrchestrator);
+
 
     registry.register(
         'trims',
         TrimOrchestrator);
 
+
     registry.register(
         'ridge',
         RidgeOrchestrator);
+
 
     registry.register(
         'gutters',
         GuttersOrchestrator);
 
+
     registry.register(
         'mezzanine',
         MezzanineOrchestrator);
+
 
     registry.register(
         'crane',
         CraneOrchestrator);
 
+
     registry.register(
         'liner',
         LinerOrchestrator);
+
 
     registry.register(
         'driveway',
         DrivewayOrchestrator);
 
+
     registry.register(
         'logo',
         LogoOrchestrator);
+
 
     registry.register(
         'awnings',
         AwningElement);
 
+
     return registry;
 }
+
 
 function createContext({
     model,
@@ -628,40 +702,52 @@ function createContext({
     camera,
     renderer
 }) {
+
     return {
+
         model,
+
         geometry,
+
         panelGeometry:
-        geometry.panels,
+            geometry.panels,
 
         structuralGeometry: {
+
             frames:
-            geometry.frames,
+                geometry.frames,
 
             girts:
-            geometry.girts,
+                geometry.girts,
 
             purlins:
-            geometry.purlins,
+                geometry.purlins,
 
             endWallColumns:
-            geometry.endWallColumns
+                geometry.endWallColumns
         },
 
         materials,
+
         colors,
+
         scene,
+
         camera,
+
         renderer
     };
 }
 
+
 function addInstances(
     root,
     instances) {
+
     for (
         const [id, instance]
         of instances) {
+
         if (!instance) {
             continue;
         }
@@ -673,262 +759,354 @@ function addInstances(
         if (
             obj &&
             obj.isObject3D) {
-            obj.name = id;
-            root.add(obj);
+
+            obj.name =
+                id;
+
+            root.add(
+                obj);
         }
     }
 }
 
+
 function clearRoot(
     root) {
+
     while (
         root.children.length > 0) {
+
         root.remove(
             root.children[0]);
     }
 }
 
+
 export function createUBuildRuntime({
+
     container,
+
     model = {},
+
     environment = {},
+
     lighting = {}
+
 } = {}) {
+
     assertContainer(
         container);
+
 
     let buildingModel =
         createBuildingModel(
             model);
 
+
     let buildingGeometry =
         createBuildingGeometry(
             buildingModel);
 
+
     const scene =
         createScene();
+
 
     const camera =
         createCamera(
             container,
             buildingGeometry);
 
+
     const renderer =
         createRenderer(
             container);
+
 
     const environmentSystem =
         createEnvironmentSystem(
             environment);
 
+
     scene.add(
         environmentSystem.group);
+
 
     const lightingSystem =
         createLightingSystem(
             scene);
 
+
     const materials =
         createMaterialSystem(
             buildingModel);
+
 
     let colors =
         createColors(
             buildingModel);
 
+
     const registry =
         createRegistry();
+
 
     const buildingRoot =
         new THREE.Group();
 
+
     buildingRoot.name =
         'u-build-building';
+
 
     scene.add(
         buildingRoot);
 
+
     const context =
         createContext({
-            model: buildingModel,
+
+            model:
+                buildingModel,
+
             geometry:
-            buildingGeometry,
+                buildingGeometry,
+
             materials,
+
             colors,
+
             scene,
+
             camera,
+
             renderer
         });
+
 
     let currentInstances =
         registry.createAll(
             context);
 
+
     addInstances(
         buildingRoot,
         currentInstances);
 
-    let disposed = false;
+
+    let disposed =
+        false;
+
 
     const cameraControls =
         createCameraControls({
+
             camera,
+
             domElement:
-            renderer.domElement,
-            onUpdate: render
+                renderer.domElement,
+
+            onUpdate:
+                render
         });
+
 
     const openingInteraction =
         createOpeningInteraction({
+
             camera,
+
             domElement:
-            renderer.domElement,
+                renderer.domElement,
+
             buildingRoot,
+
 
             onOpeningChange(
                 change) {
+
                 const nextOpenings =
                     buildingModel.openings.map(
                         op => {
-                        if (
-                            op.id ===
-                            change.id) {
-                            return {
-                                ...op,
-                                x:
-                                change.x,
-                                yOff:
-                                change.yOff
-                            };
-                        }
 
-                        return op;
-                    });
+                            if (
+                                op.id ===
+                                change.id) {
+
+                                return {
+
+                                    ...op,
+
+                                    x:
+                                        change.x,
+
+                                    yOff:
+                                        change.yOff
+                                };
+                            }
+
+                            return op;
+                        }
+                    );
+
 
                 update({
+
                     ...buildingModel,
+
                     openings:
-                    nextOpenings
+                        nextOpenings
                 });
             }
         });
 
+
     let lightingConfig = {
+
         date:
-        lighting.date ??
-        '2026-06-21',
+            lighting.date ??
+            '2026-06-21',
 
         time:
-        lighting.time ??
-        '12:00',
+            lighting.time ??
+            '12:00',
 
         timezone:
-        lighting.timezone ??
-        'America/Winnipeg',
+            lighting.timezone ??
+            'America/Winnipeg',
 
         latitude:
-        lighting.latitude ??
-        49.8951,
+            lighting.latitude ??
+            49.8951,
 
         longitude:
-        lighting.longitude ??
-        -97.1384
+            lighting.longitude ??
+            -97.1384
     };
 
+
     function updateLightingAndEnvironment() {
+
         const solarState =
             getSolarState(
                 lightingConfig);
+
 
         lightingSystem.update(
             solarState,
             buildingGeometry.bounds);
 
+
         environmentSystem.updateBounds(
             buildingGeometry.bounds);
+
 
         const envState =
             environmentSystem.getState();
 
+
         if (
             solarState.phase ===
             'night') {
+
             scene.background.setHex(
                 0x0a1424);
+
         } else {
+
             scene.background.setHex(
                 envState
-                .atmosphericProfile
-                .fogColor);
+                    .atmosphericProfile
+                    .fogColor);
         }
     }
 
+
     function resize() {
+
         if (disposed) {
             return;
         }
+
 
         const width =
             Math.max(
                 container.clientWidth,
                 1);
 
+
         const height =
             Math.max(
                 container.clientHeight,
                 1);
 
+
         camera.aspect =
             width / height;
 
+
         camera.updateProjectionMatrix();
+
 
         renderer.setSize(
             width,
             height);
 
+
         render();
     }
 
+
     function render() {
+
         if (disposed) {
             return;
         }
+
 
         renderer.render(
             scene,
             camera);
     }
 
+
     function update(
         nextModel) {
+
         if (disposed) {
+
             throw new Error(
                 'UBuild runtime is disposed');
         }
+
 
         buildingModel =
             createBuildingModel(
                 nextModel);
 
+
         buildingGeometry =
             createBuildingGeometry(
                 buildingModel);
+
 
         colors =
             createColors(
                 buildingModel);
 
+
         materials.applyColors(
             buildingModel.colors);
 
+
         const nextContext =
             createContext({
+
                 model:
-                buildingModel,
+                    buildingModel,
 
                 geometry:
-                buildingGeometry,
+                    buildingGeometry,
 
                 materials,
 
@@ -941,202 +1119,277 @@ export function createUBuildRuntime({
                 renderer
             });
 
+
         currentInstances =
             registry.updateAll(
+
                 currentInstances,
+
                 nextContext);
+
 
         clearRoot(
             buildingRoot);
 
+
         addInstances(
             buildingRoot,
+
             currentInstances);
+
 
         updateLightingAndEnvironment();
 
+
         render();
+
 
         return buildingModel;
     }
 
+
     function autoFrame() {
+
         cameraControls.frameBounds(
             buildingGeometry.bounds);
+
 
         render();
     }
 
+
     function setDateTimeLocation(
         config = {}) {
+
         if (disposed) {
+
             throw new Error(
                 'UBuild runtime is disposed');
         }
+
 
         if (
             config.date !==
             undefined) {
+
             lightingConfig.date =
                 config.date;
         }
 
+
         if (
             config.time !==
             undefined) {
+
             lightingConfig.time =
                 config.time;
         }
 
+
         if (
             config.timezone !==
             undefined) {
+
             lightingConfig.timezone =
                 config.timezone;
         }
 
+
         if (
             config.latitude !==
             undefined) {
+
             lightingConfig.latitude =
                 config.latitude;
         }
 
+
         if (
             config.longitude !==
             undefined) {
+
             lightingConfig.longitude =
                 config.longitude;
         }
 
+
         environmentSystem.update({
+
             date:
-            lightingConfig.date,
+                lightingConfig.date,
 
             hemisphere:
-            config.hemisphere ||
-            (
-                lightingConfig.latitude >=
-                0
-                 ? 'north'
-                 : 'south'),
+                config.hemisphere ||
+                (
+                    lightingConfig.latitude >=
+                    0
+                        ? 'north'
+                        : 'south'
+                ),
 
             weather:
-            config.weather ||
-            'clear',
+                config.weather ||
+                'clear',
 
             location: {
+
                 latitude:
-                lightingConfig.latitude,
+                    lightingConfig.latitude,
 
                 longitude:
-                lightingConfig.longitude,
+                    lightingConfig.longitude,
 
                 timezone:
-                lightingConfig.timezone
+                    lightingConfig.timezone
             }
         });
 
+
         updateLightingAndEnvironment();
+
 
         render();
     }
 
+
     function start() {
+
         if (disposed) {
+
             throw new Error(
                 'UBuild runtime is disposed');
         }
 
+
         updateLightingAndEnvironment();
+
 
         resize();
 
+
         autoFrame();
+
 
         return api;
     }
 
+
     function dispose() {
+
         if (disposed) {
             return;
         }
 
-        disposed = true;
+
+        disposed =
+            true;
+
 
         cameraControls.dispose();
 
+
         openingInteraction.dispose();
+
 
         registry.disposeAll(
             currentInstances);
 
+
         lightingSystem.dispose();
+
 
         environmentSystem.dispose();
 
+
         materials.dispose();
+
 
         renderer.dispose();
 
+
         renderer.domElement.remove();
+
 
         window.removeEventListener(
             'resize',
             resize);
     }
 
+
     const api =
         Object.freeze({
+
             get model() {
                 return buildingModel;
             },
+
 
             get geometry() {
                 return buildingGeometry;
             },
 
+
             scene,
+
+
             camera,
+
+
             renderer,
 
+
             environment:
-            environmentSystem,
+                environmentSystem,
+
 
             lighting:
-            lightingSystem,
+                lightingSystem,
+
 
             controls:
-            cameraControls,
+                cameraControls,
+
 
             interaction:
-            openingInteraction,
+                openingInteraction,
+
 
             materials,
 
+
             registry,
 
+
             root:
-            buildingRoot,
+                buildingRoot,
+
 
             start,
 
+
             render,
+
 
             resize,
 
+
             update,
+
 
             autoFrame,
 
+
             setDateTimeLocation,
+
 
             dispose
         });
 
+
     window.addEventListener(
         'resize',
         resize);
+
 
     return api;
 }

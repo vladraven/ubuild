@@ -195,7 +195,7 @@ const DEFAULTS = Object.freeze({
     }),
 
     visibility: Object.freeze({
-        walls: true,
+        walls: false,
         roof: true,
         foundation: true,
         panels: true,
