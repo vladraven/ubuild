@@ -1,6 +1,8 @@
 import {
     THREE,
-    getSolarState
+    getSolarState,
+    createBuildingModel,
+    createBuildingGeometry
 } from './runtimeImports.js';
 
 import {
@@ -50,9 +52,7 @@ function mergeValues(
             key,
             value
         ]
-        of Object.entries(
-            override
-        )
+        of Object.entries(override)
     ) {
         if (
             value &&
@@ -115,10 +115,17 @@ export function createUpdateSystem({
     }
 
     let currentModel =
-        cloneValue(model);
+        createBuildingModel(
+            model
+        );
+
+    let currentGeometry =
+        geometry;
 
     let currentEnvironment =
-        cloneValue(environment);
+        cloneValue(
+            environment
+        );
 
     let instances =
         new Map();
@@ -126,28 +133,64 @@ export function createUpdateSystem({
     let lastSolarState =
         null;
 
+    function rebuildGeometry() {
+        currentGeometry =
+            createBuildingGeometry(
+                currentModel
+            );
+
+        return currentGeometry;
+    }
+
+    function applyModel(
+        nextModel
+    ) {
+        if (
+            !nextModel ||
+            nextModel === currentModel
+        ) {
+            return false;
+        }
+
+        const mergedModel =
+            mergeValues(
+                currentModel,
+                nextModel
+            );
+
+        currentModel =
+            createBuildingModel(
+                mergedModel
+            );
+
+        rebuildGeometry();
+
+        return true;
+    }
+
     function createElementContext() {
         return {
             model:
                 currentModel,
 
-            geometry,
+            geometry:
+                currentGeometry,
 
             panelGeometry:
-                geometry.panels,
+                currentGeometry.panels,
 
             structuralGeometry: {
                 frames:
-                    geometry.frames,
+                    currentGeometry.frames,
 
                 girts:
-                    geometry.girts,
+                    currentGeometry.girts,
 
                 purlins:
-                    geometry.purlins,
+                    currentGeometry.purlins,
 
                 endWallColumns:
-                    geometry.endWallColumns
+                    currentGeometry.endWallColumns
             },
 
             materials,
@@ -377,11 +420,11 @@ export function createUpdateSystem({
 
         lifecycle.updateLighting(
             solarState,
-            geometry.bounds
+            currentGeometry.bounds
         );
 
         lifecycle.setEnvironmentBounds(
-            geometry.bounds
+            currentGeometry.bounds
         );
 
         currentEnvironment =
@@ -432,22 +475,20 @@ export function createUpdateSystem({
     function update(
         nextModel = null
     ) {
-        if (
-            nextModel &&
-            nextModel !== currentModel
-        ) {
-            currentModel =
-                mergeValues(
-                    currentModel,
-                    nextModel
-                );
-        }
+        const geometryChanged =
+            applyModel(
+                nextModel
+            );
 
         updateColors(
             currentModel.colors
         );
 
-        updateElements();
+        if (geometryChanged) {
+            updateElements();
+        } else {
+            updateElements();
+        }
 
         updateLightingAndEnvironment();
 
@@ -457,16 +498,9 @@ export function createUpdateSystem({
     function rebuild(
         nextModel = null
     ) {
-        if (
-            nextModel &&
-            nextModel !== currentModel
-        ) {
-            currentModel =
-                mergeValues(
-                    currentModel,
-                    nextModel
-                );
-        }
+        applyModel(
+            nextModel
+        );
 
         createElements();
 
@@ -485,13 +519,13 @@ export function createUpdateSystem({
 
     function autoFrame() {
         if (
-            !geometry.bounds
+            !currentGeometry.bounds
         ) {
             return;
         }
 
         const bounds =
-            geometry.bounds;
+            currentGeometry.bounds;
 
         const center =
             bounds.center;
@@ -569,7 +603,9 @@ export function createUpdateSystem({
             return currentModel;
         },
 
-        geometry,
+        get geometry() {
+            return currentGeometry;
+        },
 
         get colors() {
             return colors;

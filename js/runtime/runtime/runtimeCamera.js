@@ -2,10 +2,13 @@ import {
     THREE
 } from './runtimeImports.js';
 
-function assertContainer(container) {
+function assertContainer(
+    container
+) {
     if (
         !container ||
-        typeof container.appendChild !== 'function'
+        typeof container.appendChild !==
+        'function'
     ) {
         throw new TypeError(
             'A valid DOM container element is required'
@@ -17,7 +20,9 @@ export function createCamera(
     container,
     geometry
 ) {
-    assertContainer(container);
+    assertContainer(
+        container
+    );
 
     if (
         !geometry ||
@@ -47,32 +52,6 @@ export function createCamera(
             0.1,
             5000
         );
-
-    const bounds =
-        geometry.bounds;
-
-    const center =
-        bounds.center;
-
-    const size =
-        Math.max(
-            bounds.width,
-            bounds.height,
-            bounds.length,
-            1
-        );
-
-    camera.position.set(
-        center.x + size * 1.4,
-        center.y + size * 0.9,
-        center.z + size * 1.4
-    );
-
-    camera.lookAt(
-        center.x,
-        center.y,
-        center.z
-    );
 
     return camera;
 }

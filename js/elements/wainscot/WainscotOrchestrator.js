@@ -30,7 +30,7 @@ function resolveMaterial(context) {
             context.colors?.wainscot,
             { normalMap }
         );
-        mat.side = THREE.DoubleSide;
+        mat.side = THREE.FrontSide;
         mat.needsUpdate = true;
         return mat;
     }

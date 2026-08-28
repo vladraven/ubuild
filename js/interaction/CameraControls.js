@@ -20,6 +20,18 @@ export function createCameraControls({
     const MAX_ZOOM =
         90;
 
+    const INSIDE_PADDING =
+        0.35;
+
+    const INSIDE_MIN_HEIGHT =
+        1.2;
+
+    const INSIDE_MOVE_STEP =
+        0.25;
+
+    const INSIDE_ROTATION_DISTANCE =
+        1;
+
     let isPointerDown =
         false;
 
@@ -48,8 +60,36 @@ export function createCameraControls({
             Math.PI * 5 / 4
         );
 
+    const insideSpherical =
+        new THREE.Spherical(
+            INSIDE_ROTATION_DISTANCE,
+            Math.PI / 2,
+            0
+        );
+
+    const insideTarget =
+        new THREE.Vector3();
+
+    const insideBounds =
+        new THREE.Box3();
+
+    const insidePosition =
+        new THREE.Vector3();
+
+    const insideDirection =
+        new THREE.Vector3();
+
+    const insideStartPosition =
+        new THREE.Vector3();
+
     let insideView =
         false;
+
+    let hasInsideBounds =
+        false;
+
+    let insideMaxDistance =
+        0;
 
     let autoRotate =
         false;
@@ -73,12 +113,10 @@ export function createCameraControls({
         spherical.makeSafe();
 
         spherical.radius =
-            Math.max(
+            THREE.MathUtils.clamp(
+                spherical.radius,
                 MIN_ZOOM,
-                Math.min(
-                    MAX_ZOOM,
-                    spherical.radius
-                )
+                MAX_ZOOM
             );
 
         const offset =
@@ -98,10 +136,185 @@ export function createCameraControls({
         render();
     }
 
+    function applyInsideRotation() {
+        insideSpherical.makeSafe();
+
+        insideDirection
+            .setFromSphericalCoords(
+                INSIDE_ROTATION_DISTANCE,
+                insideSpherical.phi,
+                insideSpherical.theta
+            );
+
+        insideTarget
+            .copy(
+                camera.position
+            )
+            .add(
+                insideDirection
+            );
+
+        camera.lookAt(
+            insideTarget
+        );
+
+        render();
+    }
+
+    function setInsideBounds(
+        bounds
+    ) {
+        hasInsideBounds =
+            false;
+
+        insideBounds.makeEmpty();
+
+        if (!bounds) {
+            return;
+        }
+
+        if (
+            bounds.min &&
+            bounds.max
+        ) {
+            insideBounds.min.set(
+                bounds.min.x,
+                bounds.min.y,
+                bounds.min.z
+            );
+
+            insideBounds.max.set(
+                bounds.max.x,
+                bounds.max.y,
+                bounds.max.z
+            );
+
+            hasInsideBounds =
+                !insideBounds.isEmpty();
+        }
+    }
+
+    function clampInsidePosition(
+        position
+    ) {
+        if (
+            !insideView ||
+            !hasInsideBounds
+        ) {
+            return position;
+        }
+
+        const minY =
+            Math.max(
+                insideBounds.min.y +
+                    INSIDE_PADDING,
+                INSIDE_MIN_HEIGHT
+            );
+
+        const maxX =
+            insideBounds.max.x -
+            INSIDE_PADDING;
+
+        const minX =
+            insideBounds.min.x +
+            INSIDE_PADDING;
+
+        const maxY =
+            insideBounds.max.y -
+            INSIDE_PADDING;
+
+        const minZ =
+            insideBounds.min.z +
+            INSIDE_PADDING;
+
+        const maxZ =
+            insideBounds.max.z -
+            INSIDE_PADDING;
+
+        position.x =
+            THREE.MathUtils.clamp(
+                position.x,
+                minX,
+                maxX
+            );
+
+        position.y =
+            THREE.MathUtils.clamp(
+                position.y,
+                minY,
+                maxY
+            );
+
+        position.z =
+            THREE.MathUtils.clamp(
+                position.z,
+                minZ,
+                maxZ
+            );
+
+        return position;
+    }
+
+    function clampInsideDistance(
+        position
+    ) {
+        if (
+            !insideView ||
+            insideMaxDistance <= 0
+        ) {
+            return position;
+        }
+
+        insidePosition
+            .copy(position)
+            .sub(
+                insideStartPosition
+            );
+
+        const distance =
+            insidePosition.length();
+
+        if (
+            distance <=
+            insideMaxDistance
+        ) {
+            return position;
+        }
+
+        insidePosition
+            .normalize()
+            .multiplyScalar(
+                insideMaxDistance
+            );
+
+        position
+            .copy(
+                insideStartPosition
+            )
+            .add(
+                insidePosition
+            );
+
+        return position;
+    }
+
+    function clampInsideCamera() {
+        clampInsidePosition(
+            camera.position
+        );
+
+        clampInsideDistance(
+            camera.position
+        );
+    }
+
     function setView(
         position,
         newTarget
     ) {
+        insideView =
+            false;
+
         if (newTarget) {
             target.copy(
                 newTarget
@@ -128,12 +341,10 @@ export function createCameraControls({
                 next.phi;
 
             spherical.radius =
-                Math.max(
+                THREE.MathUtils.clamp(
+                    next.radius,
                     MIN_ZOOM,
-                    Math.min(
-                        MAX_ZOOM,
-                        next.radius
-                    )
+                    MAX_ZOOM
                 );
         }
 
@@ -157,7 +368,8 @@ export function createCameraControls({
     function setInsideView(
         value,
         position,
-        newTarget
+        newTarget,
+        bounds = null
     ) {
         setAutoRotate(
             false
@@ -166,23 +378,27 @@ export function createCameraControls({
         insideView =
             Boolean(value);
 
-        if (newTarget) {
-            target.copy(
-                newTarget
+        if (bounds) {
+            setInsideBounds(
+                bounds
             );
         }
 
-        if (position) {
-            camera.position.copy(
-                position
-            );
-        }
+        if (
+            !insideView
+        ) {
+            if (newTarget) {
+                target.copy(
+                    newTarget
+                );
+            }
 
-        if (insideView) {
-            camera.lookAt(
-                target
-            );
-        } else {
+            if (position) {
+                camera.position.copy(
+                    position
+                );
+            }
+
             const next =
                 new THREE.Spherical()
                     .setFromVector3(
@@ -198,20 +414,109 @@ export function createCameraControls({
                 next.phi;
 
             spherical.radius =
-                Math.max(
+                THREE.MathUtils.clamp(
+                    next.radius,
                     MIN_ZOOM,
-                    Math.min(
-                        MAX_ZOOM,
-                        next.radius
-                    )
+                    MAX_ZOOM
                 );
 
             camera.lookAt(
                 target
             );
+
+            render();
+
+            return;
         }
 
-        render();
+        if (position) {
+            camera.position.copy(
+                position
+            );
+        }
+
+        clampInsidePosition(
+            camera.position
+        );
+
+        insideStartPosition.copy(
+            camera.position
+        );
+
+        if (
+            hasInsideBounds
+        ) {
+            const width =
+                insideBounds.max.x -
+                insideBounds.min.x;
+
+            const height =
+                insideBounds.max.y -
+                insideBounds.min.y;
+
+            const depth =
+                insideBounds.max.z -
+                insideBounds.min.z;
+
+            insideMaxDistance =
+                Math.max(
+                    1,
+                    Math.min(
+                        Math.max(
+                            width,
+                            height,
+                            depth
+                        ) *
+                        0.45,
+                        Math.sqrt(
+                            width *
+                            width +
+                            height *
+                            height +
+                            depth *
+                            depth
+                        )
+                    )
+                );
+        } else {
+            insideMaxDistance =
+                0;
+        }
+
+        if (newTarget) {
+            insideDirection
+                .copy(newTarget)
+                .sub(
+                    camera.position
+                );
+
+            if (
+                insideDirection.lengthSq() >
+                0.000001
+            ) {
+                insideSpherical
+                    .setFromVector3(
+                        insideDirection
+                    );
+
+                insideSpherical.radius =
+                    INSIDE_ROTATION_DISTANCE;
+            }
+        } else {
+            camera.getWorldDirection(
+                insideDirection
+            );
+
+            insideSpherical
+                .setFromVector3(
+                    insideDirection
+                );
+
+            insideSpherical.radius =
+                INSIDE_ROTATION_DISTANCE;
+        }
+
+        applyInsideRotation();
     }
 
     function onPointerDown(e) {
@@ -302,6 +607,90 @@ export function createCameraControls({
                 true;
         }
 
+        if (insideView) {
+            if (
+                pointerButton === 0
+            ) {
+                insideSpherical.theta -=
+                    deltaX *
+                    0.005;
+
+                insideSpherical.phi -=
+                    deltaY *
+                    0.005;
+
+                insideSpherical.phi =
+                    THREE.MathUtils.clamp(
+                        insideSpherical.phi,
+                        0.05,
+                        Math.PI - 0.05
+                    );
+
+                applyInsideRotation();
+
+                return;
+            }
+
+            if (
+                pointerButton === 2
+            ) {
+                const moveSpeed =
+                    INSIDE_MOVE_STEP;
+
+                const forward =
+                    new THREE.Vector3();
+
+                const right =
+                    new THREE.Vector3();
+
+                const up =
+                    new THREE.Vector3(
+                        0,
+                        1,
+                        0
+                    );
+
+                camera.getWorldDirection(
+                    forward
+                );
+
+                forward.y =
+                    0;
+
+                if (
+                    forward.lengthSq() >
+                    0.000001
+                ) {
+                    forward.normalize();
+                }
+
+                right
+                    .crossVectors(
+                        forward,
+                        up
+                    )
+                    .normalize();
+
+                camera.position.addScaledVector(
+                    right,
+                    -stepX *
+                    moveSpeed
+                );
+
+                camera.position.addScaledVector(
+                    up,
+                    stepY *
+                    moveSpeed
+                );
+
+                clampInsideCamera();
+
+                applyInsideRotation();
+            }
+
+            return;
+        }
+
         if (
             pointerButton === 0
         ) {
@@ -319,13 +708,10 @@ export function createCameraControls({
                 0.005;
 
             spherical.phi =
-                Math.max(
+                THREE.MathUtils.clamp(
+                    spherical.phi,
                     0.05,
-                    Math.min(
-                        Math.PI / 2 -
-                            0.01,
-                        spherical.phi
-                    )
+                    Math.PI / 2 - 0.01
                 );
 
             applySpherical();
@@ -412,27 +798,24 @@ export function createCameraControls({
             false
         );
 
-        if (
-            insideView
-        ) {
-            const direction =
-                new THREE.Vector3();
-
+        if (insideView) {
             camera.getWorldDirection(
-                direction
+                insideDirection
             );
 
             const distance =
                 e.deltaY > 0
-                    ? -0.25
-                    : 0.25;
+                    ? -INSIDE_MOVE_STEP
+                    : INSIDE_MOVE_STEP;
 
             camera.position.addScaledVector(
-                direction,
+                insideDirection,
                 distance
             );
 
-            render();
+            clampInsideCamera();
+
+            applyInsideRotation();
 
             return;
         }
@@ -446,12 +829,10 @@ export function createCameraControls({
             factor;
 
         spherical.radius =
-            Math.max(
+            THREE.MathUtils.clamp(
+                spherical.radius,
                 MIN_ZOOM,
-                Math.min(
-                    MAX_ZOOM,
-                    spherical.radius
-                )
+                MAX_ZOOM
             );
 
         applySpherical();
@@ -467,6 +848,15 @@ export function createCameraControls({
         ) {
             rafId =
                 null;
+
+            return;
+        }
+
+        if (insideView) {
+            rafId =
+                requestAnimationFrame(
+                    stepAutoRotate
+                );
 
             return;
         }
@@ -487,7 +877,8 @@ export function createCameraControls({
         value
     ) {
         autoRotate =
-            Boolean(value);
+            Boolean(value) &&
+            !insideView;
 
         if (
             autoRotate
@@ -585,30 +976,21 @@ export function createCameraControls({
             );
 
         spherical.radius =
-            Math.max(
+            THREE.MathUtils.clamp(
+                fitDistance *
+                1.5,
                 MIN_ZOOM,
-                Math.min(
-                    MAX_ZOOM,
-                    fitDistance *
-                        1.5
-                )
+                MAX_ZOOM
             );
 
-        /*
-         * Mirror the previous camera position
-         * through the building center.
-         *
-         * Old side:
-         * PI / 4
-         *
-         * Mirrored side:
-         * PI / 4 + PI
-         */
         spherical.theta =
-            Math.PI * 5 / 4;
+            Math.PI *
+            5 /
+            4;
 
         spherical.phi =
-            Math.PI / 3;
+            Math.PI /
+            3;
 
         applySpherical();
     }
@@ -656,6 +1038,8 @@ export function createCameraControls({
 
         getView,
 
+        setInsideBounds,
+
         setInsideView,
 
         setAutoRotate,
@@ -666,6 +1050,10 @@ export function createCameraControls({
 
         get baseRadius() {
             return spherical.radius;
+        },
+
+        get insideView() {
+            return insideView;
         },
 
         dispose
