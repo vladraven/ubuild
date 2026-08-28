@@ -183,7 +183,7 @@ const DEFAULTS = Object.freeze({
     }),
 
     logo: Object.freeze({
-        enabled: false,
+        enabled: true,
 
         width: 0,
 
@@ -195,7 +195,7 @@ const DEFAULTS = Object.freeze({
     }),
 
     visibility: Object.freeze({
-        walls: false,
+        walls: true,
         roof: true,
         foundation: true,
         panels: true,

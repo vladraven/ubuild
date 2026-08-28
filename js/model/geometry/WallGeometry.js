@@ -15,6 +15,8 @@ const ROOF_TYPES = Object.freeze([
 
 const ROOF_SURFACE_CLEARANCE = 0.015;
 
+const ROOF_PANEL_THICKNESS = 0.10;
+
 function point(
     x,
     y,
@@ -120,13 +122,149 @@ function resolveThickness(
     return thickness;
 }
 
-function resolveWallTopHeight(
-    envelope
+/*
+ * RoofGeometry uses:
+ *
+ * roofBaseHeight =
+ *     envelope.height +
+ *     ROOF_SURFACE_CLEARANCE
+ *
+ * The wall must terminate below the
+ * corresponding roof surface rather than
+ * continuing through it.
+ */
+function resolveRoofHeights(
+    envelope,
+    model
 ) {
-    return (
+    const baseHeight =
         envelope.height +
-        ROOF_SURFACE_CLEARANCE
-    );
+        ROOF_SURFACE_CLEARANCE;
+
+    const width =
+        envelope.width;
+
+    const halfWidth =
+        width / 2;
+
+    const pitchRatio =
+        model.roof.pitchRatio;
+
+    const type =
+        model.roof.type;
+
+    const overhangs =
+        model.roof.overhangs;
+
+    const rise =
+        type === 'gabled'
+            ? halfWidth *
+                pitchRatio
+            : width *
+                pitchRatio;
+
+    let leftRoofY;
+    let rightRoofY;
+    let ridgeRoofY = null;
+
+    if (
+        type === 'gabled'
+    ) {
+        leftRoofY =
+            baseHeight -
+            (
+                overhangs.left *
+                pitchRatio
+            );
+
+        rightRoofY =
+            baseHeight -
+            (
+                overhangs.right *
+                pitchRatio
+            );
+
+        ridgeRoofY =
+            baseHeight +
+            rise;
+    } else if (
+        type === 'left-sloped'
+    ) {
+        leftRoofY =
+            baseHeight +
+            rise +
+            (
+                overhangs.left *
+                pitchRatio
+            );
+
+        rightRoofY =
+            baseHeight -
+            (
+                overhangs.right *
+                pitchRatio
+            );
+    } else if (
+        type === 'right-sloped'
+    ) {
+        leftRoofY =
+            baseHeight -
+            (
+                overhangs.left *
+                pitchRatio
+            );
+
+        rightRoofY =
+            baseHeight +
+            rise +
+            (
+                overhangs.right *
+                pitchRatio
+            );
+    } else {
+        leftRoofY =
+            baseHeight;
+
+        rightRoofY =
+            baseHeight;
+    }
+
+    /*
+     * RoofOrchestrator currently creates a
+     * 0.10 ft solid roof panel.
+     *
+     * Put the wall top below the roof outer
+     * surface so the wall does not occupy the
+     * same visual plane as the roof.
+     */
+    const wallOffset =
+        ROOF_PANEL_THICKNESS;
+
+    return Object.freeze({
+        baseHeight,
+
+        leftRoofY,
+
+        rightRoofY,
+
+        ridgeRoofY,
+
+        leftWallY:
+            leftRoofY -
+            wallOffset,
+
+        rightWallY:
+            rightRoofY -
+            wallOffset,
+
+        ridgeWallY:
+            ridgeRoofY === null
+                ? null
+                : ridgeRoofY -
+                    wallOffset,
+
+        rise
+    });
 }
 
 function createFrontWall(
@@ -137,34 +275,14 @@ function createFrontWall(
     const width =
         envelope.width;
 
-    const baseHeight =
-        resolveWallTopHeight(
-            envelope
-        );
-
     const halfWidth =
         width / 2;
 
-    const isGabled =
-        model.roof.type ===
-        'gabled';
-
-    const isLeftSloped =
-        model.roof.type ===
-        'left-sloped';
-
-    const isRightSloped =
-        model.roof.type ===
-        'right-sloped';
-
-    const run =
-        isGabled
-            ? halfWidth
-            : width;
-
-    const rise =
-        run *
-        model.roof.pitchRatio;
+    const roof =
+        resolveRoofHeights(
+            envelope,
+            model
+        );
 
     const bottomLeft =
         point(
@@ -186,27 +304,27 @@ function createFrontWall(
     let shapePoints = [];
 
     if (
-        isGabled
+        model.roof.type ===
+        'gabled'
     ) {
         topLeft =
             point(
                 -halfWidth,
-                baseHeight,
+                roof.leftWallY,
                 0
             );
 
         topRight =
             point(
                 halfWidth,
-                baseHeight,
+                roof.rightWallY,
                 0
             );
 
         peakPoint =
             point(
                 0,
-                baseHeight +
-                    rise,
+                roof.ridgeWallY,
                 0
             );
 
@@ -229,132 +347,35 @@ function createFrontWall(
                 x:
                     halfWidth,
                 y:
-                    baseHeight
+                    roof.rightWallY
             },
 
             {
                 x:
                     0,
                 y:
-                    baseHeight +
-                    rise
+                    roof.ridgeWallY
             },
 
             {
                 x:
                     -halfWidth,
                 y:
-                    baseHeight
-            }
-        ];
-    } else if (
-        isLeftSloped
-    ) {
-        topLeft =
-            point(
-                -halfWidth,
-                baseHeight +
-                    rise,
-                0
-            );
-
-        topRight =
-            point(
-                halfWidth,
-                baseHeight,
-                0
-            );
-
-        shapePoints = [
-            {
-                x:
-                    -halfWidth,
-                y:
-                    0
-            },
-
-            {
-                x:
-                    halfWidth,
-                y:
-                    0
-            },
-
-            {
-                x:
-                    halfWidth,
-                y:
-                    baseHeight
-            },
-
-            {
-                x:
-                    -halfWidth,
-                y:
-                    baseHeight +
-                    rise
-            }
-        ];
-    } else if (
-        isRightSloped
-    ) {
-        topLeft =
-            point(
-                -halfWidth,
-                baseHeight,
-                0
-            );
-
-        topRight =
-            point(
-                halfWidth,
-                baseHeight +
-                    rise,
-                0
-            );
-
-        shapePoints = [
-            {
-                x:
-                    -halfWidth,
-                y:
-                    0
-            },
-
-            {
-                x:
-                    halfWidth,
-                y:
-                    0
-            },
-
-            {
-                x:
-                    halfWidth,
-                y:
-                    baseHeight +
-                    rise
-            },
-
-            {
-                x:
-                    -halfWidth,
-                y:
-                    baseHeight
+                    roof.leftWallY
             }
         ];
     } else {
         topLeft =
             point(
                 -halfWidth,
-                baseHeight,
+                roof.leftWallY,
                 0
             );
 
         topRight =
             point(
                 halfWidth,
-                baseHeight,
+                roof.rightWallY,
                 0
             );
 
@@ -377,14 +398,14 @@ function createFrontWall(
                 x:
                     halfWidth,
                 y:
-                    baseHeight
+                    roof.rightWallY
             },
 
             {
                 x:
                     -halfWidth,
                 y:
-                    baseHeight
+                    roof.leftWallY
             }
         ];
     }
@@ -483,34 +504,14 @@ function createBackWall(
     const length =
         envelope.length;
 
-    const baseHeight =
-        resolveWallTopHeight(
-            envelope
-        );
-
     const halfWidth =
         width / 2;
 
-    const isGabled =
-        model.roof.type ===
-        'gabled';
-
-    const isLeftSloped =
-        model.roof.type ===
-        'left-sloped';
-
-    const isRightSloped =
-        model.roof.type ===
-        'right-sloped';
-
-    const run =
-        isGabled
-            ? halfWidth
-            : width;
-
-    const rise =
-        run *
-        model.roof.pitchRatio;
+    const roof =
+        resolveRoofHeights(
+            envelope,
+            model
+        );
 
     const bottomLeft =
         point(
@@ -532,27 +533,27 @@ function createBackWall(
     let shapePoints = [];
 
     if (
-        isGabled
+        model.roof.type ===
+        'gabled'
     ) {
         topLeft =
             point(
                 -halfWidth,
-                baseHeight,
+                roof.leftWallY,
                 length
             );
 
         topRight =
             point(
                 halfWidth,
-                baseHeight,
+                roof.rightWallY,
                 length
             );
 
         peakPoint =
             point(
                 0,
-                baseHeight +
-                    rise,
+                roof.ridgeWallY,
                 length
             );
 
@@ -575,132 +576,35 @@ function createBackWall(
                 x:
                     halfWidth,
                 y:
-                    baseHeight
+                    roof.rightWallY
             },
 
             {
                 x:
                     0,
                 y:
-                    baseHeight +
-                    rise
+                    roof.ridgeWallY
             },
 
             {
                 x:
                     -halfWidth,
                 y:
-                    baseHeight
-            }
-        ];
-    } else if (
-        isLeftSloped
-    ) {
-        topLeft =
-            point(
-                -halfWidth,
-                baseHeight +
-                    rise,
-                length
-            );
-
-        topRight =
-            point(
-                halfWidth,
-                baseHeight,
-                length
-            );
-
-        shapePoints = [
-            {
-                x:
-                    -halfWidth,
-                y:
-                    0
-            },
-
-            {
-                x:
-                    halfWidth,
-                y:
-                    0
-            },
-
-            {
-                x:
-                    halfWidth,
-                y:
-                    baseHeight
-            },
-
-            {
-                x:
-                    -halfWidth,
-                y:
-                    baseHeight +
-                    rise
-            }
-        ];
-    } else if (
-        isRightSloped
-    ) {
-        topLeft =
-            point(
-                -halfWidth,
-                baseHeight,
-                length
-            );
-
-        topRight =
-            point(
-                halfWidth,
-                baseHeight +
-                    rise,
-                length
-            );
-
-        shapePoints = [
-            {
-                x:
-                    -halfWidth,
-                y:
-                    0
-            },
-
-            {
-                x:
-                    halfWidth,
-                y:
-                    0
-            },
-
-            {
-                x:
-                    halfWidth,
-                y:
-                    baseHeight +
-                    rise
-            },
-
-            {
-                x:
-                    -halfWidth,
-                y:
-                    baseHeight
+                    roof.leftWallY
             }
         ];
     } else {
         topLeft =
             point(
                 -halfWidth,
-                baseHeight,
+                roof.leftWallY,
                 length
             );
 
         topRight =
             point(
                 halfWidth,
-                baseHeight,
+                roof.rightWallY,
                 length
             );
 
@@ -723,14 +627,14 @@ function createBackWall(
                 x:
                     halfWidth,
                 y:
-                    baseHeight
+                    roof.rightWallY
             },
 
             {
                 x:
                     -halfWidth,
                 y:
-                    baseHeight
+                    roof.leftWallY
             }
         ];
     }
@@ -829,27 +733,17 @@ function createLeftWall(
     const length =
         envelope.length;
 
-    const baseHeight =
-        resolveWallTopHeight(
-            envelope
+    const roof =
+        resolveRoofHeights(
+            envelope,
+            model
         );
-
-    const isLeftSloped =
-        model.roof.type ===
-        'left-sloped';
-
-    const rise =
-        width *
-        model.roof.pitchRatio;
-
-    const wallHeight =
-        isLeftSloped
-            ? baseHeight +
-                rise
-            : baseHeight;
 
     const x =
         -width / 2;
+
+    const wallHeight =
+        roof.leftWallY;
 
     const frontBottom =
         point(
@@ -881,23 +775,31 @@ function createLeftWall(
 
     const shapePoints = [
         {
-            x: 0,
-            y: 0
+            x:
+                0,
+            y:
+                0
         },
 
         {
-            x: length,
-            y: 0
+            x:
+                length,
+            y:
+                0
         },
 
         {
-            x: length,
-            y: wallHeight
+            x:
+                length,
+            y:
+                wallHeight
         },
 
         {
-            x: 0,
-            y: wallHeight
+            x:
+                0,
+            y:
+                wallHeight
         }
     ];
 
@@ -985,27 +887,17 @@ function createRightWall(
     const length =
         envelope.length;
 
-    const baseHeight =
-        resolveWallTopHeight(
-            envelope
+    const roof =
+        resolveRoofHeights(
+            envelope,
+            model
         );
-
-    const isRightSloped =
-        model.roof.type ===
-        'right-sloped';
-
-    const rise =
-        width *
-        model.roof.pitchRatio;
-
-    const wallHeight =
-        isRightSloped
-            ? baseHeight +
-                rise
-            : baseHeight;
 
     const x =
         width / 2;
+
+    const wallHeight =
+        roof.rightWallY;
 
     const frontBottom =
         point(
@@ -1037,23 +929,31 @@ function createRightWall(
 
     const shapePoints = [
         {
-            x: 0,
-            y: 0
+            x:
+                0,
+            y:
+                0
         },
 
         {
-            x: length,
-            y: 0
+            x:
+                length,
+            y:
+                0
         },
 
         {
-            x: length,
-            y: wallHeight
+            x:
+                length,
+            y:
+                wallHeight
         },
 
         {
-            x: 0,
-            y: wallHeight
+            x:
+                0,
+            y:
+                wallHeight
         }
     ];
 
@@ -1143,6 +1043,17 @@ export function createWallGeometry(
     if (!envelope) {
         throw new TypeError(
             'BuildingEnvelope is required'
+        );
+    }
+
+    if (
+        !model.roof ||
+        !ROOF_TYPES.includes(
+            model.roof.type
+        )
+    ) {
+        throw new RangeError(
+            `Unsupported roof type: ${model.roof?.type}`
         );
     }
 
