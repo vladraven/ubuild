@@ -3,42 +3,52 @@ import {
 }
 from '../dom-helpers.js';
 
-const COLOR_KEY_ALIASES = {
-    wallmetal: 'wall',
-    roofmetal: 'roof',
-    trimmetal: 'trim',
+const COLOR_ALIASES = {
     eavetrim: 'eaveTrim',
-    doorttrim: 'doorTrim',
-    doortrim: 'doorTrim',
-    doorframe: 'doorFrame',
-    doorpanel: 'doorPanel',
+    raketrim: 'rakeTrim',
     structuralsteel: 'structuralSteel',
-    wainscotmetal: 'wainscot',
-    interiorwall: 'interiorWall'
+    interiorwall: 'interiorWall',
+    wainscotmetal: 'wainscot'
 };
 
-const COLOR_CONTROL_SELECTOR = [
-    'input[type="color"]',
-    'select[id^="color"]',
-    'input[id^="color"]',
-    '[data-color-target]',
-    '[data-color-input]'
-].join(
-    ','
-);
+function normalizeColorKey(value) {
+    if (!value) {
+        return null;
+    }
 
-const COLOR_BUTTON_SELECTOR = [
-    '.color-swatch',
-    '.color-btn',
-    '[data-color]',
-    '[data-hex]'
-].join(
-    ','
-);
+    let key =
+        String(value).trim();
 
-function normalizeColorValue(
-    value
-) {
+    if (!key) {
+        return null;
+    }
+
+    key =
+        key
+            .replace(
+                /^color[-_]?/i,
+                ''
+            )
+            .replace(
+                /[-_]+(.)/g,
+                (
+                    _,
+                    char
+                ) =>
+                    char.toUpperCase()
+            );
+
+    const lower =
+        key.toLowerCase();
+
+    return (
+        COLOR_ALIASES[lower] ||
+        key.charAt(0).toLowerCase() +
+        key.slice(1)
+    );
+}
+
+function normalizeColorValue(value) {
     if (
         value === undefined ||
         value === null
@@ -49,115 +59,61 @@ function normalizeColorValue(
     const color =
         String(value).trim();
 
-    if (!color) {
-        return null;
-    }
-
-    return color;
-}
-
-function normalizeColorKey(
-    value
-) {
-    if (!value) {
-        return null;
-    }
-
-    const raw =
-        String(value).trim();
-
-    if (!raw) {
-        return null;
-    }
-
-    const normalized =
-        raw
-            .replace(
-                /^color[-_]?/i,
-                ''
-            )
-            .replace(
-                /[-_]+(.)/g,
-                (
-                    _,
-                    character
-                ) =>
-                    character.toUpperCase()
-            );
-
-    if (!normalized) {
-        return null;
-    }
-
-    const lower =
-        normalized.toLowerCase();
-
-    if (
-        COLOR_KEY_ALIASES[
-            lower
-        ]
-    ) {
-        return COLOR_KEY_ALIASES[
-            lower
-        ];
-    }
-
-    return (
-        normalized.charAt(0).toLowerCase() +
-        normalized.slice(1)
-    );
-}
-
-function isKnownColorTarget(
-    colors,
-    target
-) {
-    if (
-        !target ||
-        !colors
-    ) {
-        return false;
-    }
-
-    return Object.prototype
-        .hasOwnProperty
-        .call(
-            colors,
-            target
-        );
+    return color || null;
 }
 
 function getExplicitColorTarget(
     element
 ) {
-    if (!element) {
+    const target =
+        element.getAttribute(
+            'data-color-target'
+        ) ||
+        element.getAttribute(
+            'data-color-input'
+        );
+
+    return normalizeColorKey(
+        target
+    );
+}
+
+function getNamedColorTarget(
+    element,
+    colors
+) {
+    const name =
+        element.getAttribute(
+            'name'
+        );
+
+    if (!name) {
         return null;
     }
 
-    return (
+    const target =
         normalizeColorKey(
-            element.getAttribute(
-                'data-color-target'
-            )
-        ) ||
-        normalizeColorKey(
-            element.getAttribute(
-                'data-color-input'
-            )
-        )
-    );
+            name
+        );
+
+    if (
+        !target ||
+        colors?.[target] === undefined
+    ) {
+        return null;
+    }
+
+    return target;
 }
 
 function getIdColorTarget(
     element,
     colors
 ) {
-    if (!element) {
-        return null;
-    }
-
     const id =
-        element.id;
+        element.getAttribute(
+            'id'
+        );
 
     if (
         !id ||
@@ -174,44 +130,8 @@ function getIdColorTarget(
         );
 
     if (
-        !isKnownColorTarget(
-            colors,
-            target
-        )
-    ) {
-        return null;
-    }
-
-    return target;
-}
-
-function getNameColorTarget(
-    element,
-    colors
-) {
-    if (!element) {
-        return null;
-    }
-
-    const name =
-        element.getAttribute(
-            'name'
-        );
-
-    if (!name) {
-        return null;
-    }
-
-    const target =
-        normalizeColorKey(
-            name
-        );
-
-    if (
-        !isKnownColorTarget(
-            colors,
-            target
-        )
+        !target ||
+        colors?.[target] === undefined
     ) {
         return null;
     }
@@ -223,148 +143,53 @@ function getColorTarget(
     element,
     colors
 ) {
-    const explicitTarget =
-        getExplicitColorTarget(
-            element
-        );
-
-    if (
-        explicitTarget &&
-        isKnownColorTarget(
-            colors,
-            explicitTarget
-        )
-    ) {
-        return explicitTarget;
+    if (!element) {
+        return null;
     }
 
-    const idTarget =
+    return (
+        getExplicitColorTarget(
+            element
+        ) ||
+        getNamedColorTarget(
+            element,
+            colors
+        ) ||
         getIdColorTarget(
             element,
             colors
-        );
-
-    if (idTarget) {
-        return idTarget;
-    }
-
-    return getNameColorTarget(
-        element,
-        colors
+        )
     );
 }
 
 function getColorValue(
     element
 ) {
+    if (!element) {
+        return null;
+    }
+
     return normalizeColorValue(
-        element?.value
+        element.value
     );
 }
 
 function getColorControls() {
     return document.querySelectorAll(
-        COLOR_CONTROL_SELECTOR
-    );
-}
-
-function getColorButtons() {
-    return document.querySelectorAll(
-        COLOR_BUTTON_SELECTOR
-    );
-}
-
-function resolveButtonTarget(
-    button,
-    colors
-) {
-    const explicitTarget =
-        normalizeColorKey(
-            button.getAttribute(
-                'data-color-target'
-            )
-        );
-
-    if (
-        explicitTarget &&
-        isKnownColorTarget(
-            colors,
-            explicitTarget
-        )
-    ) {
-        return explicitTarget;
-    }
-
-    const target =
-        normalizeColorKey(
-            button.getAttribute(
-                'data-target'
-            )
-        );
-
-    if (
-        target &&
-        isKnownColorTarget(
-            colors,
-            target
-        )
-    ) {
-        return target;
-    }
-
-    const parent =
-        button.closest(
-            '[data-color-target], [data-color-input], [id^="color"]'
-        );
-
-    if (!parent) {
-        return null;
-    }
-
-    return getColorTarget(
-        parent,
-        colors
-    );
-}
-
-function resolveButtonValue(
-    button
-) {
-    return (
-        normalizeColorValue(
-            button.getAttribute(
-                'data-color'
-            )
-        ) ||
-        normalizeColorValue(
-            button.getAttribute(
-                'data-hex'
-            )
-        )
-    );
-}
-
-function findControlsForColor(
-    target
-) {
-    const capitalized =
-        target.charAt(0).toUpperCase() +
-        target.slice(1);
-
-    return document.querySelectorAll(
         [
-            `#color${capitalized}`,
-            `#color-${target}`,
-            `[data-color-target="${target}"]`,
-            `[data-color-input="${target}"]`,
-            `[name="${target}"]`
+            'input[type="color"][data-color-target]',
+            'input[type="color"][data-color-input]',
+            'select[data-color-target]',
+            'select[data-color-input]',
+            'select[id^="color"]',
+            'input[type="color"]'
         ].join(
             ','
         )
     );
 }
 
-function controlSupportsValue(
+function hasOptionValue(
     control,
     value
 ) {
@@ -375,38 +200,15 @@ function controlSupportsValue(
         return true;
     }
 
-    return Array.from(
-        control.options
-    ).some(
-        option =>
-            option.value === value
-    );
-}
-
-function setControlValue(
-    control,
-    value
-) {
-    if (
-        !control ||
-        !controlSupportsValue(
-            control,
-            value
+    return Array
+        .from(
+            control.options
         )
-    ) {
-        return;
-    }
-
-    if (
-        control.value === value
-    ) {
-        return;
-    }
-
-    setElementVal(
-        control,
-        value
-    );
+        .some(
+            option =>
+                option.value ===
+                value
+        );
 }
 
 export function createColorsController({
@@ -420,8 +222,7 @@ export function createColorsController({
 
     function setColor(
         target,
-        value,
-        source
+        value
     ) {
         const normalizedTarget =
             normalizeColorKey(
@@ -440,52 +241,23 @@ export function createColorsController({
             return;
         }
 
-        const colors =
-            runtime.model.colors ||
-            {};
-
         if (
-            !isKnownColorTarget(
-                colors,
+            runtime.model.colors?.[
                 normalizedTarget
-            )
-        ) {
-            return;
-        }
-
-        const previousValue =
-            colors[
-                normalizedTarget
-            ];
-
-        if (
-            previousValue ===
+            ] ===
             normalizedValue
         ) {
             return;
         }
 
-        console.log(
-            'COLOR UPDATE',
-            {
-                target:
-                    normalizedTarget,
-
-                previous:
-                    previousValue,
-
-                next:
-                    normalizedValue,
-
-                source
-            }
-        );
-
         runtime.update({
             ...runtime.model,
 
             colors: {
-                ...colors,
+                ...(
+                    runtime.model.colors ||
+                    {}
+                ),
 
                 [normalizedTarget]:
                     normalizedValue
@@ -493,15 +265,63 @@ export function createColorsController({
         });
     }
 
-    function bindColorControl(
-        control
+    function seedModelFromDom(
+        colorControls
     ) {
+        const patch =
+            {};
+
+        colorControls.forEach(
+            control => {
+                const target =
+                    getColorTarget(
+                        control,
+                        runtime.model.colors
+                    );
+
+                if (!target) {
+                    return;
+                }
+
+                const value =
+                    getColorValue(
+                        control
+                    );
+
+                if (!value) {
+                    return;
+                }
+
+                patch[target] =
+                    value;
+            }
+        );
+
         if (
-            control.__uBuildColorHandler
+            Object.keys(
+                patch
+            ).length === 0
         ) {
             return;
         }
 
+        runtime.update({
+            ...runtime.model,
+
+            colors: {
+                ...(
+                    runtime.model.colors ||
+                    {}
+                ),
+
+                ...patch
+            }
+        });
+    }
+
+    function bindColorControl(
+        control
+    ) {
         const target =
             getColorTarget(
                 control,
@@ -512,49 +332,33 @@ export function createColorsController({
             return;
         }
 
+        if (
+            control
+                .__uBuildColorHandler
+        ) {
+            return;
+        }
+
         const handler =
             event => {
                 const element =
                     event.currentTarget;
 
-                const currentTarget =
+                const colorTarget =
                     getColorTarget(
                         element,
                         runtime.model.colors
                     );
 
-                if (!currentTarget) {
-                    return;
-                }
-
-                const value =
-                    getColorValue(
-                        element
-                    );
-
-                if (!value) {
+                if (!colorTarget) {
                     return;
                 }
 
                 setColor(
-                    currentTarget,
-                    value,
-                    {
-                        type:
-                            event.type,
-
-                        elementId:
-                            element.id ||
-                            null,
-
-                        elementName:
-                            element.getAttribute(
-                                'name'
-                            ),
-
-                        target:
-                            currentTarget
-                    }
+                    colorTarget,
+                    getColorValue(
+                        element
+                    )
                 );
             };
 
@@ -576,47 +380,45 @@ export function createColorsController({
         button
     ) {
         if (
-            button.__uBuildColorHandler
+            button
+                .__uBuildColorHandler
         ) {
             return;
         }
 
+        const target =
+            normalizeColorKey(
+                button.getAttribute(
+                    'data-color-target'
+                ) ||
+                button.getAttribute(
+                    'data-target'
+                )
+            );
+
+        if (!target) {
+            return;
+        }
+
         const handler =
-            event => {
-                const element =
-                    event.currentTarget;
-
-                const target =
-                    resolveButtonTarget(
-                        element,
-                        runtime.model.colors
+            () => {
+                const hex =
+                    normalizeColorValue(
+                        button.getAttribute(
+                            'data-color'
+                        ) ||
+                        button.getAttribute(
+                            'data-hex'
+                        )
                     );
 
-                const value =
-                    resolveButtonValue(
-                        element
-                    );
-
-                if (
-                    !target ||
-                    !value
-                ) {
+                if (!hex) {
                     return;
                 }
 
                 setColor(
                     target,
-                    value,
-                    {
-                        type:
-                            event.type,
-
-                        elementId:
-                            element.id ||
-                            null,
-
-                        target
-                    }
+                    hex
                 );
             };
 
@@ -630,17 +432,27 @@ export function createColorsController({
     }
 
     function bind() {
-        getColorControls()
-            .forEach(
-                bindColorControl
-            );
+        const colorControls =
+            getColorControls();
 
-        getColorButtons()
+        seedModelFromDom(
+            colorControls
+        );
+
+        colorControls.forEach(
+            bindColorControl
+        );
+
+        document
+            .querySelectorAll(
+                '.color-swatch[data-color-target],' +
+                '.color-swatch[data-target],' +
+                '.color-btn[data-color-target],' +
+                '.color-btn[data-target]'
+            )
             .forEach(
                 bindColorButton
             );
-
-        syncFromModel();
     }
 
     function syncFromModel() {
@@ -653,16 +465,16 @@ export function createColorsController({
 
         for (
             const [
-                target,
+                key,
                 value
             ]
             of Object.entries(
                 colors
             )
         ) {
-            const normalizedTarget =
+            const normalizedKey =
                 normalizeColorKey(
-                    target
+                    key
                 );
 
             const normalizedValue =
@@ -671,77 +483,110 @@ export function createColorsController({
                 );
 
             if (
-                !normalizedTarget ||
+                !normalizedKey ||
                 !normalizedValue
             ) {
                 continue;
             }
 
-            findControlsForColor(
-                normalizedTarget
-            )
-                .forEach(
-                    control =>
-                        setControlValue(
+            const selectors = [
+                `#color${
+                    normalizedKey
+                        .charAt(0)
+                        .toUpperCase() +
+                    normalizedKey.slice(1)
+                }`,
+                `#color-${normalizedKey}`,
+                `[data-color-input="${normalizedKey}"]`,
+                `[data-color-target="${normalizedKey}"]`
+            ];
+
+            const controls =
+                document.querySelectorAll(
+                    selectors.join(
+                        ','
+                    )
+                );
+
+            controls.forEach(
+                control => {
+                    if (
+                        !hasOptionValue(
                             control,
                             normalizedValue
                         )
-                );
+                    ) {
+                        return;
+                    }
+
+                    if (
+                        control.value ===
+                        normalizedValue
+                    ) {
+                        return;
+                    }
+
+                    setElementVal(
+                        control,
+                        normalizedValue
+                    );
+                }
+            );
         }
-    }
-
-    function disposeColorControl(
-        control
-    ) {
-        const handler =
-            control.__uBuildColorHandler;
-
-        if (!handler) {
-            return;
-        }
-
-        control.removeEventListener(
-            'input',
-            handler
-        );
-
-        control.removeEventListener(
-            'change',
-            handler
-        );
-
-        delete control
-            .__uBuildColorHandler;
-    }
-
-    function disposeColorButton(
-        button
-    ) {
-        const handler =
-            button.__uBuildColorHandler;
-
-        if (!handler) {
-            return;
-        }
-
-        button.removeEventListener(
-            'click',
-            handler
-        );
-
-        delete button
-            .__uBuildColorHandler;
     }
 
     function dispose() {
         getColorControls()
             .forEach(
-                disposeColorControl
+                control => {
+                    const handler =
+                        control
+                            .__uBuildColorHandler;
+
+                    if (!handler) {
+                        return;
+                    }
+
+                    control.removeEventListener(
+                        'input',
+                        handler
+                    );
+
+                    control.removeEventListener(
+                        'change',
+                        handler
+                    );
+
+                    delete control
+                        .__uBuildColorHandler;
+                }
             );
 
-        getColorButtons()
+        document
+            .querySelectorAll(
+                '.color-swatch[data-color-target],' +
+                '.color-swatch[data-target],' +
+                '.color-btn[data-color-target],' +
+                '.color-btn[data-target]'
+            )
             .forEach(
-                disposeColorButton
+                button => {
+                    const handler =
+                        button
+                            .__uBuildColorHandler;
+
+                    if (!handler) {
+                        return;
+                    }
+
+                    button.removeEventListener(
+                        'click',
+                        handler
+                    );
+
+                    delete button
+                        .__uBuildColorHandler;
+                }
             );
     }
 

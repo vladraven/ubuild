@@ -1,91 +1,163 @@
 import * as THREE from 'three';
 
-// Prefer theme-local asset (no CORS). Fall back to absolute production URL.
 function resolveLogoUrl() {
     const themeUri =
-        (typeof window !== 'undefined' &&
+        (
+            typeof window !==
+                'undefined' &&
             window.ConfiguratorData &&
-            window.ConfiguratorData.themeUri) ||
+            window.ConfiguratorData.themeUri
+        ) ||
         '';
-    if (themeUri) {
-        return `${String(themeUri).replace(/\/$/, '')}/js/U-build-logo.png`;
+
+    if (
+        themeUri
+    ) {
+        return `${
+            String(
+                themeUri
+            ).replace(
+                /\/$/,
+                ''
+            )
+        }/js/U-build-logo.png`;
     }
+
     return 'https://ubuildsb.com/wp-content/themes/U-Build/js/U-build-logo.png';
 }
 
-const LOGO_WIDTH = 1.0;
-const LOGO_HEIGHT = 0.33;
-const PLATE_THICKNESS = 0.08;
+const LOGO_WIDTH =
+    1.0;
 
-let logoTexture = null;
+const LOGO_HEIGHT =
+    0.33;
 
-function assertContext(context) {
-    if (!context || typeof context !== 'object') {
+const PLATE_THICKNESS =
+    0.08;
+
+let logoTexture =
+    null;
+
+function assertContext(
+    context
+) {
+    if (
+        !context ||
+        typeof context !==
+            'object'
+    ) {
         throw new TypeError(
             'Element context is required'
         );
     }
 
-    if (!context.geometry) {
+    if (
+        !context.geometry
+    ) {
         throw new TypeError(
             'Building geometry is required'
         );
     }
 
-    if (!context.geometry.logo) {
+    if (
+        !context.geometry.logo
+    ) {
         throw new TypeError(
             'Logo geometry is required'
         );
     }
 
-    if (!context.materials) {
+    if (
+        !context.materials
+    ) {
         throw new TypeError(
             'Material system is required'
         );
     }
 }
 
-function applyTextureColorEncoding(texture) {
-    // Three r0.136 uses .encoding / sRGBEncoding.
-    // Newer Three uses .colorSpace / SRGBColorSpace.
-    if ('colorSpace' in texture && THREE.SRGBColorSpace !== undefined) {
-        texture.colorSpace = THREE.SRGBColorSpace;
-    } else if ('encoding' in texture && THREE.sRGBEncoding !== undefined) {
-        texture.encoding = THREE.sRGBEncoding;
+function applyTextureColorEncoding(
+    texture
+) {
+    if (
+        !texture
+    ) {
+        return;
     }
-    texture.needsUpdate = true;
+
+    if (
+        'colorSpace' in texture &&
+        THREE.SRGBColorSpace !==
+            undefined
+    ) {
+        texture.colorSpace =
+            THREE.SRGBColorSpace;
+    } else if (
+        'encoding' in texture &&
+        THREE.sRGBEncoding !==
+            undefined
+    ) {
+        texture.encoding =
+            THREE.sRGBEncoding;
+    }
+
+    texture.needsUpdate =
+        true;
+}
+
+function configureLogoTexture(
+    texture
+) {
+    texture.wrapS =
+        THREE.ClampToEdgeWrapping;
+
+    texture.wrapT =
+        THREE.ClampToEdgeWrapping;
+
+    texture.minFilter =
+        THREE.LinearMipmapLinearFilter;
+
+    texture.magFilter =
+        THREE.LinearFilter;
+
+    texture.generateMipmaps =
+        true;
+
+    applyTextureColorEncoding(
+        texture
+    );
 }
 
 function loadLogoTexture() {
-    if (logoTexture) {
+    if (
+        logoTexture
+    ) {
         return logoTexture;
     }
 
-    const url = resolveLogoUrl();
-    const loader = new THREE.TextureLoader();
+    const url =
+        resolveLogoUrl();
 
-    logoTexture = loader.load(
-        url,
-        texture => {
-            applyTextureColorEncoding(texture);
-        },
-        undefined,
-        error => {
-            console.error(
-                'UBuild logo texture failed to load:',
-                url,
-                error
-            );
-        }
-    );
+    const loader =
+        new THREE.TextureLoader();
 
-    applyTextureColorEncoding(logoTexture);
-
-    logoTexture.wrapS = THREE.ClampToEdgeWrapping;
-    logoTexture.wrapT = THREE.ClampToEdgeWrapping;
-    logoTexture.minFilter = THREE.LinearMipmapLinearFilter;
-    logoTexture.magFilter = THREE.LinearFilter;
-    logoTexture.generateMipmaps = true;
+    logoTexture =
+        loader.load(
+            url,
+            texture => {
+                configureLogoTexture(
+                    texture
+                );
+            },
+            undefined,
+            error => {
+                console.error(
+                    'UBuild logo texture failed to load:',
+                    url,
+                    error
+                );
+            }
+        );
 
     return logoTexture;
 }
@@ -97,7 +169,7 @@ function getMaterial(
 ) {
     if (
         typeof context.materials.get ===
-        'function'
+            'function'
     ) {
         return context.materials.get(
             name,
@@ -123,8 +195,10 @@ function createPlate(
 
     const geometry =
         new THREE.BoxGeometry(
-            LOGO_WIDTH + 0.10,
-            LOGO_HEIGHT + 0.10,
+            LOGO_WIDTH +
+                0.10,
+            LOGO_HEIGHT +
+                0.10,
             PLATE_THICKNESS
         );
 
@@ -137,8 +211,11 @@ function createPlate(
     mesh.name =
         'logo-plate';
 
-    mesh.castShadow = true;
-    mesh.receiveShadow = true;
+    mesh.castShadow =
+        true;
+
+    mesh.receiveShadow =
+        true;
 
     return mesh;
 }
@@ -155,9 +232,12 @@ function createFrame(
 
     const geometry =
         new THREE.BoxGeometry(
-            LOGO_WIDTH + 0.12,
-            LOGO_HEIGHT + 0.12,
-            PLATE_THICKNESS / 2
+            LOGO_WIDTH +
+                0.12,
+            LOGO_HEIGHT +
+                0.12,
+            PLATE_THICKNESS /
+                2
         );
 
     const mesh =
@@ -170,10 +250,14 @@ function createFrame(
         'logo-frame';
 
     mesh.position.z =
-        -PLATE_THICKNESS / 2;
+        -PLATE_THICKNESS /
+        2;
 
-    mesh.castShadow = true;
-    mesh.receiveShadow = true;
+    mesh.castShadow =
+        true;
+
+    mesh.receiveShadow =
+        true;
 
     return mesh;
 }
@@ -184,10 +268,14 @@ function createLogoMesh() {
 
     const material =
         new THREE.MeshBasicMaterial({
-            map: texture,
-            transparent: true,
-            side: THREE.DoubleSide,
-            depthWrite: true
+            map:
+                texture,
+            transparent:
+                true,
+            side:
+                THREE.DoubleSide,
+            depthWrite:
+                true
         });
 
     const geometry =
@@ -206,7 +294,8 @@ function createLogoMesh() {
         'logo-image';
 
     mesh.position.z =
-        PLATE_THICKNESS / 2 +
+        PLATE_THICKNESS /
+            2 +
         0.005;
 
     return mesh;
@@ -228,28 +317,15 @@ function createObject(
     root.name =
         'logo';
 
-    /*
-     * Legacy behavior:
-     *
-     * If geometry.logo exists,
-     * create the logo.
-     *
-     * Do not make creation depend
-     * on model.logo.enabled.
-     */
-
     if (
         !logoData.position
     ) {
         return root;
     }
 
-    // FIX: visibility.logo (the UI show/hide toggle) was never checked -
-    // separate from model.logo.enabled above, which is intentionally not
-    // gated per the comment. See the same fix on Ridge/Trim/Foundation/
-    // Gutters orchestrators.
     if (
-        context.model?.visibility?.logo === false
+        context.model?.visibility?.logo ===
+        false
     ) {
         return root;
     }
@@ -282,13 +358,18 @@ function createObject(
     root.position.set(
         Number(
             logoData.position.x
-        ) || 0,
+        ) ||
+            0,
+
         Number(
             logoData.position.y
-        ) || 0,
+        ) ||
+            0,
+
         Number(
             logoData.position.z
-        ) || 0
+        ) ||
+            0
     );
 
     if (
@@ -297,40 +378,74 @@ function createObject(
         root.rotation.set(
             Number(
                 logoData.rotation.x
-            ) || 0,
+            ) ||
+                0,
+
             Number(
                 logoData.rotation.y
-            ) || 0,
+            ) ||
+                0,
+
             Number(
                 logoData.rotation.z
-            ) || 0
+            ) ||
+                0
         );
     }
 
     root.traverse(
         child => {
-            if (!child.isMesh) {
+            if (
+                !child.isMesh
+            ) {
                 return;
             }
 
-            child.castShadow = true;
-            child.receiveShadow = true;
+            child.castShadow =
+                true;
+
+            child.receiveShadow =
+                true;
         }
     );
 
     return root;
 }
 
+function disposeMaterial(
+    material
+) {
+    if (
+        !material
+    ) {
+        return;
+    }
+
+    if (
+        material.map &&
+        material.map !==
+            logoTexture
+    ) {
+        material.map.dispose();
+    }
+
+    material.dispose();
+}
+
 function disposeObject(
     object
 ) {
-    if (!object) {
+    if (
+        !object
+    ) {
         return;
     }
 
     object.traverse(
         child => {
-            if (!child.isMesh) {
+            if (
+                !child.isMesh
+            ) {
                 return;
             }
 
@@ -338,7 +453,9 @@ function disposeObject(
                 child.geometry
             ) {
                 child.geometry.dispose();
-                child.geometry = null;
+
+                child.geometry =
+                    null;
             }
 
             if (
@@ -353,29 +470,18 @@ function disposeObject(
                         const material
                         of child.material
                     ) {
-                        if (
-                            material.map &&
-                            material.map !==
-                                logoTexture
-                        ) {
-                            material.map.dispose();
-                        }
-
-                        material.dispose();
+                        disposeMaterial(
+                            material
+                        );
                     }
                 } else {
-                    if (
-                        child.material.map &&
-                        child.material.map !==
-                            logoTexture
-                    ) {
-                        child.material.map.dispose();
-                    }
-
-                    child.material.dispose();
+                    disposeMaterial(
+                        child.material
+                    );
                 }
 
-                child.material = null;
+                child.material =
+                    null;
             }
         }
     );
@@ -397,9 +503,12 @@ function disposeObject(
 
 export const LogoOrchestrator =
     Object.freeze({
-        id: 'logo',
+        id:
+            'logo',
 
-        create(context) {
+        create(
+            context
+        ) {
             return createObject(
                 context
             );
@@ -409,7 +518,9 @@ export const LogoOrchestrator =
             object,
             context
         ) {
-            if (!object) {
+            if (
+                !object
+            ) {
                 return createObject(
                     context
                 );
@@ -424,7 +535,9 @@ export const LogoOrchestrator =
             );
         },
 
-        dispose(object) {
+        dispose(
+            object
+        ) {
             disposeObject(
                 object
             );
