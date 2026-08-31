@@ -20,6 +20,27 @@ export function createCameraControls({
     const MAX_ZOOM =
         90;
 
+    const OUTSIDE_ROTATION_SPEED =
+        0.005;
+
+    const INSIDE_ROTATION_SPEED =
+        0.0025;
+
+    const INSIDE_VERTICAL_ROTATION_LIMIT =
+        THREE.MathUtils.degToRad(
+            15
+        );
+
+    const INSIDE_MIN_PHI =
+        Math.PI /
+        2 -
+        INSIDE_VERTICAL_ROTATION_LIMIT;
+
+    const INSIDE_MAX_PHI =
+        Math.PI /
+        2 +
+        INSIDE_VERTICAL_ROTATION_LIMIT;
+
     const INSIDE_PADDING =
         0.35;
 
@@ -137,7 +158,15 @@ export function createCameraControls({
     }
 
     function applyInsideRotation() {
-        insideSpherical.makeSafe();
+        insideSpherical.radius =
+            INSIDE_ROTATION_DISTANCE;
+
+        insideSpherical.phi =
+            THREE.MathUtils.clamp(
+                insideSpherical.phi,
+                INSIDE_MIN_PHI,
+                INSIDE_MAX_PHI
+            );
 
         insideDirection
             .setFromSphericalCoords(
@@ -187,6 +216,54 @@ export function createCameraControls({
                 bounds.max.x,
                 bounds.max.y,
                 bounds.max.z
+            );
+
+            hasInsideBounds =
+                !insideBounds.isEmpty();
+
+            return;
+        }
+
+        if (
+            bounds.center &&
+            Number.isFinite(
+                bounds.width
+            ) &&
+            Number.isFinite(
+                bounds.height
+            ) &&
+            Number.isFinite(
+                bounds.length
+            )
+        ) {
+            const halfWidth =
+                bounds.width /
+                2;
+
+            const halfHeight =
+                bounds.height /
+                2;
+
+            const halfLength =
+                bounds.length /
+                2;
+
+            insideBounds.min.set(
+                bounds.center.x -
+                halfWidth,
+                bounds.center.y -
+                halfHeight,
+                bounds.center.z -
+                halfLength
+            );
+
+            insideBounds.max.set(
+                bounds.center.x +
+                halfWidth,
+                bounds.center.y +
+                halfHeight,
+                bounds.center.z +
+                halfLength
             );
 
             hasInsideBounds =
@@ -501,6 +578,13 @@ export function createCameraControls({
 
                 insideSpherical.radius =
                     INSIDE_ROTATION_DISTANCE;
+
+                insideSpherical.phi =
+                    THREE.MathUtils.clamp(
+                        insideSpherical.phi,
+                        INSIDE_MIN_PHI,
+                        INSIDE_MAX_PHI
+                    );
             }
         } else {
             camera.getWorldDirection(
@@ -514,6 +598,13 @@ export function createCameraControls({
 
             insideSpherical.radius =
                 INSIDE_ROTATION_DISTANCE;
+
+            insideSpherical.phi =
+                THREE.MathUtils.clamp(
+                    insideSpherical.phi,
+                    INSIDE_MIN_PHI,
+                    INSIDE_MAX_PHI
+                );
         }
 
         applyInsideRotation();
@@ -612,18 +703,18 @@ export function createCameraControls({
                 pointerButton === 0
             ) {
                 insideSpherical.theta -=
-                    deltaX *
-                    0.005;
+                    stepX *
+                    INSIDE_ROTATION_SPEED;
 
                 insideSpherical.phi -=
-                    deltaY *
-                    0.005;
+                    stepY *
+                    INSIDE_ROTATION_SPEED;
 
                 insideSpherical.phi =
                     THREE.MathUtils.clamp(
                         insideSpherical.phi,
-                        0.05,
-                        Math.PI - 0.05
+                        INSIDE_MIN_PHI,
+                        INSIDE_MAX_PHI
                     );
 
                 applyInsideRotation();
@@ -700,12 +791,12 @@ export function createCameraControls({
             spherical.theta =
                 dragSpherical.theta -
                 deltaX *
-                0.005;
+                OUTSIDE_ROTATION_SPEED;
 
             spherical.phi =
                 dragSpherical.phi -
                 deltaY *
-                0.005;
+                OUTSIDE_ROTATION_SPEED;
 
             spherical.phi =
                 THREE.MathUtils.clamp(

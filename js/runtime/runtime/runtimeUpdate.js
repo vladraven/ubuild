@@ -475,20 +475,15 @@ export function createUpdateSystem({
     function update(
         nextModel = null
     ) {
-        const geometryChanged =
-            applyModel(
-                nextModel
-            );
+        applyModel(
+            nextModel
+        );
 
         updateColors(
             currentModel.colors
         );
 
-        if (geometryChanged) {
-            updateElements();
-        } else {
-            updateElements();
-        }
+        updateElements();
 
         updateLightingAndEnvironment();
 
@@ -524,30 +519,8 @@ export function createUpdateSystem({
             return;
         }
 
-        const bounds =
-            currentGeometry.bounds;
-
-        const center =
-            bounds.center;
-
-        const size =
-            Math.max(
-                bounds.width,
-                bounds.height,
-                bounds.length,
-                1
-            );
-
-        camera.position.set(
-            center.x + size * 1.4,
-            center.y + size * 0.9,
-            center.z + size * 1.4
-        );
-
-        camera.lookAt(
-            center.x,
-            center.y,
-            center.z
+        return lifecycle.frameBounds(
+            currentGeometry.bounds
         );
     }
 

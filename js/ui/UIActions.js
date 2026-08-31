@@ -3,7 +3,8 @@ import { serializeModelToURL } from '../integration/URLSerializer.js';
 import { submitToGravityForms } from '../integration/GravityFormsAdapter.js';
 import { getBuildingModelDefaults } from '../model/buildingModel.js';
 
-const SAVED_DESIGNS_KEY = 'ubuild_saved_designs';
+const SAVED_DESIGNS_KEY =
+    'ubuild_saved_designs';
 
 export function createUIActions({
     runtime,
@@ -16,8 +17,11 @@ export function createUIActions({
         );
     }
 
-    let savedOutsidePosition = null;
-    let savedOutsideTarget = null;
+    let savedOutsidePosition =
+        null;
+
+    let savedOutsideTarget =
+        null;
 
     function getSavedDesigns() {
         try {
@@ -28,7 +32,9 @@ export function createUIActions({
                     ) || '[]'
                 );
 
-            return Array.isArray(data)
+            return Array.isArray(
+                data
+            )
                 ? data
                 : [];
         } catch {
@@ -101,7 +107,8 @@ export function createUIActions({
                 )
             );
 
-        let image = null;
+        let image =
+            null;
 
         try {
             runtime.render();
@@ -117,7 +124,9 @@ export function createUIActions({
                             0.85
                         );
             }
-        } catch (error) {
+        } catch (
+            error
+        ) {
             console.warn(
                 'Unable to create design preview:',
                 error
@@ -145,7 +154,9 @@ export function createUIActions({
                 'My Design'
             );
 
-        if (name === null) {
+        if (
+            name === null
+        ) {
             return;
         }
 
@@ -156,6 +167,7 @@ export function createUIActions({
             showMessage(
                 'Design name is required.'
             );
+
             return;
         }
 
@@ -174,6 +186,7 @@ export function createUIActions({
             showMessage(
                 'A design with this name already exists.'
             );
+
             return;
         }
 
@@ -211,7 +224,9 @@ export function createUIActions({
     function loadDesign(
         design
     ) {
-        if (!design?.model) {
+        if (
+            !design?.model
+        ) {
             return;
         }
 
@@ -340,16 +355,16 @@ export function createUIActions({
                             ? `<img src="${design.image}" style="width:100%;height:160px;object-fit:cover;">`
                             : '<div style="height:160px;background:#e2e8f0;display:flex;align-items:center;justify-content:center;color:#64748b;">No preview</div>';
 
-                    const d =
+                    const dimensions =
                         design.model?.dimensions ||
                         {};
 
-                    const r =
+                    const roof =
                         design.model?.roof ||
                         {};
 
                     card.innerHTML =
-                        `${img}<div style="padding:15px;"><div style="font-size:18px;font-weight:700;">${design.name || 'Unnamed Design'}</div><div style="margin-top:6px;">${toDisplay(d.width)} × ${toDisplay(d.length)} × ${toDisplay(d.height)} ${runtime.ui?.isImperial ? 'ft' : 'm'}</div><div style="color:#64748b;margin-top:5px;">${r.type || 'gabled'} · ${(Number(r.pitchRatio || 0) * 12).toFixed(1)}:12</div><div style="color:#94a3b8;font-size:12px;margin-top:5px;">${design.createdAt ? new Date(design.createdAt).toLocaleString() : ''}</div><div style="display:flex;gap:8px;margin-top:12px;"><button type="button" class="btn btn-primary btn-sm" data-load-design="${design.id}">Load</button><button type="button" class="btn btn-danger btn-sm" data-delete-design="${design.id}">Delete</button></div></div>`;
+                        `${img}<div style="padding:15px;"><div style="font-size:18px;font-weight:700;">${design.name || 'Unnamed Design'}</div><div style="margin-top:6px;">${toDisplay(dimensions.width)} × ${toDisplay(dimensions.length)} × ${toDisplay(dimensions.height)} ${runtime.ui?.isImperial ? 'ft' : 'm'}</div><div style="color:#64748b;margin-top:5px;">${roof.type || 'gabled'} · ${(Number(roof.pitchRatio || 0) * 12).toFixed(1)}:12</div><div style="color:#94a3b8;font-size:12px;margin-top:5px;">${design.createdAt ? new Date(design.createdAt).toLocaleString() : ''}</div><div style="display:flex;gap:8px;margin-top:12px;"><button type="button" class="btn btn-primary btn-sm" data-load-design="${design.id}">Load</button><button type="button" class="btn btn-danger btn-sm" data-delete-design="${design.id}">Delete</button></div></div>`;
 
                     card.addEventListener(
                         'click',
@@ -367,8 +382,8 @@ export function createUIActions({
                             if (load) {
                                 loadDesign(
                                     designs.find(
-                                        x =>
-                                            x.id ===
+                                        item =>
+                                            item.id ===
                                             load.getAttribute(
                                                 'data-load-design'
                                             )
@@ -440,7 +455,10 @@ export function createUIActions({
             'display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:20px;';
 
         designs
-            .slice(0, 2)
+            .slice(
+                0,
+                2
+            )
             .forEach(
                 (
                     design,
@@ -454,15 +472,15 @@ export function createUIActions({
                     card.style.cssText =
                         'background:#fff;color:#111;border-radius:6px;padding:15px;';
 
-                    const d =
+                    const dimensions =
                         design.model?.dimensions ||
                         {};
 
-                    const r =
+                    const roof =
                         design.model?.roof ||
                         {};
 
-                    const p =
+                    const panels =
                         design.model?.panels ||
                         {};
 
@@ -471,7 +489,7 @@ export function createUIActions({
                         {};
 
                     card.innerHTML =
-                        `${design.image ? `<img src="${design.image}" style="width:100%;height:260px;object-fit:cover;border-radius:4px;">` : ''}<h4 style="margin-top:15px;">${design.name || `Design ${index + 1}`}</h4><table class="table table-sm"><tr><td>Width</td><td>${toDisplay(d.width)} ${runtime.ui?.isImperial ? 'ft' : 'm'}</td></tr><tr><td>Length</td><td>${toDisplay(d.length)} ${runtime.ui?.isImperial ? 'ft' : 'm'}</td></tr><tr><td>Height</td><td>${toDisplay(d.height)} ${runtime.ui?.isImperial ? 'ft' : 'm'}</td></tr><tr><td>Roof</td><td>${r.type || 'gabled'}</td></tr><tr><td>Pitch</td><td>${(Number(r.pitchRatio || 0) * 12).toFixed(1)}:12</td></tr><tr><td>Roof Profile</td><td>${r.profile || '—'}</td></tr><tr><td>Wall Profile</td><td>${p.profile || '—'}</td></tr><tr><td>Wall Color</td><td>${colors.wall || '—'}</td></tr><tr><td>Roof Color</td><td>${colors.roof || '—'}</td></tr></table><button type="button" class="btn btn-primary btn-sm" data-load-design="${design.id}">Load Design</button>`;
+                        `${design.image ? `<img src="${design.image}" style="width:100%;height:260px;object-fit:cover;border-radius:4px;">` : ''}<h4 style="margin-top:15px;">${design.name || `Design ${index + 1}`}</h4><table class="table table-sm"><tr><td>Width</td><td>${toDisplay(dimensions.width)} ${runtime.ui?.isImperial ? 'ft' : 'm'}</td></tr><tr><td>Length</td><td>${toDisplay(dimensions.length)} ${runtime.ui?.isImperial ? 'ft' : 'm'}</td></tr><tr><td>Height</td><td>${toDisplay(dimensions.height)} ${runtime.ui?.isImperial ? 'ft' : 'm'}</td></tr><tr><td>Roof</td><td>${roof.type || 'gabled'}</td></tr><tr><td>Pitch</td><td>${(Number(roof.pitchRatio || 0) * 12).toFixed(1)}:12</td></tr><tr><td>Roof Profile</td><td>${roof.profile || '—'}</td></tr><tr><td>Wall Profile</td><td>${panels.profile || '—'}</td></tr><tr><td>Wall Color</td><td>${colors.wall || '—'}</td></tr><tr><td>Roof Color</td><td>${colors.roof || '—'}</td></tr></table><button type="button" class="btn btn-primary btn-sm" data-load-design="${design.id}">Load Design</button>`;
 
                     card.addEventListener(
                         'click',
@@ -484,8 +502,8 @@ export function createUIActions({
                             if (load) {
                                 loadDesign(
                                     designs.find(
-                                        x =>
-                                            x.id ===
+                                        item =>
+                                            item.id ===
                                             load.getAttribute(
                                                 'data-load-design'
                                             )
@@ -535,7 +553,9 @@ export function createUIActions({
                     return;
                 }
 
-                if (toggle.checked) {
+                if (
+                    toggle.checked
+                ) {
                     savedOutsidePosition =
                         camera.position.clone();
 
@@ -581,15 +601,18 @@ export function createUIActions({
                             0,
                             eyeHeight,
                             depth +
-                                Math.max(
-                                    4,
-                                    length * 0.35
-                                )
+                            Math.max(
+                                4,
+                                length * 0.35
+                            )
                         );
 
-                    controls.setView(
+                    controls.setInsideView(
+                        true,
                         position,
-                        target
+                        target,
+                        runtime.geometry?.bounds ||
+                        null
                     );
                 } else {
                     const position =
@@ -602,7 +625,8 @@ export function createUIActions({
                         position &&
                         target
                     ) {
-                        controls.setView(
+                        controls.setInsideView(
+                            false,
                             position,
                             target
                         );
@@ -631,6 +655,7 @@ export function createUIActions({
                 'click',
                 e => {
                     e.preventDefault();
+
                     saveDesign();
                 }
             );
@@ -646,6 +671,7 @@ export function createUIActions({
                 'click',
                 e => {
                     e.preventDefault();
+
                     renderGallery();
                 }
             );
@@ -713,7 +739,9 @@ export function createUIActions({
                                 'Link copied to clipboard.'
                             );
                         }
-                    } catch (error) {
+                    } catch (
+                        error
+                    ) {
                         window.prompt(
                             'Copy configuration link:',
                             url
@@ -797,6 +825,7 @@ export function createUIActions({
                 'click',
                 e => {
                     e.preventDefault();
+
                     renderCompare();
                 }
             );
@@ -842,8 +871,8 @@ export function createUIActions({
                             '.ref-model-checkbox'
                         )
                         .forEach(
-                            cb => {
-                                cb.checked =
+                            checkbox => {
+                                checkbox.checked =
                                     false;
                             }
                         );
@@ -919,17 +948,37 @@ export function createUIActions({
                         `${window.location.origin}${window.location.pathname}?config=${serializeModelToURL(runtime.model)}`;
 
                     submitToGravityForms({
-                        formId: 4,
-                        snapshotFieldId: 15,
-                        specFieldId: 16,
-                        model: runtime.model,
-                        geometry: runtime.geometry,
-                        renderer: runtime.renderer,
+                        formId:
+                            4,
+
+                        snapshotFieldId:
+                            15,
+
+                        specFieldId:
+                            16,
+
+                        model:
+                            runtime.model,
+
+                        geometry:
+                            runtime.geometry,
+
+                        renderer:
+                            runtime.renderer,
+
                         fieldMap: {
-                            widthFieldId: 13,
-                            lengthFieldId: 14,
-                            heightFieldId: 12,
-                            urlFieldId: 10,
+                            widthFieldId:
+                                13,
+
+                            lengthFieldId:
+                                14,
+
+                            heightFieldId:
+                                12,
+
+                            urlFieldId:
+                                10,
+
                             shareUrl
                         }
                     });
