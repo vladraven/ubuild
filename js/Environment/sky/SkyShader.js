@@ -33,6 +33,7 @@ uniform float uCloudCover;
 uniform float uCloudOpacity;
 uniform float uHaze;
 uniform float uSunIntensity;
+uniform float uExposure;
 uniform float uTime;
 
 varying vec3 vWorldDirection;
@@ -112,8 +113,11 @@ float noise(vec2 p) {
 }
 
 float fbm(vec2 p) {
-    float value = 0.0;
-    float amplitude = 0.5;
+    float value =
+        0.0;
+
+    float amplitude =
+        0.5;
 
     for (
         int i = 0;
@@ -124,8 +128,11 @@ float fbm(vec2 p) {
             amplitude *
             noise(p);
 
-        p *= 2.03;
-        amplitude *= 0.5;
+        p *=
+            2.03;
+
+        amplitude *=
+            0.5;
     }
 
     return value;
@@ -139,7 +146,9 @@ void main() {
 
     float height =
         clamp(
-            direction.y * 0.5 + 0.5,
+            direction.y *
+            0.5 +
+            0.5,
             0.0,
             1.0
         );
@@ -160,7 +169,8 @@ void main() {
 
     float haze =
         pow(
-            1.0 - height,
+            1.0 -
+            height,
             2.5
         ) *
         uHaze;
@@ -180,16 +190,21 @@ void main() {
         direction.xz /
         max(
             0.15,
-            direction.y + 0.22
+            direction.y +
+            0.22
         );
 
-    cloudUV *= 1.15;
+    cloudUV *=
+        1.15;
 
     cloudUV.x +=
-        uTime * 0.0015;
+        uTime *
+        0.0015;
 
     float cloudNoise =
-        fbm(cloudUV);
+        fbm(
+            cloudUV
+        );
 
     float threshold =
         1.0 -
@@ -197,8 +212,10 @@ void main() {
 
     float cloud =
         smoothstep(
-            threshold - 0.12,
-            threshold + 0.12,
+            threshold -
+            0.12,
+            threshold +
+            0.12,
             cloudNoise
         );
 
@@ -212,7 +229,9 @@ void main() {
     vec3 cloudColor =
         mix(
             uHorizonColor,
-            vec3(1.0),
+            vec3(
+                1.0
+            ),
             0.55
         );
 
@@ -229,6 +248,9 @@ void main() {
             uCloudOpacity
         );
 
+    skyColor *=
+        uExposure;
+
     gl_FragColor =
         vec4(
             skyColor,
@@ -237,23 +259,31 @@ void main() {
 }
 `;
 
-export function createSkyMaterial(config = {}) {
+export function createSkyMaterial(
+    config = {}
+) {
     return new THREE.ShaderMaterial({
-        side: THREE.BackSide,
-        depthWrite: false,
+        side:
+            THREE.BackSide,
+
+        depthWrite:
+            false,
+
         uniforms: {
             uZenithColor: {
-                value: new THREE.Color(
-                    config.zenithColor ||
-                    0x3a8fd0
-                )
+                value:
+                    new THREE.Color(
+                        config.zenithColor ||
+                        0x3a8fd0
+                    )
             },
 
             uHorizonColor: {
-                value: new THREE.Color(
-                    config.horizonColor ||
-                    0x87ceeb
-                )
+                value:
+                    new THREE.Color(
+                        config.horizonColor ||
+                        0x87ceeb
+                    )
             },
 
             uCloudCover: {
@@ -284,8 +314,19 @@ export function createSkyMaterial(config = {}) {
                     ) || 1.0
             },
 
+            uExposure: {
+                value:
+                    Math.max(
+                        0,
+                        Number(
+                            config.exposure
+                        ) || 1
+                    )
+            },
+
             uTime: {
-                value: 0
+                value:
+                    0
             }
         },
 

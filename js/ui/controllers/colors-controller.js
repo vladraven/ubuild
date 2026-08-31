@@ -3,49 +3,410 @@ import {
 }
 from '../dom-helpers.js';
 
-const COLOR_ALIASES = {
+const COLOR_KEY_ALIASES = {
+    wallmetal: 'wall',
+    roofmetal: 'roof',
+    trimmetal: 'trim',
     eavetrim: 'eaveTrim',
-    raketrim: 'rakeTrim',
+    doorttrim: 'doorTrim',
+    doortrim: 'doorTrim',
+    doorframe: 'doorFrame',
+    doorpanel: 'doorPanel',
     structuralsteel: 'structuralSteel',
-    interiorwall: 'interiorWall',
-    wainscotmetal: 'wainscot'
+    wainscotmetal: 'wainscot',
+    interiorwall: 'interiorWall'
 };
 
-function normalizeColorKey(value) {
-    if (!value) {
-        return null;
-    }
+const COLOR_CONTROL_SELECTOR = [
+    'input[type="color"]',
+    'select[id^="color"]',
+    'input[id^="color"]',
+    '[data-color-target]',
+    '[data-color-input]'
+].join(
+    ','
+);
 
-    let key = String(value).trim();
+const COLOR_BUTTON_SELECTOR = [
+    '.color-swatch',
+    '.color-btn',
+    '[data-color]',
+    '[data-hex]'
+].join(
+    ','
+);
 
-    if (!key) {
-        return null;
-    }
-
-    key = key
-        .replace(/^color[-_]?/i, '')
-        .replace(/[-_]+(.)/g, (_, char) =>
-            char.toUpperCase());
-
-    const lower = key.toLowerCase();
-
-    return (
-        COLOR_ALIASES[lower] ||
-        key.charAt(0).toLowerCase() +
-        key.slice(1));
-}
-
-function normalizeColorValue(value) {
+function normalizeColorValue(
+    value
+) {
     if (
         value === undefined ||
-        value === null) {
+        value === null
+    ) {
         return null;
     }
 
     const color =
         String(value).trim();
 
-    return color || null;
+    if (!color) {
+        return null;
+    }
+
+    return color;
+}
+
+function normalizeColorKey(
+    value
+) {
+    if (!value) {
+        return null;
+    }
+
+    const raw =
+        String(value).trim();
+
+    if (!raw) {
+        return null;
+    }
+
+    const normalized =
+        raw
+            .replace(
+                /^color[-_]?/i,
+                ''
+            )
+            .replace(
+                /[-_]+(.)/g,
+                (
+                    _,
+                    character
+                ) =>
+                    character.toUpperCase()
+            );
+
+    if (!normalized) {
+        return null;
+    }
+
+    const lower =
+        normalized.toLowerCase();
+
+    if (
+        COLOR_KEY_ALIASES[
+            lower
+        ]
+    ) {
+        return COLOR_KEY_ALIASES[
+            lower
+        ];
+    }
+
+    return (
+        normalized.charAt(0).toLowerCase() +
+        normalized.slice(1)
+    );
+}
+
+function isKnownColorTarget(
+    colors,
+    target
+) {
+    if (
+        !target ||
+        !colors
+    ) {
+        return false;
+    }
+
+    return Object.prototype
+        .hasOwnProperty
+        .call(
+            colors,
+            target
+        );
+}
+
+function getExplicitColorTarget(
+    element
+) {
+    if (!element) {
+        return null;
+    }
+
+    return (
+        normalizeColorKey(
+            element.getAttribute(
+                'data-color-target'
+            )
+        ) ||
+        normalizeColorKey(
+            element.getAttribute(
+                'data-color-input'
+            )
+        )
+    );
+}
+
+function getIdColorTarget(
+    element,
+    colors
+) {
+    if (!element) {
+        return null;
+    }
+
+    const id =
+        element.id;
+
+    if (
+        !id ||
+        !/^color[-_]?/i.test(
+            id
+        )
+    ) {
+        return null;
+    }
+
+    const target =
+        normalizeColorKey(
+            id
+        );
+
+    if (
+        !isKnownColorTarget(
+            colors,
+            target
+        )
+    ) {
+        return null;
+    }
+
+    return target;
+}
+
+function getNameColorTarget(
+    element,
+    colors
+) {
+    if (!element) {
+        return null;
+    }
+
+    const name =
+        element.getAttribute(
+            'name'
+        );
+
+    if (!name) {
+        return null;
+    }
+
+    const target =
+        normalizeColorKey(
+            name
+        );
+
+    if (
+        !isKnownColorTarget(
+            colors,
+            target
+        )
+    ) {
+        return null;
+    }
+
+    return target;
+}
+
+function getColorTarget(
+    element,
+    colors
+) {
+    const explicitTarget =
+        getExplicitColorTarget(
+            element
+        );
+
+    if (
+        explicitTarget &&
+        isKnownColorTarget(
+            colors,
+            explicitTarget
+        )
+    ) {
+        return explicitTarget;
+    }
+
+    const idTarget =
+        getIdColorTarget(
+            element,
+            colors
+        );
+
+    if (idTarget) {
+        return idTarget;
+    }
+
+    return getNameColorTarget(
+        element,
+        colors
+    );
+}
+
+function getColorValue(
+    element
+) {
+    return normalizeColorValue(
+        element?.value
+    );
+}
+
+function getColorControls() {
+    return document.querySelectorAll(
+        COLOR_CONTROL_SELECTOR
+    );
+}
+
+function getColorButtons() {
+    return document.querySelectorAll(
+        COLOR_BUTTON_SELECTOR
+    );
+}
+
+function resolveButtonTarget(
+    button,
+    colors
+) {
+    const explicitTarget =
+        normalizeColorKey(
+            button.getAttribute(
+                'data-color-target'
+            )
+        );
+
+    if (
+        explicitTarget &&
+        isKnownColorTarget(
+            colors,
+            explicitTarget
+        )
+    ) {
+        return explicitTarget;
+    }
+
+    const target =
+        normalizeColorKey(
+            button.getAttribute(
+                'data-target'
+            )
+        );
+
+    if (
+        target &&
+        isKnownColorTarget(
+            colors,
+            target
+        )
+    ) {
+        return target;
+    }
+
+    const parent =
+        button.closest(
+            '[data-color-target], [data-color-input], [id^="color"]'
+        );
+
+    if (!parent) {
+        return null;
+    }
+
+    return getColorTarget(
+        parent,
+        colors
+    );
+}
+
+function resolveButtonValue(
+    button
+) {
+    return (
+        normalizeColorValue(
+            button.getAttribute(
+                'data-color'
+            )
+        ) ||
+        normalizeColorValue(
+            button.getAttribute(
+                'data-hex'
+            )
+        )
+    );
+}
+
+function findControlsForColor(
+    target
+) {
+    const capitalized =
+        target.charAt(0).toUpperCase() +
+        target.slice(1);
+
+    return document.querySelectorAll(
+        [
+            `#color${capitalized}`,
+            `#color-${target}`,
+            `[data-color-target="${target}"]`,
+            `[data-color-input="${target}"]`,
+            `[name="${target}"]`
+        ].join(
+            ','
+        )
+    );
+}
+
+function controlSupportsValue(
+    control,
+    value
+) {
+    if (
+        control.tagName !==
+        'SELECT'
+    ) {
+        return true;
+    }
+
+    return Array.from(
+        control.options
+    ).some(
+        option =>
+            option.value === value
+    );
+}
+
+function setControlValue(
+    control,
+    value
+) {
+    if (
+        !control ||
+        !controlSupportsValue(
+            control,
+            value
+        )
+    ) {
+        return;
+    }
+
+    if (
+        control.value === value
+    ) {
+        return;
+    }
+
+    setElementVal(
+        control,
+        value
+    );
 }
 
 export function createColorsController({
@@ -53,226 +414,233 @@ export function createColorsController({
 }) {
     if (!runtime) {
         throw new TypeError(
-            'UBuildRuntime instance is required for ColorsController');
-    }
-
-    function getColorTarget(element) {
-        if (!element) {
-            return null;
-        }
-
-        const explicit =
-            element.getAttribute(
-                'data-color-target') ||
-            element.getAttribute(
-                'data-color-input') ||
-            element.getAttribute(
-                'data-target');
-
-        if (explicit) {
-            return normalizeColorKey(
-                explicit);
-        }
-
-        const name =
-            element.getAttribute('name');
-
-        if (name) {
-            const normalizedName =
-                normalizeColorKey(name);
-
-            if (
-                normalizedName &&
-                runtime.model.colors?.[
-                    normalizedName
-                ] !== undefined) {
-                return normalizedName;
-            }
-        }
-
-        const id =
-            element.getAttribute('id');
-
-        if (id) {
-            const normalizedId =
-                normalizeColorKey(id);
-
-            if (normalizedId) {
-                return normalizedId;
-            }
-        }
-
-        return null;
-    }
-
-    function getColorValue(element) {
-        if (!element) {
-            return null;
-        }
-
-        return normalizeColorValue(
-            element.value);
+            'UBuildRuntime instance is required for ColorsController'
+        );
     }
 
     function setColor(
         target,
-        value) {
+        value,
+        source
+    ) {
         const normalizedTarget =
-            normalizeColorKey(target);
+            normalizeColorKey(
+                target
+            );
 
         const normalizedValue =
-            normalizeColorValue(value);
+            normalizeColorValue(
+                value
+            );
 
         if (
             !normalizedTarget ||
-            !normalizedValue) {
+            !normalizedValue
+        ) {
             return;
         }
 
+        const colors =
+            runtime.model.colors ||
+            {};
+
+        if (
+            !isKnownColorTarget(
+                colors,
+                normalizedTarget
+            )
+        ) {
+            return;
+        }
+
+        const previousValue =
+            colors[
+                normalizedTarget
+            ];
+
+        if (
+            previousValue ===
+            normalizedValue
+        ) {
+            return;
+        }
+
+        console.log(
+            'COLOR UPDATE',
+            {
+                target:
+                    normalizedTarget,
+
+                previous:
+                    previousValue,
+
+                next:
+                    normalizedValue,
+
+                source
+            }
+        );
+
         runtime.update({
             ...runtime.model,
 
             colors: {
-                ...(runtime.model.colors || {}),
+                ...colors,
+
                 [normalizedTarget]:
-                normalizedValue
+                    normalizedValue
             }
         });
     }
 
-    // FIX: on load, model.colors starts from DEFAULT_COLORS in
-    // buildingModel.js - all plain white (#FFFFFF). The <select> elements
-    // in 3d-design-tool-new.php are rendered server-side from a colors
-    // DB table and already have PHP's own defaults `selected` (e.g. "Stone
-    // Grey" for roof, "Royal Blue" for trim) - those hex codes are unknown
-    // to the JS model. Because syncFromModel() runs on init and writes the
-    // JS-side white defaults back into every <select>.value, and no option
-    // in most of these palettes is literally "#FFFFFF", the assignment
-    // matches no <option> and the browser shows the select as blank - this
-    // is the "no color is selected by default, even though PHP has
-    // selected ones" symptom. It also meant the 3D model started out
-    // rendering white/mismatched materials until the user manually
-    // reselected every dropdown.
-    //
-    // Fix: read the actual currently-selected value out of each rendered
-    // control (which reflects PHP's `selected` option) and seed the model
-    // with that, once, before wiring up change listeners - instead of
-    // letting the JS defaults silently overwrite what the server already
-    // picked.
-    function seedModelFromDom(colorControls) {
-        const patch = {};
+    function bindColorControl(
+        control
+    ) {
+        if (
+            control.__uBuildColorHandler
+        ) {
+            return;
+        }
 
-        colorControls.forEach((control) => {
-            const target = getColorTarget(control);
-            if (!target) return;
+        const target =
+            getColorTarget(
+                control,
+                runtime.model.colors
+            );
 
-            const value = getColorValue(control);
-            if (!value) return;
+        if (!target) {
+            return;
+        }
 
-            patch[target] = value;
-        });
+        const handler =
+            event => {
+                const element =
+                    event.currentTarget;
 
-        if (Object.keys(patch).length === 0) return;
+                const currentTarget =
+                    getColorTarget(
+                        element,
+                        runtime.model.colors
+                    );
 
-        runtime.update({
-            ...runtime.model,
-            colors: {
-                ...(runtime.model.colors || {}),
-                ...patch
-            }
-        });
+                if (!currentTarget) {
+                    return;
+                }
+
+                const value =
+                    getColorValue(
+                        element
+                    );
+
+                if (!value) {
+                    return;
+                }
+
+                setColor(
+                    currentTarget,
+                    value,
+                    {
+                        type:
+                            event.type,
+
+                        elementId:
+                            element.id ||
+                            null,
+
+                        elementName:
+                            element.getAttribute(
+                                'name'
+                            ),
+
+                        target:
+                            currentTarget
+                    }
+                );
+            };
+
+        control.addEventListener(
+            'input',
+            handler
+        );
+
+        control.addEventListener(
+            'change',
+            handler
+        );
+
+        control.__uBuildColorHandler =
+            handler;
+    }
+
+    function bindColorButton(
+        button
+    ) {
+        if (
+            button.__uBuildColorHandler
+        ) {
+            return;
+        }
+
+        const handler =
+            event => {
+                const element =
+                    event.currentTarget;
+
+                const target =
+                    resolveButtonTarget(
+                        element,
+                        runtime.model.colors
+                    );
+
+                const value =
+                    resolveButtonValue(
+                        element
+                    );
+
+                if (
+                    !target ||
+                    !value
+                ) {
+                    return;
+                }
+
+                setColor(
+                    target,
+                    value,
+                    {
+                        type:
+                            event.type,
+
+                        elementId:
+                            element.id ||
+                            null,
+
+                        target
+                    }
+                );
+            };
+
+        button.addEventListener(
+            'click',
+            handler
+        );
+
+        button.__uBuildColorHandler =
+            handler;
     }
 
     function bind() {
-        const colorControls =
-            document.querySelectorAll(
-                [
-                    'input[type="color"]',
-                    'select[id^="color"]',
-                    'select[name*="color" i]',
-                    '[data-color-target]',
-                    '[data-color-input]'
-                ].join(','));
+        getColorControls()
+            .forEach(
+                bindColorControl
+            );
 
-        seedModelFromDom(colorControls);
+        getColorButtons()
+            .forEach(
+                bindColorButton
+            );
 
-        colorControls.forEach(
-            control => {
-            const target =
-                getColorTarget(
-                    control);
-
-            if (!target) {
-                return;
-            }
-
-            if (
-                control.__uBuildColorHandler) {
-                return;
-            }
-
-            const handler =
-                event => {
-                setColor(
-                    target,
-                    getColorValue(
-                        event.currentTarget));
-            };
-
-            control.addEventListener(
-                'input',
-                handler);
-
-            control.addEventListener(
-                'change',
-                handler);
-
-            control.__uBuildColorHandler =
-                handler;
-        });
-
-        document
-        .querySelectorAll(
-            '.color-swatch,.color-btn')
-        .forEach(button => {
-            if (
-                button.__uBuildColorHandler) {
-                return;
-            }
-
-            const handler =
-                () => {
-                const hex =
-                    normalizeColorValue(
-                        button.getAttribute(
-                            'data-color') ||
-                        button.getAttribute(
-                            'data-hex'));
-
-                const target =
-                    normalizeColorKey(
-                        button.getAttribute(
-                            'data-target') ||
-                        button.getAttribute(
-                            'data-color-target') ||
-                        'wall');
-
-                if (
-                    hex &&
-                    target) {
-                    setColor(
-                        target,
-                        hex);
-                }
-            };
-
-            button.addEventListener(
-                'click',
-                handler);
-
-            button.__uBuildColorHandler =
-                handler;
-        });
+        syncFromModel();
     }
 
     function syncFromModel() {
@@ -285,79 +653,96 @@ export function createColorsController({
 
         for (
             const [
-                key,
+                target,
                 value
             ]
-            of Object.entries(colors)) {
-            const normalizedKey =
-                normalizeColorKey(key);
+            of Object.entries(
+                colors
+            )
+        ) {
+            const normalizedTarget =
+                normalizeColorKey(
+                    target
+                );
 
             const normalizedValue =
-                normalizeColorValue(value);
+                normalizeColorValue(
+                    value
+                );
 
             if (
-                !normalizedKey ||
-                !normalizedValue) {
+                !normalizedTarget ||
+                !normalizedValue
+            ) {
                 continue;
             }
 
-            setElementVal(
-                [
-                    `#color${normalizedKey.charAt(0).toUpperCase() + normalizedKey.slice(1)}`, 
-                    `#color-${normalizedKey}`, 
-                    `[data-color-input="${normalizedKey}"]`, 
-`[data-color-target="${normalizedKey}"]`
-                ],
-                normalizedValue);
+            findControlsForColor(
+                normalizedTarget
+            )
+                .forEach(
+                    control =>
+                        setControlValue(
+                            control,
+                            normalizedValue
+                        )
+                );
         }
     }
 
+    function disposeColorControl(
+        control
+    ) {
+        const handler =
+            control.__uBuildColorHandler;
+
+        if (!handler) {
+            return;
+        }
+
+        control.removeEventListener(
+            'input',
+            handler
+        );
+
+        control.removeEventListener(
+            'change',
+            handler
+        );
+
+        delete control
+            .__uBuildColorHandler;
+    }
+
+    function disposeColorButton(
+        button
+    ) {
+        const handler =
+            button.__uBuildColorHandler;
+
+        if (!handler) {
+            return;
+        }
+
+        button.removeEventListener(
+            'click',
+            handler
+        );
+
+        delete button
+            .__uBuildColorHandler;
+    }
+
     function dispose() {
-        document
-        .querySelectorAll(
-            [
-                'input[type="color"]',
-                'select[id^="color"]',
-                'select[name*="color" i]',
-                '[data-color-target]',
-                '[data-color-input]'
-            ].join(','))
-        .forEach(control => {
-            const handler =
-                control.__uBuildColorHandler;
+        getColorControls()
+            .forEach(
+                disposeColorControl
+            );
 
-            if (!handler) {
-                return;
-            }
-
-            control.removeEventListener(
-                'input',
-                handler);
-
-            control.removeEventListener(
-                'change',
-                handler);
-
-            delete control.__uBuildColorHandler;
-        });
-
-        document
-        .querySelectorAll(
-            '.color-swatch,.color-btn')
-        .forEach(button => {
-            const handler =
-                button.__uBuildColorHandler;
-
-            if (!handler) {
-                return;
-            }
-
-            button.removeEventListener(
-                'click',
-                handler);
-
-            delete button.__uBuildColorHandler;
-        });
+        getColorButtons()
+            .forEach(
+                disposeColorButton
+            );
     }
 
     return Object.freeze({

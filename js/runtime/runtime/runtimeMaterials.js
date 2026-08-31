@@ -6,6 +6,18 @@ import {
     getPanelNormalMapForUse
 } from '../../panels/PanelProfiles.js';
 
+const MATERIAL_COLOR_DEBUG =
+    true;
+
+const COLOR_MUTATION_METHODS = [
+    'copy',
+    'set',
+    'setHex',
+    'setRGB',
+    'setHSL',
+    'fromArray'
+];
+
 function normalizeColor(
     value,
     fallback
@@ -47,6 +59,138 @@ function normalizeColor(
     );
 }
 
+function formatColor(
+    color
+) {
+    if (
+        !color ||
+        typeof color.getHexString !==
+        'function'
+    ) {
+        return null;
+    }
+
+    return `#${color.getHexString()}`;
+}
+
+function logMaterialColor(
+    label,
+    material
+) {
+    if (
+        !MATERIAL_COLOR_DEBUG
+    ) {
+        return;
+    }
+
+    console.log(
+        'MATERIAL COLOR',
+        label,
+        {
+            uuid:
+                material?.uuid,
+
+            color:
+                formatColor(
+                    material?.color
+                )
+        }
+    );
+}
+
+function watchMaterialColor(
+    label,
+    material
+) {
+    if (
+        !MATERIAL_COLOR_DEBUG ||
+        !material?.color ||
+        material.userData
+            ?.materialColorWatchEnabled
+    ) {
+        return;
+    }
+
+    material.userData =
+        material.userData || {};
+
+    material.userData
+        .materialColorWatchEnabled =
+        true;
+
+    for (
+        const methodName
+        of COLOR_MUTATION_METHODS
+    ) {
+        const original =
+            material.color[
+                methodName
+            ];
+
+        if (
+            typeof original !==
+            'function'
+        ) {
+            continue;
+        }
+
+        material.color[
+            methodName
+        ] =
+            function watchedColorMutation(
+                ...args
+            ) {
+                const before =
+                    formatColor(
+                        this
+                    );
+
+                const result =
+                    original.apply(
+                        this,
+                        args
+                    );
+
+                const after =
+                    formatColor(
+                        this
+                    );
+
+                if (
+                    before === after
+                ) {
+                    return result;
+                }
+
+                console.groupCollapsed(
+                    'MATERIAL COLOR MUTATION',
+                    label,
+                    material.uuid,
+                    methodName,
+                    `${before} -> ${after}`
+                );
+
+                console.log(
+                    'material',
+                    material
+                );
+
+                console.log(
+                    'arguments',
+                    args
+                );
+
+                console.trace(
+                    'Color mutation stack'
+                );
+
+                console.groupEnd();
+
+                return result;
+            };
+    }
+}
+
 function createPanelMaterial(
     color,
     normalMap = null
@@ -60,7 +204,9 @@ function createPanelMaterial(
             side: THREE.DoubleSide
         });
 
-    if (normalMap) {
+    if (
+        normalMap
+    ) {
         material.normalMap =
             normalMap;
 
@@ -88,6 +234,76 @@ function createMetalMaterial(
         roughness,
         side: THREE.DoubleSide
     });
+}
+
+function registerMaterial(
+    materials,
+    name,
+    material
+) {
+    materials.set(
+        name,
+        material
+    );
+
+    watchMaterialColor(
+        name,
+        material
+    );
+
+    logMaterialColor(
+        `REGISTER ${name}`,
+        material
+    );
+
+    return material;
+}
+
+function copyMaterialColor(
+    name,
+    material,
+    color
+) {
+    const before =
+        formatColor(
+            material.color
+        );
+
+    const requested =
+        formatColor(
+            color
+        );
+
+    console.log(
+        'APPLY MATERIAL COLOR',
+        name,
+        {
+            uuid:
+                material.uuid,
+
+            before,
+
+            requested
+        }
+    );
+
+    material.color.copy(
+        color
+    );
+
+    console.log(
+        'APPLY MATERIAL COLOR RESULT',
+        name,
+        {
+            uuid:
+                material.uuid,
+
+            after:
+                formatColor(
+                    material.color
+                )
+        }
+    );
 }
 
 export function createMaterialSystem(
@@ -142,7 +358,8 @@ export function createMaterialSystem(
     const materials =
         new Map();
 
-    materials.set(
+    registerMaterial(
+        materials,
         'wallMetal',
         createPanelMaterial(
             normalizeColor(
@@ -153,7 +370,8 @@ export function createMaterialSystem(
         )
     );
 
-    materials.set(
+    registerMaterial(
+        materials,
         'wall',
         createPanelMaterial(
             normalizeColor(
@@ -164,7 +382,8 @@ export function createMaterialSystem(
         )
     );
 
-    materials.set(
+    registerMaterial(
+        materials,
         'wainscotMetal',
         createPanelMaterial(
             normalizeColor(
@@ -175,22 +394,35 @@ export function createMaterialSystem(
         )
     );
 
-    materials.set(
+    registerMaterial(
+        materials,
         'roofMetal',
         new THREE.MeshStandardMaterial({
-            color: normalizeColor(
-                colors.roof,
-                0xffffff
-            ),
-            metalness: 0.55,
-            roughness: 0.34,
-            envMapIntensity: 1.15,
-            normalMap: roofNormalMap,
-            side: THREE.DoubleSide
+            color:
+                normalizeColor(
+                    colors.roof,
+                    0xffffff
+                ),
+
+            metalness:
+                0.55,
+
+            roughness:
+                0.34,
+
+            envMapIntensity:
+                1.15,
+
+            normalMap:
+                roofNormalMap,
+
+            side:
+                THREE.DoubleSide
         })
     );
 
-    materials.set(
+    registerMaterial(
+        materials,
         'structuralSteel',
         createMetalMaterial(
             normalizeColor(
@@ -203,7 +435,8 @@ export function createMaterialSystem(
         )
     );
 
-    materials.set(
+    registerMaterial(
+        materials,
         'steel',
         createMetalMaterial(
             normalizeColor(
@@ -216,91 +449,148 @@ export function createMaterialSystem(
         )
     );
 
-    materials.set(
+    registerMaterial(
+        materials,
         'concrete',
         new THREE.MeshStandardMaterial({
-            color: normalizeColor(
-                colors.concrete,
-                0xb8b8b8
-            ),
-            metalness: 0.1,
-            roughness: 0.9,
-            side: THREE.DoubleSide
+            color:
+                normalizeColor(
+                    colors.concrete,
+                    0xb8b8b8
+                ),
+
+            metalness:
+                0.1,
+
+            roughness:
+                0.9,
+
+            side:
+                THREE.DoubleSide
         })
     );
 
-    materials.set(
+    registerMaterial(
+        materials,
         'trimMetal',
         new THREE.MeshStandardMaterial({
-            color: normalizeColor(
-                colors.trim,
-                0xffffff
-            ),
-            metalness: 0.65,
-            roughness: 0.28,
-            envMapIntensity: 1.2,
-            side: THREE.DoubleSide
+            color:
+                normalizeColor(
+                    colors.trim,
+                    0xffffff
+                ),
+
+            metalness:
+                0.65,
+
+            roughness:
+                0.28,
+
+            envMapIntensity:
+                1.2,
+
+            side:
+                THREE.DoubleSide
         })
     );
 
-    materials.set(
+    registerMaterial(
+        materials,
         'eaveTrim',
         new THREE.MeshStandardMaterial({
-            color: normalizeColor(
-                colors.eaveTrim ??
-                colors.trim,
-                0xffffff
-            ),
-            metalness: 0.65,
-            roughness: 0.28,
-            envMapIntensity: 1.2,
-            side: THREE.DoubleSide
+            color:
+                normalizeColor(
+                    colors.eaveTrim ??
+                    colors.trim,
+                    0xffffff
+                ),
+
+            metalness:
+                0.65,
+
+            roughness:
+                0.28,
+
+            envMapIntensity:
+                1.2,
+
+            side:
+                THREE.DoubleSide
         })
     );
 
-    materials.set(
+    registerMaterial(
+        materials,
         'doorTrim',
         new THREE.MeshStandardMaterial({
-            color: normalizeColor(
-                colors.trim,
-                0xffffff
-            ),
-            metalness: 0.65,
-            roughness: 0.28,
-            envMapIntensity: 1.2,
-            side: THREE.DoubleSide
+            color:
+                normalizeColor(
+                    colors.trim,
+                    0xffffff
+                ),
+
+            metalness:
+                0.65,
+
+            roughness:
+                0.28,
+
+            envMapIntensity:
+                1.2,
+
+            side:
+                THREE.DoubleSide
         })
     );
 
-    materials.set(
+    registerMaterial(
+        materials,
         'doorFrame',
         new THREE.MeshStandardMaterial({
-            color: normalizeColor(
-                colors.trim,
-                0xffffff
-            ),
-            metalness: 0.65,
-            roughness: 0.28,
-            envMapIntensity: 1.2,
-            side: THREE.DoubleSide
+            color:
+                normalizeColor(
+                    colors.trim,
+                    0xffffff
+                ),
+
+            metalness:
+                0.65,
+
+            roughness:
+                0.28,
+
+            envMapIntensity:
+                1.2,
+
+            side:
+                THREE.DoubleSide
         })
     );
 
-    materials.set(
+    registerMaterial(
+        materials,
         'frame',
         new THREE.MeshStandardMaterial({
-            color: normalizeColor(
-                colors.frame ??
-                colors.steel,
-                0xffffff
-            ),
-            metalness: 0.55,
-            roughness: 0.5,
-            side: THREE.DoubleSide
+            color:
+                normalizeColor(
+                    colors.frame ??
+                    colors.steel,
+                    0xffffff
+                ),
+
+            metalness:
+                0.55,
+
+            roughness:
+                0.5,
+
+            side:
+                THREE.DoubleSide
         })
     );
 
-    materials.set(
+    registerMaterial(
+        materials,
         'doorPanel',
         createPanelMaterial(
             normalizeColor(
@@ -311,51 +601,92 @@ export function createMaterialSystem(
         )
     );
 
-    materials.set(
+    registerMaterial(
+        materials,
         'glass',
         new THREE.MeshStandardMaterial({
-            color: normalizeColor(
-                colors.glass,
-                0x9fc5e8
-            ),
-            transparent: true,
-            opacity: 0.45,
-            roughness: 0.1,
-            metalness: 0,
-            side: THREE.DoubleSide
+            color:
+                normalizeColor(
+                    colors.glass,
+                    0x9fc5e8
+                ),
+
+            transparent:
+                true,
+
+            opacity:
+                0.45,
+
+            roughness:
+                0.1,
+
+            metalness:
+                0,
+
+            side:
+                THREE.DoubleSide
         })
     );
 
-    materials.set(
+    registerMaterial(
+        materials,
         'mezzanine',
         new THREE.MeshStandardMaterial({
-            color: normalizeColor(
-                colors.mezzanine,
-                0xffffff
-            ),
-            metalness: 0.4,
-            roughness: 0.6,
-            side: THREE.DoubleSide
+            color:
+                normalizeColor(
+                    colors.mezzanine,
+                    0xffffff
+                ),
+
+            metalness:
+                0.4,
+
+            roughness:
+                0.6,
+
+            side:
+                THREE.DoubleSide
         })
     );
 
-    materials.set(
+    registerMaterial(
+        materials,
         'interiorWall',
         new THREE.MeshStandardMaterial({
-            color: normalizeColor(
-                colors.interiorWall ??
-                colors.wall,
-                0xffffff
-            ),
-            metalness: 0.1,
-            roughness: 0.8,
-            side: THREE.DoubleSide
+            color:
+                normalizeColor(
+                    colors.interiorWall ??
+                    colors.wall,
+                    0xffffff
+                ),
+
+            metalness:
+                0.1,
+
+            roughness:
+                0.8,
+
+            side:
+                THREE.DoubleSide
         })
     );
 
     function applyColors(
         nextColors = {}
     ) {
+        console.groupCollapsed(
+            'MATERIAL SYSTEM APPLY COLORS'
+        );
+
+        console.log(
+            'input colors',
+            nextColors
+        );
+
+        console.trace(
+            'applyColors stack'
+        );
+
         const wall =
             normalizeColor(
                 nextColors.wall,
@@ -433,109 +764,151 @@ export function createMaterialSystem(
                 0xffffff
             );
 
-        materials.get(
-            'wallMetal'
-        ).color.copy(
+        copyMaterialColor(
+            'wallMetal',
+            materials.get(
+                'wallMetal'
+            ),
             wall
         );
 
-        materials.get(
-            'wall'
-        ).color.copy(
+        copyMaterialColor(
+            'wall',
+            materials.get(
+                'wall'
+            ),
             wall
         );
 
-        materials.get(
-            'wainscotMetal'
-        ).color.copy(
+        copyMaterialColor(
+            'wainscotMetal',
+            materials.get(
+                'wainscotMetal'
+            ),
             wainscot
         );
 
-        materials.get(
-            'roofMetal'
-        ).color.copy(
+        copyMaterialColor(
+            'roofMetal',
+            materials.get(
+                'roofMetal'
+            ),
             roof
         );
 
-        materials.get(
-            'trimMetal'
-        ).color.copy(
+        copyMaterialColor(
+            'trimMetal',
+            materials.get(
+                'trimMetal'
+            ),
             trim
         );
 
-        materials.get(
-            'doorTrim'
-        ).color.copy(
+        copyMaterialColor(
+            'doorTrim',
+            materials.get(
+                'doorTrim'
+            ),
             trim
         );
 
-        materials.get(
-            'doorFrame'
-        ).color.copy(
+        copyMaterialColor(
+            'doorFrame',
+            materials.get(
+                'doorFrame'
+            ),
             trim
         );
 
-        materials.get(
-            'eaveTrim'
-        ).color.copy(
+        copyMaterialColor(
+            'eaveTrim',
+            materials.get(
+                'eaveTrim'
+            ),
             eaveTrim
         );
 
-        materials.get(
-            'frame'
-        ).color.copy(
+        copyMaterialColor(
+            'frame',
+            materials.get(
+                'frame'
+            ),
             frame
         );
 
-        materials.get(
-            'structuralSteel'
-        ).color.copy(
+        copyMaterialColor(
+            'structuralSteel',
+            materials.get(
+                'structuralSteel'
+            ),
             steel
         );
 
-        materials.get(
-            'steel'
-        ).color.copy(
+        copyMaterialColor(
+            'steel',
+            materials.get(
+                'steel'
+            ),
             steel
         );
 
-        materials.get(
-            'concrete'
-        ).color.copy(
+        copyMaterialColor(
+            'concrete',
+            materials.get(
+                'concrete'
+            ),
             concrete
         );
 
-        materials.get(
-            'glass'
-        ).color.copy(
+        copyMaterialColor(
+            'glass',
+            materials.get(
+                'glass'
+            ),
             glass
         );
 
-        materials.get(
-            'mezzanine'
-        ).color.copy(
+        copyMaterialColor(
+            'mezzanine',
+            materials.get(
+                'mezzanine'
+            ),
             mezzanine
         );
 
-        materials.get(
-            'interiorWall'
-        ).color.copy(
+        copyMaterialColor(
+            'interiorWall',
+            materials.get(
+                'interiorWall'
+            ),
             interiorWall
         );
 
-        materials.get(
-            'doorPanel'
-        ).color.copy(
+        copyMaterialColor(
+            'doorPanel',
+            materials.get(
+                'doorPanel'
+            ),
             doorPanel
         );
 
         for (
-            const material
-            of materials.values()
+            const [
+                name,
+                material
+            ]
+            of materials
         ) {
             material.needsUpdate =
                 true;
+
+            logMaterialColor(
+                `AFTER APPLY ${name}`,
+                material
+            );
         }
+
+        console.groupEnd();
     }
 
     applyColors(

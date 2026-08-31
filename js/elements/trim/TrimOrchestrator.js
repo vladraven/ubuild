@@ -1,6 +1,20 @@
 import * as THREE from 'three';
 
-function assertContext(context) {
+const RAKE_TRIM_WIDTH =
+    0.12;
+
+const RAKE_TRIM_DEPTH =
+    0.06;
+
+const CORNER_TRIM_LEG =
+    0.10;
+
+const CORNER_TRIM_THICKNESS =
+    0.008;
+
+function assertContext(
+    context
+) {
     if (
         !context ||
         typeof context !== 'object'
@@ -27,12 +41,6 @@ function assertContext(context) {
     }
 }
 
-const RAKE_TRIM_WIDTH = 0.12;
-const RAKE_TRIM_DEPTH = 0.06;
-
-const CORNER_TRIM_LEG = 0.10;
-const CORNER_TRIM_THICKNESS = 0.008;
-
 function resolveMaterial(
     context,
     name = 'trimMetal'
@@ -52,6 +60,55 @@ function resolveMaterial(
         context.materials.trimMetal ||
         context.materials.steel
     );
+}
+
+function describeMaterial(
+    material,
+    context
+) {
+    return {
+        uuid:
+            material?.uuid ||
+            null,
+
+        color:
+            material?.color
+                ?.getHexString?.() ||
+            null,
+
+        materialName:
+            material?.name ||
+            null,
+
+        contextTrim:
+            context.colors?.trim ||
+            null,
+
+        contextWall:
+            context.colors?.wall ||
+            null,
+
+        sameAsWallMaterial:
+            material ===
+            resolveMaterial(
+                context,
+                'wall'
+            ),
+
+        sameAsWallMetal:
+            material ===
+            resolveMaterial(
+                context,
+                'wallMetal'
+            ),
+
+        sameAsTrimMetal:
+            material ===
+            resolveMaterial(
+                context,
+                'trimMetal'
+            )
+    };
 }
 
 function createProfileMesh(
@@ -83,7 +140,9 @@ function createProfileMesh(
         );
 
     const direction =
-        end.clone().sub(start);
+        end.clone().sub(
+            start
+        );
 
     const length =
         direction.length();
@@ -164,9 +223,10 @@ function createProfileMesh(
                 direction
             );
 
-    mesh.quaternion.setFromRotationMatrix(
-        basis
-    );
+    mesh.quaternion
+        .setFromRotationMatrix(
+            basis
+        );
 
     mesh.castShadow =
         true;
@@ -207,7 +267,9 @@ function createRakeTrimMesh(
         );
 
     const direction =
-        end.clone().sub(start);
+        end.clone().sub(
+            start
+        );
 
     const length =
         direction.length();
@@ -281,10 +343,14 @@ function createRakeTrimMesh(
         halfWidth;
 
     const z0 =
-        cutAt(x0);
+        cutAt(
+            x0
+        );
 
     const z1 =
-        cutAt(x1);
+        cutAt(
+            x1
+        );
 
     if (
         Math.min(
@@ -490,13 +556,6 @@ function createCornerTrimMesh(
             ? corner.sz
             : -1;
 
-    /*
-     * sx / sz already describe the
-     * outward direction of the corner.
-     *
-     * Do NOT invert them.
-     */
-
     const dirX =
         sx;
 
@@ -516,7 +575,10 @@ function createCornerTrimMesh(
 
     shape.lineTo(
         dirX *
-            (leg - cut),
+            (
+                leg -
+                cut
+            ),
         0
     );
 
@@ -533,7 +595,10 @@ function createCornerTrimMesh(
     shape.lineTo(
         dirX * thickness,
         dirZ *
-            (leg - cut)
+            (
+                leg -
+                cut
+            )
     );
 
     shape.lineTo(
@@ -547,10 +612,17 @@ function createCornerTrimMesh(
         new THREE.ExtrudeGeometry(
             shape,
             {
-                depth: colH,
-                bevelEnabled: false,
-                steps: 1,
-                curveSegments: 1
+                depth:
+                    colH,
+
+                bevelEnabled:
+                    false,
+
+                steps:
+                    1,
+
+                curveSegments:
+                    1
             }
         );
 
@@ -559,7 +631,8 @@ function createCornerTrimMesh(
     );
 
     const pos =
-        geometry.attributes.position;
+        geometry.attributes
+            .position;
 
     for (
         let i = 0;
@@ -638,7 +711,9 @@ function createObject(
     }
 
     if (
-        context.model?.visibility?.trims ===
+        context.model
+            ?.visibility
+            ?.trims ===
         false
     ) {
         return root;
@@ -656,13 +731,31 @@ function createObject(
             'eaveTrim'
         );
 
-    console.log(
-        'TRIM MATERIAL',
-        trimMaterial?.uuid,
-        trimMaterial?.color?.getHexString?.(),
-        context.colors?.trim,
-        context.colors?.wall
-    );
+//	 console.groupCollapsed(
+//	     'TRIM ORCHESTRATOR CREATE'
+//	 );
+//	
+//	 console.log(
+//	     'trim material',
+//	     describeMaterial(
+//	         trimMaterial,
+//	         context
+//	     )
+//	 );
+//	
+//	 console.log(
+//	     'eave material',
+//	     describeMaterial(
+//	         eaveMaterial,
+//	         context
+//	     )
+//	 );
+//	
+//	 console.trace(
+//	     'TRIM CREATE STACK'
+//	 );
+
+//  console.groupEnd();
 
     const eaveGroup =
         new THREE.Group();
@@ -745,12 +838,10 @@ function createObject(
         ) {
             console.log(
                 'CORNER TRIM MATERIAL',
-                mesh.material?.uuid,
-                mesh.material?.color?.getHexString?.(),
-                'trim=',
-                context.colors?.trim,
-                'wall=',
-                context.colors?.wall
+                describeMaterial(
+                    mesh.material,
+                    context
+                )
             );
 
             cornerGroup.add(
@@ -765,13 +856,19 @@ function createObject(
         cornerGroup
     );
 
-    root.userData.trimGroups.eave =
+    root.userData
+        .trimGroups
+        .eave =
         eaveGroup;
 
-    root.userData.trimGroups.roof =
+    root.userData
+        .trimGroups
+        .roof =
         roofTrimGroup;
 
-    root.userData.trimGroups.corner =
+    root.userData
+        .trimGroups
+        .corner =
         cornerGroup;
 
     return root;
@@ -823,7 +920,8 @@ function disposeObject(
 
 export const TrimOrchestrator =
     Object.freeze({
-        id: 'trims',
+        id:
+            'trims',
 
         create(
             context
