@@ -6,7 +6,9 @@ import {
     createOpeningInteraction
 } from './runtimeImports.js';
 
-import { RoomEnvironment } from 'https://unpkg.com/three@0.136.0/examples/jsm/environments/RoomEnvironment.js';
+import {
+    RoomEnvironment
+} from 'https://unpkg.com/three@0.136.0/examples/jsm/environments/RoomEnvironment.js';
 
 export function createLifecycle({
     scene,
@@ -16,7 +18,9 @@ export function createLifecycle({
     buildingRoot,
     geometry,
     environment = {},
-    lighting = {}
+    lighting = {},
+    onOpeningChange = null,
+    onOpeningSelect = null
 }) {
     const render = () => {
         renderer.render(
@@ -25,11 +29,6 @@ export function createLifecycle({
         );
     };
 
-    // ------------------------------------------------------------
-    // Image-based lighting (IBL)
-    // MeshStandardMaterial with any metalness needs scene.environment
-    // otherwise albedo is darkened and pure white reads as grey.
-    // ------------------------------------------------------------
     const pmremGenerator =
         new THREE.PMREMGenerator(
             renderer
@@ -49,7 +48,6 @@ export function createLifecycle({
     scene.environment =
         envRT.texture;
 
-    // r163+ only — safe no-op on three@0.136
     if (
         'environmentIntensity' in scene
     ) {
@@ -67,6 +65,7 @@ export function createLifecycle({
     const environmentSystem =
         createEnvironmentSystem({
             ...environment,
+
             onNeedRender:
                 render
         });
@@ -122,10 +121,32 @@ export function createLifecycle({
             buildingRoot,
 
             onOpeningChange:
-                render,
+                change => {
+                    if (
+                        typeof onOpeningChange ===
+                        'function'
+                    ) {
+                        onOpeningChange(
+                            change
+                        );
+                    }
+
+                    render();
+                },
 
             onSelect:
-                render
+                openingId => {
+                    if (
+                        typeof onOpeningSelect ===
+                        'function'
+                    ) {
+                        onOpeningSelect(
+                            openingId
+                        );
+                    }
+
+                    render();
+                }
         });
 
     function updateEnvironment(
@@ -220,7 +241,8 @@ export function createLifecycle({
             );
 
         camera.aspect =
-            width / height;
+            width /
+            height;
 
         camera.updateProjectionMatrix();
 
