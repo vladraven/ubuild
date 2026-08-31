@@ -7,62 +7,72 @@ import {
     createUnitsController
 }
 from './controllers/units-controller.js';
+
 import {
     createDimensionsController
 }
 from './controllers/dimensions-controller.js';
+
 import {
     createRoofController
 }
 from './controllers/roof-controller.js';
+
 import {
     createOverhangsController
 }
 from './controllers/overhangs-controller.js';
+
 import {
     createWainscotController
 }
 from './controllers/wainscot-controller.js';
+
 import {
     createColorsController
 }
 from './controllers/colors-controller.js';
+
 import {
     createVisibilityController
 }
 from './controllers/visibility-controller.js';
+
 import {
     createReferenceModelsController
 }
 from './controllers/reference-models-controller.js';
+
 import {
     createInformationNoticeController
 }
 from './controllers/information-notice-controller.js';
 
-export function createUIAdapter(runtime) {
-    if (!runtime) {
+import {
+    createSidebarSummaryController
+}
+from './controllers/SidebarSummaryController.js';
+
+export function createUIAdapter(
+    runtime
+) {
+    if (
+        !runtime
+    ) {
         throw new TypeError(
-            'UBuildRuntime instance is required for UIAdapter');
+            'UBuildRuntime instance is required for UIAdapter'
+        );
     }
 
-    function update(patch) {
+    function update(
+        patch
+    ) {
         runtime.update({
             ...runtime.model,
             ...patch
         });
 
         syncAll();
-    }
-
-    function syncAll() {
-        units.syncFromModel();
-        dimensions.syncFromModel();
-        roof.syncFromModel();
-        overhangs.syncFromModel();
-        wainscot.syncFromModel();
-        colors.syncFromModel();
-        visibility.syncFromModel();
     }
 
     const units =
@@ -116,11 +126,37 @@ export function createUIAdapter(runtime) {
     const informationNotice =
         createInformationNoticeController();
 
+    const sidebarSummary =
+        createSidebarSummaryController({
+            runtime,
+            units
+        });
+
+    function syncAll() {
+        units.syncFromModel();
+
+        dimensions.syncFromModel();
+
+        roof.syncFromModel();
+
+        overhangs.syncFromModel();
+
+        wainscot.syncFromModel();
+
+        colors.syncFromModel();
+
+        visibility.syncFromModel();
+
+        sidebarSummary.sync();
+    }
+
     const actions =
         createUIActions({
             runtime,
-            updateInputsFromModel: syncAll,
-            toDisplay: units.toDisplay
+            updateInputsFromModel:
+                syncAll,
+            toDisplay:
+                units.toDisplay
         });
 
     function init() {
@@ -137,7 +173,8 @@ export function createUIAdapter(runtime) {
         visibility.bind();
 
         units.bind(
-            syncAll);
+            syncAll
+        );
 
         referenceModels.bind();
 
@@ -154,21 +191,21 @@ export function createUIAdapter(runtime) {
         init,
 
         updateInputsFromModel:
-        syncAll,
+            syncAll,
 
         toDisplay:
-        units.toDisplay,
+            units.toDisplay,
 
         toMeters:
-        units.toMeters,
+            units.toMeters,
 
         saveDesign:
-        actions.saveDesign,
+            actions.saveDesign,
 
         renderGallery:
-        actions.renderGallery,
+            actions.renderGallery,
 
         renderCompare:
-        actions.renderCompare
+            actions.renderCompare
     });
 }
