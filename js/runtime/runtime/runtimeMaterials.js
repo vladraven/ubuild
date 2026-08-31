@@ -198,9 +198,11 @@ function createPanelMaterial(
     const material =
         new THREE.MeshStandardMaterial({
             color,
-            metalness: 0.42,
-            roughness: 0.42,
-            envMapIntensity: 1.05,
+            // Painted metal panels: keep metalness low so pure white/beige
+            // is not desaturated by PBR (was 0.42 → looked grey without IBL)
+            metalness: 0.1,
+            roughness: 0.55,
+            envMapIntensity: 1.0,
             side: THREE.DoubleSide
         });
 

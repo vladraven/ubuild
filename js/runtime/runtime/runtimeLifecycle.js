@@ -1,9 +1,12 @@
 import {
+    THREE,
     createEnvironmentSystem,
     createLightingSystem,
     createCameraControls,
     createOpeningInteraction
 } from './runtimeImports.js';
+
+import { RoomEnvironment } from 'https://unpkg.com/three@0.136.0/examples/jsm/environments/RoomEnvironment.js';
 
 export function createLifecycle({
     scene,
@@ -21,6 +24,45 @@ export function createLifecycle({
             camera
         );
     };
+
+    // ------------------------------------------------------------
+    // Image-based lighting (IBL)
+    // MeshStandardMaterial with any metalness needs scene.environment
+    // otherwise albedo is darkened and pure white reads as grey.
+    // ------------------------------------------------------------
+    const pmremGenerator =
+        new THREE.PMREMGenerator(
+            renderer
+        );
+
+    pmremGenerator.compileEquirectangularShader();
+
+    const roomEnvironment =
+        new RoomEnvironment();
+
+    const envRT =
+        pmremGenerator.fromScene(
+            roomEnvironment,
+            0.04
+        );
+
+    scene.environment =
+        envRT.texture;
+
+    // r163+ only — safe no-op on three@0.136
+    if (
+        'environmentIntensity' in scene
+    ) {
+        scene.environmentIntensity =
+            0.75;
+    }
+
+    if (
+        typeof roomEnvironment.dispose ===
+        'function'
+    ) {
+        roomEnvironment.dispose();
+    }
 
     const environmentSystem =
         createEnvironmentSystem({
@@ -223,6 +265,30 @@ export function createLifecycle({
         ) {
             environmentSystem.dispose();
         }
+
+        if (
+            scene.environment
+        ) {
+            if (
+                typeof scene.environment.dispose ===
+                'function'
+            ) {
+                scene.environment.dispose();
+            }
+
+            scene.environment =
+                null;
+        }
+
+        if (
+            envRT &&
+            typeof envRT.dispose ===
+            'function'
+        ) {
+            envRT.dispose();
+        }
+
+        pmremGenerator.dispose();
     }
 
     return Object.freeze({

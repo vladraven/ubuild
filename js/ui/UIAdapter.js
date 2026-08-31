@@ -53,6 +53,11 @@ import {
 }
 from './controllers/SidebarSummaryController.js';
 
+import {
+    createOpeningsController
+}
+from './controllers/openings-controller.js';
+
 export function createUIAdapter(
     runtime
 ) {
@@ -132,6 +137,12 @@ export function createUIAdapter(
             units
         });
 
+    const openings =
+        createOpeningsController({
+            runtime,
+            units
+        });
+
     function syncAll() {
         units.syncFromModel();
 
@@ -148,13 +159,17 @@ export function createUIAdapter(
         visibility.syncFromModel();
 
         sidebarSummary.sync();
+
+        openings.syncFromModel();
     }
 
     const actions =
         createUIActions({
             runtime,
+
             updateInputsFromModel:
                 syncAll,
+
             toDisplay:
                 units.toDisplay
         });
@@ -179,6 +194,8 @@ export function createUIAdapter(
         referenceModels.bind();
 
         informationNotice.bind();
+
+        openings.bind();
 
         actions.init();
 

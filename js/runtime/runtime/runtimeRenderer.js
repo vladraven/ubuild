@@ -57,8 +57,9 @@ export function createRenderer(
     renderer.toneMapping =
         THREE.ACESFilmicToneMapping;
 
+    // Raised from 1.0 so white/beige panels stay bright under ACES + IBL
     renderer.toneMappingExposure =
-        1;
+        .75;
 
     container.appendChild(
         renderer.domElement
