@@ -132,14 +132,6 @@ const VISIBILITY_CONTROLS =
             ])
     });
 
-const WALL_CONTROLS =
-    Object.freeze([
-        '#wF',
-        '#wB',
-        '#wL',
-        '#wR'
-    ]);
-
 function getElement(
     selectors
 ) {
@@ -159,21 +151,6 @@ function getElement(
     }
 
     return null;
-}
-
-function getWallControls() {
-    return WALL_CONTROLS
-        .map(
-            (
-                selector
-            ) =>
-                document.querySelector(
-                    selector
-                )
-        )
-        .filter(
-            Boolean
-        );
 }
 
 export function createVisibilityController({
@@ -244,39 +221,6 @@ export function createVisibilityController({
         );
     }
 
-    function bindWalls() {
-        for (
-            const control of
-            getWallControls()
-        ) {
-            control.addEventListener(
-                'change',
-                () => {
-                    const walls =
-                        getWallControls();
-
-                    if (
-                        walls.length ===
-                        0
-                    ) {
-                        return;
-                    }
-
-                    // The model currently exposes one global walls flag.
-                    updateVisibility(
-                        'walls',
-                        walls.some(
-                            (
-                                element
-                            ) =>
-                                element.checked
-                        )
-                    );
-                }
-            );
-        }
-    }
-
     function bind() {
         if (
             initialized
@@ -300,20 +244,6 @@ export function createVisibilityController({
                 key,
                 selectors
             );
-        }
-
-        bindWalls();
-    }
-
-    function syncWalls(
-        visible
-    ) {
-        for (
-            const control of
-            getWallControls()
-        ) {
-            control.checked =
-                visible;
         }
     }
 
@@ -344,11 +274,6 @@ export function createVisibilityController({
                     false
             );
         }
-
-        syncWalls(
-            visibility.walls !==
-                false
-        );
     }
 
     return Object.freeze({

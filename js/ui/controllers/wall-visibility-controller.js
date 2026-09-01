@@ -1,7 +1,6 @@
 import {
     setElementChecked
-}
-from '../dom-helpers.js';
+} from '../dom-helpers.js';
 
 const WALLS =
     Object.freeze([

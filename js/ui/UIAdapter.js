@@ -39,6 +39,21 @@ import {
 from './controllers/visibility-controller.js';
 
 import {
+    createWallVisibilityController
+}
+from './controllers/wall-visibility-controller.js';
+
+import {
+    createInteriorOptionsController
+}
+from './controllers/interior-options-controller.js';
+
+import {
+    createAwningsController
+}
+from './controllers/awnings-controller.js';
+
+import {
     createReferenceModelsController
 }
 from './controllers/reference-models-controller.js';
@@ -120,7 +135,28 @@ export function createUIAdapter(
 
     const visibility =
         createVisibilityController({
-            runtime
+            runtime,
+            update
+        });
+
+    const wallVisibility =
+        createWallVisibilityController({
+            runtime,
+            update
+        });
+
+    const interiorOptions =
+        createInteriorOptionsController({
+            runtime,
+            units,
+            update
+        });
+
+    const awnings =
+        createAwningsController({
+            runtime,
+            units,
+            update
         });
 
     const referenceModels =
@@ -160,6 +196,12 @@ export function createUIAdapter(
 
         visibility.syncFromModel();
 
+        wallVisibility.syncFromModel();
+
+        interiorOptions.syncFromModel();
+
+        awnings.syncFromModel();
+
         sidebarSummary.sync();
 
         openings.syncFromModel();
@@ -188,6 +230,12 @@ export function createUIAdapter(
         colors.bind();
 
         visibility.bind();
+
+        wallVisibility.bind();
+
+        interiorOptions.bind();
+
+        awnings.bind();
 
         units.bind(
             syncAll
