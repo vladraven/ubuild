@@ -12,6 +12,13 @@ const SIDE_MAP = Object.freeze({
     right: 'R'
 });
 
+const VISIBILITY_MAP = Object.freeze({
+    front: 'wallFront',
+    back: 'wallBack',
+    left: 'wallLeft',
+    right: 'wallRight'
+});
+
 function assertContext(context) {
     if (
         !context ||
@@ -180,7 +187,6 @@ function createWallMeshWithHoles(
         )
         .forEach(
             opening => {
-
                 const openingWidth =
                     opening.dimensions.width;
 
@@ -362,6 +368,27 @@ function createWallMeshWithHoles(
     return mesh;
 }
 
+function isWallVisible(
+    wallKey,
+    visibility
+) {
+    const visibilityKey =
+        VISIBILITY_MAP[
+            wallKey
+        ];
+
+    if (
+        !visibilityKey
+    ) {
+        return true;
+    }
+
+    return visibility[
+        visibilityKey
+    ] !==
+        false;
+}
+
 function createObject(
     context
 ) {
@@ -398,6 +425,10 @@ function createObject(
     const envelope =
         context.geometry.envelope;
 
+    const visibility =
+        context.model?.visibility ||
+        {};
+
     for (
         const [
             wallKey,
@@ -408,19 +439,30 @@ function createObject(
         )
     ) {
         if (
-            wallData?.shapePoints
+            !wallData?.shapePoints
         ) {
-            root.add(
-                createWallMeshWithHoles(
-                    wallData,
-                    openings,
-                    wallKey,
-                    material,
-                    envelope,
-                    profileId
-                )
-            );
+            continue;
         }
+
+        if (
+            !isWallVisible(
+                wallKey,
+                visibility
+            )
+        ) {
+            continue;
+        }
+
+        root.add(
+            createWallMeshWithHoles(
+                wallData,
+                openings,
+                wallKey,
+                material,
+                envelope,
+                profileId
+            )
+        );
     }
 
     return root;
@@ -437,7 +479,6 @@ function disposeObject(
 
     object.traverse(
         child => {
-
             if (
                 !child.isMesh
             ) {
