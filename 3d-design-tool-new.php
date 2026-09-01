@@ -1,7 +1,5 @@
 <?php
-/**
- * Template Name: 3D Building Configurator [NEW]
- */
+/*** Template Name: 3D Building Configurator [NEW] ***/
 
 get_header(); ?>
 
@@ -169,6 +167,7 @@ function get_color_defaults_optimized($color_categories, $color_defaults)
 					<div class="fw-bold text-dark" id="sidebar-summary-dimensions">60ft x 100ft x 16ft</div>
 					<div class="text-muted" id="sidebar-summary-roof">Gable Roof</div>
 					<div class="text-muted mt-1" id="sidebar-summary-colors"></div>
+					<div class="text-muted mt-1" id="sidebar-summary-openings"></div>
 				</div>
 			</div>
 		</div>
@@ -763,5 +762,9 @@ window.ConfiguratorData = {
 <script type="module" src="<?php echo get_stylesheet_directory_uri(); ?>/js/template-handler.js"></script>
 <link rel="stylesheet" href="<?php echo get_stylesheet_directory_uri(); ?>/js/style.css" media="all" />
 <link rel="stylesheet" href="<?php echo get_stylesheet_directory_uri(); ?>/js/template-style.css" media="all" />
+<script>
+window.UBUILD_CONFIG=window.UBUILD_CONFIG||{};
+window.UBUILD_CONFIG.themeUrl=<?php echo wp_json_encode(get_template_directory_uri()); ?>;
+</script>
 
 <?php get_footer(); ?>

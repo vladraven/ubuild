@@ -3,6 +3,9 @@ import * as THREE from 'three';
 const DOUBLE_CLICK_DELAY =
     300;
 
+const DRAG_THRESHOLD =
+    5;
+
 const WINDOW_TYPE =
     'Window';
 
@@ -160,9 +163,6 @@ export function createOpeningInteraction({
     let pointerDownY =
         0;
 
-    let pointerDownTime =
-        0;
-
     let clickTimer =
         null;
 
@@ -175,8 +175,8 @@ export function createOpeningInteraction({
     let isDragging =
         false;
 
-    let selectedOpening =
-        null;
+    let ignorePointerUp =
+        false;
 
     let selectedOpeningId =
         null;
@@ -227,6 +227,11 @@ export function createOpeningInteraction({
     ) {
         getPointerNDC(
             event
+        );
+
+        buildingRoot.updateWorldMatrix(
+            true,
+            true
         );
 
         raycaster.setFromCamera(
@@ -336,7 +341,7 @@ export function createOpeningInteraction({
             !openingId ||
             !side
         ) {
-            return;
+            return false;
         }
 
         opening.getWorldPosition(
@@ -369,11 +374,8 @@ export function createOpeningInteraction({
                 planeIntersection
             )
         ) {
-            return;
+            return false;
         }
-
-        selectedOpening =
-            opening;
 
         selectedOpeningId =
             openingId;
@@ -386,21 +388,15 @@ export function createOpeningInteraction({
                 opening
             );
 
-        const currentX =
+        dragOffsetX =
             getSideCoordinate(
                 worldPosition,
                 side
-            );
-
-        const pointerX =
+            ) -
             getSideCoordinate(
                 planeIntersection,
                 side
             );
-
-        dragOffsetX =
-            currentX -
-            pointerX;
 
         dragOffsetY =
             worldPosition.y -
@@ -408,14 +404,19 @@ export function createOpeningInteraction({
 
         isDragging =
             true;
+
+        ignorePointerUp =
+            true;
+
+        return true;
     }
 
     function stopDrag() {
         isDragging =
             false;
 
-        selectedOpening =
-            null;
+        ignorePointerUp =
+            false;
 
         selectedOpeningId =
             null;
@@ -442,9 +443,14 @@ export function createOpeningInteraction({
             return;
         }
 
+        // The next click ends active drag mode.
         if (
             isDragging
         ) {
+            stopDrag();
+
+            event.preventDefault();
+
             return;
         }
 
@@ -464,9 +470,6 @@ export function createOpeningInteraction({
 
         pointerDownY =
             event.clientY;
-
-        pointerDownTime =
-            performance.now();
     }
 
     function onPointerMove(
@@ -542,11 +545,22 @@ export function createOpeningInteraction({
     function onPointerUp(
         event
     ) {
+        // Ignore pointerup belonging to the second double-click.
+        if (
+            ignorePointerUp
+        ) {
+            ignorePointerUp =
+                false;
+
+            pointerDownTarget =
+                null;
+
+            return;
+        }
+
         if (
             isDragging
         ) {
-            stopDrag();
-
             return;
         }
 
@@ -562,23 +576,17 @@ export function createOpeningInteraction({
             return;
         }
 
-        const moveX =
-            event.clientX -
-            pointerDownX;
-
-        const moveY =
-            event.clientY -
-            pointerDownY;
-
         const moved =
             Math.hypot(
-                moveX,
-                moveY
+                event.clientX -
+                    pointerDownX,
+                event.clientY -
+                    pointerDownY
             );
 
         if (
             moved >
-            5
+            DRAG_THRESHOLD
         ) {
             return;
         }
@@ -615,9 +623,18 @@ export function createOpeningInteraction({
             lastClickOpeningId =
                 null;
 
-            startDrag(
-                event,
-                target
+            const dragStarted =
+                startDrag(
+                    event,
+                    target
+                );
+
+            console.log(
+                'OPENING DRAG START',
+                {
+                    openingId,
+                    dragStarted
+                }
             );
 
             return;
@@ -651,21 +668,6 @@ export function createOpeningInteraction({
             );
     }
 
-    domElement.addEventListener(
-        'pointerdown',
-        onPointerDown
-    );
-
-    domElement.addEventListener(
-        'pointermove',
-        onPointerMove
-    );
-
-    domElement.addEventListener(
-        'pointerup',
-        onPointerUp
-    );
-
     function dispose() {
         clearClickTimer();
 
@@ -686,6 +688,21 @@ export function createOpeningInteraction({
 
         stopDrag();
     }
+
+    domElement.addEventListener(
+        'pointerdown',
+        onPointerDown
+    );
+
+    domElement.addEventListener(
+        'pointermove',
+        onPointerMove
+    );
+
+    domElement.addEventListener(
+        'pointerup',
+        onPointerUp
+    );
 
     return Object.freeze({
         dispose
