@@ -384,7 +384,8 @@ function createOpeningRow(
 
 export function createOpeningsController({
     runtime,
-    units
+    units,
+    onChange
 }) {
     if (
         !runtime
@@ -402,6 +403,15 @@ export function createOpeningsController({
         );
     }
 
+    if (
+        onChange !== undefined &&
+        typeof onChange !== 'function'
+    ) {
+        throw new TypeError(
+            'OpeningsController onChange must be a function'
+        );
+    }
+
     let initialized =
         false;
 
@@ -416,6 +426,12 @@ export function createOpeningsController({
             ...getCurrentModel(),
             openings
         });
+
+        if (
+            onChange
+        ) {
+            onChange();
+        }
     }
 
     function populateWallSelect() {

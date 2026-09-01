@@ -140,7 +140,9 @@ export function createUIAdapter(
     const openings =
         createOpeningsController({
             runtime,
-            units
+            units,
+            onChange:
+                syncAll
         });
 
     function syncAll() {

@@ -7,6 +7,9 @@ const ROOF_ELEMENT_ID =
 const COLORS_ELEMENT_ID =
     'sidebar-summary-colors';
 
+const OPENINGS_ELEMENT_ID =
+    'sidebar-summary-openings';
+
 const ROOF_TYPE_LABELS =
     Object.freeze({
         gabled:
@@ -188,48 +191,6 @@ function getRoofTypeLabel(
         normalized
     ] ||
         normalized;
-}
-
-function getProfileLabel(
-    id,
-    fallback = ''
-) {
-    const element =
-        getElement(
-            id
-        );
-
-    if (
-        !element
-    ) {
-        return fallback;
-    }
-
-    if (
-        element.tagName ===
-        'SELECT'
-    ) {
-        const option =
-            element.selectedOptions?.[
-                0
-            ];
-
-        const text =
-            option?.textContent?.trim();
-
-        if (
-            text
-        ) {
-            return text;
-        }
-    }
-
-    return (
-        element.value ||
-        fallback ||
-        ''
-    )
-        .trim();
 }
 
 function getColorNameFromModel(
@@ -421,6 +382,68 @@ function createColorsText(
     );
 }
 
+function createOpeningsText(
+    model
+) {
+    const openings =
+        Array.isArray(
+            model?.openings
+        )
+            ? model.openings
+            : [];
+
+    if (
+        openings.length ===
+        0
+    ) {
+        return '';
+    }
+
+    const windows =
+        openings.filter(
+            (
+                opening
+            ) =>
+                opening?.type ===
+                'Window'
+        ).length;
+
+    const doors =
+        openings.length -
+        windows;
+
+    const summary =
+        [];
+
+    if (
+        windows > 0
+    ) {
+        summary.push(
+            `${windows} ${
+                windows === 1
+                    ? 'Window'
+                    : 'Windows'
+            }`
+        );
+    }
+
+    if (
+        doors > 0
+    ) {
+        summary.push(
+            `${doors} ${
+                doors === 1
+                    ? 'Door'
+                    : 'Doors'
+            }`
+        );
+    }
+
+    return summary.join(
+        ' · '
+    );
+}
+
 export function createSidebarSummaryController({
     runtime,
     units
@@ -466,6 +489,11 @@ export function createSidebarSummaryController({
                 COLORS_ELEMENT_ID
             );
 
+        const openingsElement =
+            getElement(
+                OPENINGS_ELEMENT_ID
+            );
+
         if (
             dimensionsElement
         ) {
@@ -490,6 +518,15 @@ export function createSidebarSummaryController({
         ) {
             colorsElement.textContent =
                 createColorsText(
+                    model
+                );
+        }
+
+        if (
+            openingsElement
+        ) {
+            openingsElement.textContent =
+                createOpeningsText(
                     model
                 );
         }

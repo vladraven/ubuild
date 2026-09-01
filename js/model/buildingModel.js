@@ -194,28 +194,34 @@ const DEFAULTS = Object.freeze({
         margin: 0
     }),
 
-	visibility: Object.freeze({
-		walls: true,
-		roof: true,
-		foundation: true,
-		panels: true,
-		wainscot: true,
-		openings: true,
-		frames: true,
-		girts: true,
-		purlins: true,
-		endWallColumns: true,
-		trims: true,
-		ridge: true,
-		gutters: true,
-		awnings: true,
-		liner: true,
-		mezzanine: true,
-		crane: true,
-		driveway: true,
-		logo: true,
-		labels: true
-	})
+visibility: Object.freeze({
+    walls: true,
+
+    wallFront: true,
+    wallBack: true,
+    wallLeft: true,
+    wallRight: true,
+
+    roof: true,
+    foundation: true,
+    panels: true,
+    wainscot: true,
+    openings: true,
+    frames: true,
+    girts: true,
+    purlins: true,
+    endWallColumns: true,
+    trims: true,
+    ridge: true,
+    gutters: true,
+    awnings: true,
+    liner: true,
+    mezzanine: true,
+    crane: true,
+    driveway: true,
+    logo: true,
+    labels: true
+})
 });
 
 const LIMITS = Object.freeze({
