@@ -42,17 +42,15 @@ export function createLifecycle({
     const envRT =
         pmremGenerator.fromScene(
             roomEnvironment,
-            0.04
+            0.14
         );
 
-    scene.environment =
-        envRT.texture;
 
     if (
         'environmentIntensity' in scene
     ) {
         scene.environmentIntensity =
-            0.75;
+            0.2;
     }
 
     if (
@@ -301,41 +299,16 @@ export function createLifecycle({
             scene.environment =
                 null;
         }
-
-        if (
-            envRT &&
-            typeof envRT.dispose ===
-            'function'
-        ) {
-            envRT.dispose();
-        }
-
-        pmremGenerator.dispose();
     }
 
     return Object.freeze({
-        environmentSystem,
-
-        lightingSystem,
-
-        cameraControls,
-
-        openingInteraction,
-
         updateEnvironment,
-
         updateLighting,
-
         setEnvironmentBounds,
-
         frameBounds,
-
         setAutoRotate,
-
         resize,
-
         render,
-
         dispose
     });
 }

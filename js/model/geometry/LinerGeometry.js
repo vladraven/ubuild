@@ -1,9 +1,13 @@
-const SIDES = Object.freeze([
-    'L',
-    'R',
-    'F',
-    'B'
-]);
+const SIDES =
+    Object.freeze([
+        'L',
+        'R',
+        'F',
+        'B'
+    ]);
+
+const DEFAULT_THICKNESS =
+    0.01;
 
 function point(
     x,
@@ -33,6 +37,7 @@ function createBounds(
 ) {
     return Object.freeze({
         min,
+
         max,
 
         width:
@@ -65,6 +70,97 @@ function createBounds(
                 ) / 2
             )
     });
+}
+
+function createDisabledGeometry() {
+    return Object.freeze({
+        enabled: false,
+
+        height: 0,
+
+        thickness: 0,
+
+        sides:
+            Object.freeze({
+                L: null,
+                R: null,
+                F: null,
+                B: null
+            }),
+
+        bounds: null
+    });
+}
+
+function resolveConfig(
+    model
+) {
+    return (
+        model.liner ??
+        model.interiorLiner ??
+        null
+    );
+}
+
+function resolveBuildingHeight(
+    model,
+    envelope
+) {
+    return (
+        envelope.height ??
+        model.dimensions?.height
+    );
+}
+
+function resolveLinerHeight(
+    config,
+    buildingHeight
+) {
+    const height =
+        config.height ??
+        (
+            buildingHeight *
+            (
+                config.hPercent ??
+                1
+            )
+        );
+
+    if (
+        !Number.isFinite(
+            height
+        ) ||
+        height <= 0 ||
+        height >
+        buildingHeight
+    ) {
+        throw new RangeError(
+            'liner.height must be inside building height'
+        );
+    }
+
+    return height;
+}
+
+function resolveThickness(
+    config
+) {
+    const thickness =
+        config.thickness ??
+        DEFAULT_THICKNESS;
+
+    if (
+        !Number.isFinite(
+            thickness
+        ) ||
+        thickness <= 0
+    ) {
+        throw new RangeError(
+            'liner.thickness must be greater than zero'
+        );
+    }
+
+    return thickness;
 }
 
 function createSideShape(
@@ -123,13 +219,22 @@ function normalizeHole(
     width,
     height
 ) {
+    const holeWidth =
+        hole.width ??
+        hole.w ??
+        null;
+
+    const holeHeight =
+        hole.height ??
+        hole.h ??
+        null;
+
     const minX =
         hole.minX ??
         (
             hole.x -
             (
-                hole.width ??
-                hole.w ??
+                holeWidth ??
                 0
             ) / 2
         );
@@ -139,47 +244,39 @@ function normalizeHole(
         hole.y ??
         0;
 
-    const holeWidth =
-        hole.width ??
-        hole.w ??
-        (
-            (
-                hole.maxX ??
-                0
-            ) -
-            minX
-        );
-
-    const holeHeight =
-        hole.height ??
-        hole.h ??
-        (
-            (
-                hole.maxY ??
-                0
-            ) -
-            minY
-        );
-
     const maxX =
         hole.maxX ??
         (
             minX +
-            holeWidth
+            (
+                holeWidth ??
+                0
+            )
         );
 
     const maxY =
         hole.maxY ??
         (
             minY +
-            holeHeight
+            (
+                holeHeight ??
+                0
+            )
         );
 
     if (
-        !Number.isFinite(minX) ||
-        !Number.isFinite(minY) ||
-        !Number.isFinite(maxX) ||
-        !Number.isFinite(maxY)
+        !Number.isFinite(
+            minX
+        ) ||
+        !Number.isFinite(
+            minY
+        ) ||
+        !Number.isFinite(
+            maxX
+        ) ||
+        !Number.isFinite(
+            maxY
+        )
     ) {
         throw new TypeError(
             'Liner opening coordinates must be finite'
@@ -201,16 +298,128 @@ function normalizeHole(
 
     return Object.freeze({
         minX,
+
         minY,
+
         maxX,
+
         maxY,
+
         width:
             maxX -
             minX,
+
         height:
             maxY -
             minY
     });
+}
+
+function getSideWidth(
+    side,
+    envelope
+) {
+    return (
+        side === 'L' ||
+        side === 'R'
+    )
+        ? envelope.length
+        : envelope.width;
+}
+
+function getSideBounds(
+    side,
+    envelope,
+    height,
+    thickness
+) {
+    const min =
+        envelope.bounds?.min ??
+        point(
+            -envelope.width / 2,
+            0,
+            -envelope.length / 2
+        );
+
+    const max =
+        envelope.bounds?.max ??
+        point(
+            envelope.width / 2,
+            envelope.height,
+            envelope.length / 2
+        );
+
+    if (
+        side === 'F'
+    ) {
+        return createBounds(
+            point(
+                min.x,
+                0,
+                min.z
+            ),
+
+            point(
+                max.x,
+                height,
+                min.z +
+                thickness
+            )
+        );
+    }
+
+    if (
+        side === 'B'
+    ) {
+        return createBounds(
+            point(
+                min.x,
+                0,
+                max.z -
+                thickness
+            ),
+
+            point(
+                max.x,
+                height,
+                max.z
+            )
+        );
+    }
+
+    if (
+        side === 'L'
+    ) {
+        return createBounds(
+            point(
+                min.x,
+                0,
+                min.z
+            ),
+
+            point(
+                min.x +
+                thickness,
+                height,
+                max.z
+            )
+        );
+    }
+
+    return createBounds(
+        point(
+            max.x -
+            thickness,
+            0,
+            min.z
+        ),
+
+        point(
+            max.x,
+            height,
+            max.z
+        )
+    );
 }
 
 function createSide(
@@ -221,124 +430,6 @@ function createSide(
     holes,
     envelope
 ) {
-    const halfWidth =
-        envelope.width /
-        2;
-
-    const halfLength =
-        envelope.length /
-        2;
-
-    let position;
-    let rotationY;
-    let bounds;
-
-    if (side === 'F') {
-        position =
-            point(
-                -width / 2,
-                0,
-                0
-            );
-
-        rotationY = 0;
-
-        bounds =
-            createBounds(
-                point(
-                    -halfWidth,
-                    0,
-                    0
-                ),
-                point(
-                    halfWidth,
-                    height,
-                    thickness
-                )
-            );
-    }
-
-    if (side === 'B') {
-        position =
-            point(
-                width / 2,
-                0,
-                0
-            );
-
-        rotationY =
-            Math.PI;
-
-        bounds =
-            createBounds(
-                point(
-                    -halfWidth,
-                    0,
-                    envelope.length -
-                        thickness
-                ),
-                point(
-                    halfWidth,
-                    height,
-                    envelope.length
-                )
-            );
-    }
-
-    if (side === 'L') {
-        position =
-            point(
-                -halfLength,
-                0,
-                0
-            );
-
-        rotationY =
-            Math.PI / 2;
-
-        bounds =
-            createBounds(
-                point(
-                    -halfWidth -
-                        thickness,
-                    0,
-                    0
-                ),
-                point(
-                    -halfWidth,
-                    height,
-                    envelope.length
-                )
-            );
-    }
-
-    if (side === 'R') {
-        position =
-            point(
-                halfLength,
-                0,
-                0
-            );
-
-        rotationY =
-            -Math.PI / 2;
-
-        bounds =
-            createBounds(
-                point(
-                    halfWidth,
-                    0,
-                    0
-                ),
-                point(
-                    halfWidth +
-                        thickness,
-                    height,
-                    envelope.length
-                )
-            );
-    }
-
     return Object.freeze({
         side,
 
@@ -355,31 +446,107 @@ function createSide(
                 holes
             ),
 
-        position,
-
-        rotationY,
-
-        anchor:
-            point(
-                position.x,
-                position.y,
-                position.z
-            ),
-
-        bounds
+        bounds:
+            getSideBounds(
+                side,
+                envelope,
+                height,
+                thickness
+            )
     });
 }
 
-function getSideWidth(
-    side,
-    envelope
+function createCombinedBounds(
+    sides
+) {
+    const values =
+        SIDES.map(
+            side =>
+                sides[side].bounds
+        );
+
+    return createBounds(
+        point(
+            Math.min(
+                ...values.map(
+                    value =>
+                        value.min.x
+                )
+            ),
+
+            Math.min(
+                ...values.map(
+                    value =>
+                        value.min.y
+                )
+            ),
+
+            Math.min(
+                ...values.map(
+                    value =>
+                        value.min.z
+                )
+            )
+        ),
+
+        point(
+            Math.max(
+                ...values.map(
+                    value =>
+                        value.max.x
+                )
+            ),
+
+            Math.max(
+                ...values.map(
+                    value =>
+                        value.max.y
+                )
+            ),
+
+            Math.max(
+                ...values.map(
+                    value =>
+                        value.max.z
+                )
+            )
+        )
+    );
+}
+
+function getOpeningSide(
+    opening
 ) {
     return (
-        side === 'L' ||
-        side === 'R'
-    )
-        ? envelope.length
-        : envelope.width;
+        opening?.side ??
+        opening?.wall ??
+        null
+    );
+}
+
+function getSideHoles(
+    side,
+    openings,
+    width,
+    height
+) {
+    return openings
+        .filter(
+            opening =>
+                opening &&
+                getOpeningSide(
+                    opening
+                ) ===
+                side
+        )
+        .map(
+            opening =>
+                normalizeHole(
+                    opening,
+                    width,
+                    height
+                )
+        );
 }
 
 export function createLinerGeometry(
@@ -387,78 +554,94 @@ export function createLinerGeometry(
     envelope,
     openings = []
 ) {
-    if (!model) {
+    if (
+        !model ||
+        typeof model !==
+        'object'
+    ) {
         throw new TypeError(
             'BuildingModel is required'
         );
     }
 
-    if (!envelope) {
+    if (
+        !envelope ||
+        typeof envelope !==
+        'object'
+    ) {
         throw new TypeError(
             'BuildingEnvelope is required'
         );
     }
 
     const config =
-        model.liner ??
-        model.interiorLiner;
+        resolveConfig(
+            model
+        );
 
     if (
         !config ||
         !config.enabled
     ) {
-        return Object.freeze({
-            enabled: false,
+        return createDisabledGeometry();
+    }
 
-            height: 0,
+    const buildingHeight =
+        resolveBuildingHeight(
+            model,
+            envelope
+        );
 
-            thickness: 0,
+    if (
+        !Number.isFinite(
+            envelope.width
+        ) ||
+        envelope.width <= 0
+    ) {
+        throw new RangeError(
+            'envelope.width must be greater than zero'
+        );
+    }
 
-            sides:
-                Object.freeze({
-                    L: null,
-                    R: null,
-                    F: null,
-                    B: null
-                }),
+    if (
+        !Number.isFinite(
+            envelope.length
+        ) ||
+        envelope.length <= 0
+    ) {
+        throw new RangeError(
+            'envelope.length must be greater than zero'
+        );
+    }
 
-            bounds: null
-        });
+    if (
+        !Number.isFinite(
+            buildingHeight
+        ) ||
+        buildingHeight <= 0
+    ) {
+        throw new RangeError(
+            'envelope.height must be greater than zero'
+        );
     }
 
     const height =
-        config.height ??
-        (
-            model.dimensions.height *
-            (
-                config.hPercent ??
-                1
-            )
+        resolveLinerHeight(
+            config,
+            buildingHeight
         );
 
     const thickness =
-        config.thickness ??
-        0.01;
-
-    if (
-        !Number.isFinite(height) ||
-        height <= 0 ||
-        height >
-            model.dimensions.height
-    ) {
-        throw new RangeError(
-            'liner.height must be inside building height'
+        resolveThickness(
+            config
         );
-    }
 
-    if (
-        !Number.isFinite(thickness) ||
-        thickness <= 0
-    ) {
-        throw new RangeError(
-            'liner.thickness must be greater than zero'
-        );
-    }
+    const normalizedOpenings =
+        Array.isArray(
+            openings
+        )
+            ? openings
+            : [];
 
     const sides = {};
 
@@ -473,21 +656,12 @@ export function createLinerGeometry(
             );
 
         const holes =
-            openings
-                .filter(
-                    opening =>
-                        opening &&
-                        opening.side ===
-                        side
-                )
-                .map(
-                    opening =>
-                        normalizeHole(
-                            opening,
-                            width,
-                            height
-                        )
-                );
+            getSideHoles(
+                side,
+                normalizedOpenings,
+                width,
+                height
+            );
 
         sides[side] =
             createSide(
@@ -499,61 +673,6 @@ export function createLinerGeometry(
                 envelope
             );
     }
-
-    const allBounds =
-        SIDES
-            .map(
-                side =>
-                    sides[side].bounds
-            );
-
-    const min =
-        point(
-            Math.min(
-                ...allBounds.map(
-                    value =>
-                        value.min.x
-                )
-            ),
-
-            Math.min(
-                ...allBounds.map(
-                    value =>
-                        value.min.y
-                )
-            ),
-
-            Math.min(
-                ...allBounds.map(
-                    value =>
-                        value.min.z
-                )
-            )
-        );
-
-    const max =
-        point(
-            Math.max(
-                ...allBounds.map(
-                    value =>
-                        value.max.x
-                )
-            ),
-
-            Math.max(
-                ...allBounds.map(
-                    value =>
-                        value.max.y
-                )
-            ),
-
-            Math.max(
-                ...allBounds.map(
-                    value =>
-                        value.max.z
-                )
-            )
-        );
 
     return Object.freeze({
         enabled: true,
@@ -568,9 +687,8 @@ export function createLinerGeometry(
             ),
 
         bounds:
-            createBounds(
-                min,
-                max
+            createCombinedBounds(
+                sides
             )
     });
 }

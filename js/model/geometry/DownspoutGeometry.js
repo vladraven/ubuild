@@ -1,3 +1,18 @@
+const DEFAULT_RADIUS =
+    0.05;
+
+const UPPER_ELBOW_LENGTH =
+    0.15;
+
+const UPPER_ELBOW_ANGLE_DEGREES =
+    22.5;
+
+const LOWER_ELBOW_VERTICAL =
+    0.25;
+
+const LOWER_ELBOW_HORIZONTAL =
+    0.25;
+
 function point(
     x,
     y,
@@ -7,6 +22,16 @@ function point(
         x,
         y,
         z
+    });
+}
+
+function createSegment(
+    start,
+    end
+) {
+    return Object.freeze({
+        start,
+        end
     });
 }
 
@@ -23,7 +48,7 @@ function createEmpty() {
     });
 }
 
-function calculateBounds(
+function createBounds(
     items,
     radius
 ) {
@@ -33,65 +58,71 @@ function calculateBounds(
         return null;
     }
 
+    const points =
+        items.flatMap(
+            item => [
+                item.upperElbow.start,
+                item.upperElbow.end,
+                item.vertical.start,
+                item.vertical.end,
+                item.lowerElbow.start,
+                item.lowerElbow.end
+            ]
+        );
+
     const minX =
         Math.min(
-            ...items.map(
+            ...points.map(
                 item =>
-                    Math.min(
-                        item.top.x,
-                        item.bottom.x
-                    ) - radius
+                    item.x
             )
-        );
+        ) -
+        radius;
 
     const maxX =
         Math.max(
-            ...items.map(
+            ...points.map(
                 item =>
-                    Math.max(
-                        item.top.x,
-                        item.bottom.x
-                    ) + radius
+                    item.x
             )
-        );
+        ) +
+        radius;
 
     const minY =
         Math.min(
-            ...items.map(
+            ...points.map(
                 item =>
-                    item.bottom.y
+                    item.y
             )
-        );
+        ) -
+        radius;
 
     const maxY =
         Math.max(
-            ...items.map(
+            ...points.map(
                 item =>
-                    item.top.y
+                    item.y
             )
-        );
+        ) +
+        radius;
 
     const minZ =
         Math.min(
-            ...items.map(
+            ...points.map(
                 item =>
-                    Math.min(
-                        item.top.z,
-                        item.bottom.z
-                    ) - radius
+                    item.z
             )
-        );
+        ) -
+        radius;
 
     const maxZ =
         Math.max(
-            ...items.map(
+            ...points.map(
                 item =>
-                    Math.max(
-                        item.top.z,
-                        item.bottom.z
-                    ) + radius
+                    item.z
             )
-        );
+        ) +
+        radius;
 
     return Object.freeze({
         min:
@@ -110,41 +141,268 @@ function calculateBounds(
     });
 }
 
-function createDownspout(
-    source,
-    radius
+function resolveDirection(
+    source
 ) {
+    switch (
+        source.side
+    ) {
+        case 'L':
+        case 'left':
+            return Object.freeze({
+                x: -1,
+                z: 0
+            });
+
+        case 'R':
+        case 'right':
+            return Object.freeze({
+                x: 1,
+                z: 0
+            });
+
+        default:
+            return Object.freeze({
+                x: 0,
+                z: 0
+            });
+    }
+}
+
+function resolveSideEave(
+    source,
+    gutters
+) {
+    switch (
+        source.side
+    ) {
+        case 'L':
+        case 'left':
+            return gutters.eaves?.left;
+
+        case 'R':
+        case 'right':
+            return gutters.eaves?.right;
+
+        default:
+            return null;
+    }
+}
+
+function resolveEavePoint(
+    source,
+    eave
+) {
+    const front =
+        eave?.front;
+
+    const back =
+        eave?.back;
+
     if (
-        !source?.top ||
-        !source?.bottom
+        !front &&
+        !back
     ) {
         return null;
     }
 
-    const dx =
-        source.bottom.x -
-        source.top.x;
+    if (
+        !front
+    ) {
+        return back;
+    }
 
-    const dy =
-        source.bottom.y -
-        source.top.y;
+    if (
+        !back
+    ) {
+        return front;
+    }
 
-    const dz =
-        source.bottom.z -
-        source.top.z;
+    const frontDistance =
+        Math.abs(
+            source.position.z -
+            front.z
+        );
+
+    const backDistance =
+        Math.abs(
+            source.position.z -
+            back.z
+        );
+
+    return (
+        frontDistance <=
+        backDistance
+    )
+        ? front
+        : back;
+}
+
+function resolveGutterConnectionY(
+    source,
+    gutters
+) {
+    const eave =
+        resolveSideEave(
+            source,
+            gutters
+        );
+
+    const eavePoint =
+        resolveEavePoint(
+            source,
+            eave
+        );
+
+    const innerHeight =
+        gutters.profile?.innerHeight;
+
+    const thickness =
+        gutters.profile?.thickness;
+
+    if (
+        !Number.isFinite(
+            eavePoint?.y
+        )
+    ) {
+        return null;
+    }
+
+    if (
+        !Number.isFinite(
+            innerHeight
+        )
+    ) {
+        return null;
+    }
+
+    const bottomY =
+        eavePoint.y -
+        innerHeight;
+
+    if (
+        !Number.isFinite(
+            thickness
+        )
+    ) {
+        return bottomY;
+    }
+
+    return (
+        bottomY +
+        thickness / 2
+    );
+}
+
+function resolveUpperElbowOffsets() {
+    const angleRadians =
+        UPPER_ELBOW_ANGLE_DEGREES *
+        Math.PI /
+        180;
+
+    return Object.freeze({
+        horizontal:
+            UPPER_ELBOW_LENGTH *
+            Math.sin(
+                angleRadians
+            ),
+
+        vertical:
+            UPPER_ELBOW_LENGTH *
+            Math.cos(
+                angleRadians
+            )
+    });
+}
+
+function createDownspout(
+    source,
+    gutterConnectionY
+) {
+    if (
+        !source?.position
+    ) {
+        return null;
+    }
+
+    if (
+        !Number.isFinite(
+            gutterConnectionY
+        )
+    ) {
+        return null;
+    }
+
+    const direction =
+        resolveDirection(
+            source
+        );
+
+    const upperOffsets =
+        resolveUpperElbowOffsets();
+
+    /*
+     * The vertical pipe remains at the exact
+     * original working wall position.
+     */
+
+    const top =
+        point(
+            source.position.x,
+            gutterConnectionY -
+                upperOffsets.vertical,
+            source.position.z
+        );
+
+    const bottom =
+        point(
+            source.position.x,
+            LOWER_ELBOW_VERTICAL,
+            source.position.z
+        );
 
     const height =
-        Math.sqrt(
-            dx * dx +
-            dy * dy +
-            dz * dz
-        );
+        top.y -
+        bottom.y;
 
     if (
         height <= 0
     ) {
         return null;
     }
+
+    /*
+     * The upper elbow starts at the gutter and
+     * reaches the unchanged vertical pipe.
+     */
+
+    const upperElbowStart =
+        point(
+            source.position.x +
+                direction.x *
+                upperOffsets.horizontal,
+            gutterConnectionY,
+            source.position.z +
+                direction.z *
+                upperOffsets.horizontal
+        );
+
+    const upperElbowEnd =
+        top;
+
+    const lowerElbowStart =
+        bottom;
+
+    const lowerElbowEnd =
+        point(
+            bottom.x +
+                direction.x *
+                LOWER_ELBOW_HORIZONTAL,
+            0,
+            bottom.z +
+                direction.z *
+                LOWER_ELBOW_HORIZONTAL
+        );
 
     return Object.freeze({
         id:
@@ -153,37 +411,42 @@ function createDownspout(
         side:
             source.side,
 
-        top:
-            source.top,
+        top,
 
-        bottom:
-            source.bottom,
+        bottom,
 
         position:
             point(
+                source.position.x,
                 (
-                    source.top.x +
-                    source.bottom.x
+                    top.y +
+                    bottom.y
                 ) / 2,
-
-                (
-                    source.top.y +
-                    source.bottom.y
-                ) / 2,
-
-                (
-                    source.top.z +
-                    source.bottom.z
-                ) / 2
+                source.position.z
             ),
 
         height,
 
-        radius,
+        radius:
+            DEFAULT_RADIUS,
 
-        shoe:
-            source.shoe ??
-            null
+        upperElbow:
+            createSegment(
+                upperElbowStart,
+                upperElbowEnd
+            ),
+
+        vertical:
+            createSegment(
+                top,
+                bottom
+            ),
+
+        lowerElbow:
+            createSegment(
+                lowerElbowStart,
+                lowerElbowEnd
+            )
     });
 }
 
@@ -225,19 +488,21 @@ export function createDownspoutGeometry(
         return createEmpty();
     }
 
-    const radius =
-        gutters.config?.pipe?.radius ??
-        gutters.config?.pipe?.width ??
-        0.05;
-
     const items =
         gutters.downspouts
             .map(
-                source =>
-                    createDownspout(
+                source => {
+                    const gutterConnectionY =
+                        resolveGutterConnectionY(
+                            source,
+                            gutters
+                        );
+
+                    return createDownspout(
                         source,
-                        radius
-                    )
+                        gutterConnectionY
+                    );
+                }
             )
             .filter(
                 Boolean
@@ -247,7 +512,8 @@ export function createDownspoutGeometry(
         enabled:
             items.length > 0,
 
-        radius,
+        radius:
+            DEFAULT_RADIUS,
 
         items:
             Object.freeze(
@@ -255,9 +521,9 @@ export function createDownspoutGeometry(
             ),
 
         bounds:
-            calculateBounds(
+            createBounds(
                 items,
-                radius
+                DEFAULT_RADIUS
             )
     });
 }

@@ -197,7 +197,100 @@ function createGutter(
     return group;
 }
 
-function createDownspout(
+function createSegment(
+    start,
+    end,
+    radius,
+    material,
+    name
+) {
+    if (
+        !start ||
+        !end
+    ) {
+        return null;
+    }
+
+    const startVector =
+        new THREE.Vector3(
+            start.x,
+            start.y,
+            start.z
+        );
+
+    const endVector =
+        new THREE.Vector3(
+            end.x,
+            end.y,
+            end.z
+        );
+
+    const direction =
+        new THREE.Vector3()
+            .subVectors(
+                endVector,
+                startVector
+            );
+
+    const length =
+        direction.length();
+
+    if (
+        length <= 0
+    ) {
+        return null;
+    }
+
+    const geometry =
+        new THREE.CylinderGeometry(
+            radius,
+            radius,
+            length,
+            12
+        );
+
+    const mesh =
+        new THREE.Mesh(
+            geometry,
+            material
+        );
+
+    const midpoint =
+        new THREE.Vector3()
+            .addVectors(
+                startVector,
+                endVector
+            )
+            .multiplyScalar(
+                0.5
+            );
+
+    mesh.position.copy(
+        midpoint
+    );
+
+    mesh.quaternion.setFromUnitVectors(
+        new THREE.Vector3(
+            0,
+            1,
+            0
+        ),
+        direction.normalize()
+    );
+
+    mesh.name =
+        name;
+
+    mesh.castShadow =
+        true;
+
+    mesh.receiveShadow =
+        true;
+
+    return mesh;
+}
+
+function createLegacyDownspout(
     downspout,
     material
 ) {
@@ -231,6 +324,88 @@ function createDownspout(
         true;
 
     return mesh;
+}
+
+function createDownspout(
+    downspout,
+    material
+) {
+    const group =
+        new THREE.Group();
+
+    group.name =
+        `downspout-${downspout.id}`;
+
+    const radius =
+        downspout.radius;
+
+    const upperElbow =
+        createSegment(
+            downspout.upperElbow?.start,
+            downspout.upperElbow?.end,
+            radius,
+            material,
+            `downspout-${downspout.id}-upper-elbow`
+        );
+
+    const vertical =
+        createSegment(
+            downspout.vertical?.start,
+            downspout.vertical?.end,
+            radius,
+            material,
+            `downspout-${downspout.id}-vertical`
+        );
+
+    const lowerElbow =
+        createSegment(
+            downspout.lowerElbow?.start,
+            downspout.lowerElbow?.end,
+            radius,
+            material,
+            `downspout-${downspout.id}-lower-elbow`
+        );
+
+    if (
+        upperElbow ||
+        vertical ||
+        lowerElbow
+    ) {
+        if (
+            upperElbow
+        ) {
+            group.add(
+                upperElbow
+            );
+        }
+
+        if (
+            vertical
+        ) {
+            group.add(
+                vertical
+            );
+        }
+
+        if (
+            lowerElbow
+        ) {
+            group.add(
+                lowerElbow
+            );
+        }
+
+        return group;
+    }
+
+    group.add(
+        createLegacyDownspout(
+            downspout,
+            material
+        )
+    );
+
+    return group;
 }
 
 function createDownspouts(

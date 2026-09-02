@@ -1,4 +1,20 @@
-function point(x, y, z) {
+const FLOOR_THICKNESS =
+    0.15;
+
+const COLUMN_SPACING =
+    6.096;
+
+const COLUMN_RADIUS =
+    0.1;
+
+const DEFAULT_WALL_THICKNESS =
+    0;
+
+function point(
+    x,
+    y,
+    z
+) {
     return Object.freeze({
         x,
         y,
@@ -13,26 +29,33 @@ function createBounds(
     zOffset
 ) {
     return Object.freeze({
-        min: point(
-            -width / 2,
-            0,
-            zOffset - length / 2
-        ),
+        min:
+            point(
+                -width / 2,
+                0,
+                zOffset -
+                length / 2
+            ),
 
-        max: point(
-            width / 2,
-            height,
-            zOffset + length / 2
-        ),
+        max:
+            point(
+                width / 2,
+                height,
+                zOffset +
+                length / 2
+            ),
 
-        center: point(
-            0,
-            height / 2,
-            zOffset
-        ),
+        center:
+            point(
+                0,
+                height / 2,
+                zOffset
+            ),
 
         width,
+
         length,
+
         height
     });
 }
@@ -40,9 +63,11 @@ function createBounds(
 function createColumnPositions(
     width,
     length,
-    spacing
+    spacing,
+    zOffset
 ) {
-    const positions = [];
+    const positions =
+        [];
 
     const halfWidth =
         width / 2;
@@ -54,7 +79,8 @@ function createColumnPositions(
         Math.max(
             1,
             Math.ceil(
-                width / spacing
+                width /
+                spacing
             )
         );
 
@@ -62,15 +88,18 @@ function createColumnPositions(
         Math.max(
             1,
             Math.ceil(
-                length / spacing
+                length /
+                spacing
             )
         );
 
     const xStep =
-        width / xCount;
+        width /
+        xCount;
 
     const zStep =
-        length / zCount;
+        length /
+        zCount;
 
     for (
         let ix = 0;
@@ -87,7 +116,8 @@ function createColumnPositions(
             iz++
         ) {
             const z =
-                -halfLength +
+                zOffset -
+                halfLength +
                 iz * zStep;
 
             positions.push(
@@ -112,7 +142,10 @@ function createColumnAnchors(
 ) {
     return Object.freeze(
         positions.map(
-            (position, index) =>
+            (
+                position,
+                index
+            ) =>
                 Object.freeze({
                     id:
                         `column-${index + 1}`,
@@ -139,6 +172,7 @@ function createColumnAnchors(
                         ),
 
                     height,
+
                     radius
                 })
         )
@@ -150,7 +184,9 @@ function validate(
     name
 ) {
     if (
-        !Number.isFinite(value) ||
+        !Number.isFinite(
+            value
+        ) ||
         value <= 0
     ) {
         throw new RangeError(
@@ -159,17 +195,89 @@ function validate(
     }
 }
 
+function validateNonNegative(
+    value,
+    name
+) {
+    if (
+        !Number.isFinite(
+            value
+        ) ||
+        value < 0
+    ) {
+        throw new RangeError(
+            `${name} must be zero or greater`
+        );
+    }
+}
+
+function resolveWallThickness(
+    model
+) {
+    const thickness =
+        model.walls?.thickness;
+
+    if (
+        !Number.isFinite(
+            thickness
+        ) ||
+        thickness < 0
+    ) {
+        return DEFAULT_WALL_THICKNESS;
+    }
+
+    return thickness;
+}
+
+function createDisabledGeometry(
+    config
+) {
+    return Object.freeze({
+        enabled: false,
+
+        width: 0,
+
+        length: 0,
+
+        height: 0,
+
+        zOffset: 0,
+
+        zStart: 0,
+
+        floorThickness: 0,
+
+        bounds: null,
+
+        floor: null,
+
+        columnPositions:
+            Object.freeze([]),
+
+        columns:
+            Object.freeze([]),
+
+        color:
+            config?.color ??
+            null
+    });
+}
+
 export function createMezzanineGeometry(
     model,
     envelope
 ) {
-    if (!model) {
+    if (
+        !model
+    ) {
         throw new TypeError(
             'BuildingModel is required'
         );
     }
 
-    if (!envelope) {
+    if (
+        !envelope
+    ) {
         throw new TypeError(
             'BuildingEnvelope is required'
         );
@@ -182,37 +290,42 @@ export function createMezzanineGeometry(
         !config ||
         !config.enabled
     ) {
-        return Object.freeze({
-            enabled: false,
-
-            width: 0,
-            length: 0,
-            height: 0,
-            zOffset: 0,
-
-            floorThickness: 0,
-
-            bounds: null,
-
-            floor: null,
-
-            columnPositions:
-                Object.freeze([]),
-
-            columns:
-                Object.freeze([]),
-
-            color:
-                config?.color ??
-                null
-        });
+        return createDisabledGeometry(
+            config
+        );
     }
+
+    const buildingWidth =
+        envelope.width;
+
+    const buildingLength =
+        envelope.length;
+
+    const buildingHeight =
+        envelope.height;
+
+    validate(
+        buildingWidth,
+        'envelope.width'
+    );
+
+    validate(
+        buildingLength,
+        'envelope.length'
+    );
+
+    validate(
+        buildingHeight,
+        'envelope.height'
+    );
 
     const coverage =
         config.coverage ?? 1;
 
     if (
-        !Number.isFinite(coverage) ||
+        !Number.isFinite(
+            coverage
+        ) ||
         coverage <= 0 ||
         coverage > 1
     ) {
@@ -221,34 +334,65 @@ export function createMezzanineGeometry(
         );
     }
 
-    const width =
+    const wallThickness =
+        resolveWallThickness(
+            model
+        );
+
+    const interiorWidth =
+        buildingWidth -
+        wallThickness * 2;
+
+    const interiorLength =
+        buildingLength -
+        wallThickness * 2;
+
+    if (
+        interiorWidth <= 0
+    ) {
+        throw new RangeError(
+            'Building interior width must be greater than zero'
+        );
+    }
+
+    if (
+        interiorLength <= 0
+    ) {
+        throw new RangeError(
+            'Building interior length must be greater than zero'
+        );
+    }
+
+    const requestedWidth =
         config.width ??
-        envelope.width * coverage;
+        interiorWidth *
+        coverage;
+
+    const width =
+        Math.min(
+            requestedWidth,
+            interiorWidth
+        );
+
+    const requestedLength =
+        config.length ??
+        interiorLength;
 
     const length =
-        config.length ??
-        envelope.length;
+        Math.min(
+            requestedLength,
+            interiorLength
+        );
 
     const height =
         config.height ??
-        model.dimensions.height;
+        buildingHeight;
 
-    const zOffset =
-        config.zOffset ??
-        config.z ??
-        0;
-
-    const floorThickness =
-        config.floorThickness ??
-        0.15;
-
-    const columnSpacing =
-        config.columnSpacing ??
-        6.096;
-
-    const columnRadius =
-        config.columnRadius ??
-        0.1;
+    const zStart =
+        wallThickness +
+        (
+            config.z ?? 0
+        );
 
     validate(
         width,
@@ -265,6 +409,61 @@ export function createMezzanineGeometry(
         'mezzanine.height'
     );
 
+    validateNonNegative(
+        config.z ?? 0,
+        'mezzanine.z'
+    );
+
+    if (
+        requestedWidth >
+        interiorWidth
+    ) {
+        throw new RangeError(
+            'mezzanine.width exceeds building interior width'
+        );
+    }
+
+    if (
+        requestedLength >
+        interiorLength
+    ) {
+        throw new RangeError(
+            'mezzanine.length exceeds building interior length'
+        );
+    }
+
+    if (
+        zStart +
+        length >
+        buildingLength -
+        wallThickness
+    ) {
+        throw new RangeError(
+            'mezzanine extends beyond rear wall'
+        );
+    }
+
+    if (
+        height >=
+        buildingHeight
+    ) {
+        throw new RangeError(
+            'mezzanine.height must be below roof/eave height'
+        );
+    }
+
+    const floorThickness =
+        config.floorThickness ??
+        FLOOR_THICKNESS;
+
+    const columnSpacing =
+        config.columnSpacing ??
+        COLUMN_SPACING;
+
+    const columnRadius =
+        config.columnRadius ??
+        COLUMN_RADIUS;
+
     validate(
         floorThickness,
         'mezzanine.floorThickness'
@@ -280,30 +479,9 @@ export function createMezzanineGeometry(
         'mezzanine.columnRadius'
     );
 
-    if (
-        width > envelope.width
-    ) {
-        throw new RangeError(
-            'mezzanine.width exceeds building width'
-        );
-    }
-
-    if (
-        length > envelope.length
-    ) {
-        throw new RangeError(
-            'mezzanine.length exceeds building length'
-        );
-    }
-
-    if (
-        height >=
-        model.dimensions.height
-    ) {
-        throw new RangeError(
-            'mezzanine.height must be below roof/eave height'
-        );
-    }
+    const zOffset =
+        zStart +
+        length / 2;
 
     const bounds =
         createBounds(
@@ -317,7 +495,8 @@ export function createMezzanineGeometry(
         createColumnPositions(
             width,
             length,
-            columnSpacing
+            columnSpacing,
+            zOffset
         );
 
     const columnHeight =
@@ -337,7 +516,7 @@ export function createMezzanineGeometry(
                 point(
                     0,
                     height -
-                        floorThickness,
+                    floorThickness,
                     zOffset
                 ),
 
@@ -352,11 +531,12 @@ export function createMezzanineGeometry(
                 point(
                     0,
                     height -
-                        floorThickness,
+                    floorThickness,
                     zOffset
                 ),
 
             width,
+
             length,
 
             thickness:
@@ -369,10 +549,14 @@ export function createMezzanineGeometry(
         enabled: true,
 
         width,
+
         length,
+
         height,
 
         zOffset,
+
+        zStart,
 
         floorThickness,
 
