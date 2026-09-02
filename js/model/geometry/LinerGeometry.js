@@ -9,6 +9,9 @@ const SIDES =
 const DEFAULT_THICKNESS =
     0.01;
 
+const DEFAULT_WALL_THICKNESS =
+    0;
+
 function point(
     x,
     y,
@@ -158,6 +161,24 @@ function resolveThickness(
         throw new RangeError(
             'liner.thickness must be greater than zero'
         );
+    }
+
+    return thickness;
+}
+
+function resolveWallThickness(
+    model
+) {
+    const thickness =
+        model.walls?.thickness;
+
+    if (
+        !Number.isFinite(
+            thickness
+        ) ||
+        thickness < 0
+    ) {
+        return DEFAULT_WALL_THICKNESS;
     }
 
     return thickness;
@@ -315,30 +336,16 @@ function normalizeHole(
     });
 }
 
-function getSideWidth(
-    side,
-    envelope
-) {
-    return (
-        side === 'L' ||
-        side === 'R'
-    )
-        ? envelope.length
-        : envelope.width;
-}
-
-function getSideBounds(
-    side,
+function getInteriorBounds(
     envelope,
-    height,
-    thickness
+    wallThickness
 ) {
     const min =
         envelope.bounds?.min ??
         point(
             -envelope.width / 2,
             0,
-            -envelope.length / 2
+            0
         );
 
     const max =
@@ -346,8 +353,55 @@ function getSideBounds(
         point(
             envelope.width / 2,
             envelope.height,
-            envelope.length / 2
+            envelope.length
         );
+
+    return createBounds(
+        point(
+            min.x +
+            wallThickness,
+
+            0,
+
+            min.z +
+            wallThickness
+        ),
+
+        point(
+            max.x -
+            wallThickness,
+
+            max.y,
+
+            max.z -
+            wallThickness
+        )
+    );
+}
+
+function getSideWidth(
+    side,
+    interiorBounds
+) {
+    return (
+        side === 'L' ||
+        side === 'R'
+    )
+        ? interiorBounds.length
+        : interiorBounds.width;
+}
+
+function getSideBounds(
+    side,
+    interiorBounds,
+    height,
+    thickness
+) {
+    const min =
+        interiorBounds.min;
+
+    const max =
+        interiorBounds.max;
 
     if (
         side === 'F'
@@ -428,7 +482,7 @@ function createSide(
     height,
     thickness,
     holes,
-    envelope
+    interiorBounds
 ) {
     return Object.freeze({
         side,
@@ -449,7 +503,7 @@ function createSide(
         bounds:
             getSideBounds(
                 side,
-                envelope,
+                interiorBounds,
                 height,
                 thickness
             )
@@ -636,6 +690,26 @@ export function createLinerGeometry(
             config
         );
 
+    const wallThickness =
+        resolveWallThickness(
+            model
+        );
+
+    const interiorBounds =
+        getInteriorBounds(
+            envelope,
+            wallThickness
+        );
+
+    if (
+        interiorBounds.width <= 0 ||
+        interiorBounds.length <= 0
+    ) {
+        throw new RangeError(
+            'Building interior is too small for liner'
+        );
+    }
+
     const normalizedOpenings =
         Array.isArray(
             openings
@@ -652,7 +726,7 @@ export function createLinerGeometry(
         const width =
             getSideWidth(
                 side,
-                envelope
+                interiorBounds
             );
 
         const holes =
@@ -670,7 +744,7 @@ export function createLinerGeometry(
                 height,
                 thickness,
                 holes,
-                envelope
+                interiorBounds
             );
     }
 
