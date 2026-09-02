@@ -45,6 +45,8 @@ export function createLifecycle({
             0.14
         );
 
+    scene.environment =
+        envRT.texture;
 
     if (
         'environmentIntensity' in scene
@@ -299,16 +301,41 @@ export function createLifecycle({
             scene.environment =
                 null;
         }
+
+        if (
+            envRT &&
+            typeof envRT.dispose ===
+            'function'
+        ) {
+            envRT.dispose();
+        }
+
+        pmremGenerator.dispose();
     }
 
     return Object.freeze({
+        environmentSystem,
+
+        lightingSystem,
+
+        cameraControls,
+
+        openingInteraction,
+
         updateEnvironment,
+
         updateLighting,
+
         setEnvironmentBounds,
+
         frameBounds,
+
         setAutoRotate,
+
         resize,
+
         render,
+
         dispose
     });
 }
