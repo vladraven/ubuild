@@ -116,27 +116,9 @@ function createGutter(
     const length =
         eave.edge.length;
 
-    /*
-     * eave.y is the roof-edge elevation.
-     *
-     * The TOP of the inner gutter wall
-     * is exactly at the roof edge.
-     *
-     * Therefore the gutter bottom is:
-     *
-     * roofEdgeY - innerHeight
-     */
-
     const bottomY =
         eave.front.y -
         innerHeight;
-
-    /*
-     * eave.x is the CENTER of the gutter.
-     *
-     * Half of the gutter therefore lies
-     * inside the roof edge and half outside.
-     */
 
     const centerX =
         eave.front.x;
@@ -146,14 +128,6 @@ function createGutter(
             eave.front.z +
             eave.back.z
         ) / 2;
-
-    /*
-     * INNER WALL
-     *
-     * Full height: 1.75 × W
-     *
-     * This is the wall facing the building.
-     */
 
     const innerX =
         centerX +
@@ -178,12 +152,6 @@ function createGutter(
             `gutter-${eave.side}-inner`
         );
 
-    /*
-     * BOTTOM
-     *
-     * Full gutter width.
-     */
-
     const bottom =
         createBox(
             width,
@@ -196,14 +164,6 @@ function createGutter(
             material,
             `gutter-${eave.side}-bottom`
         );
-
-    /*
-     * OUTER WALL
-     *
-     * Height: 0.75 × W
-     *
-     * Shorter than the inner wall.
-     */
 
     const outerX =
         centerX +
@@ -237,6 +197,76 @@ function createGutter(
     return group;
 }
 
+function createDownspout(
+    downspout,
+    material
+) {
+    const geometry =
+        new THREE.CylinderGeometry(
+            downspout.radius,
+            downspout.radius,
+            downspout.height,
+            12
+        );
+
+    const mesh =
+        new THREE.Mesh(
+            geometry,
+            material
+        );
+
+    mesh.name =
+        `downspout-${downspout.id}`;
+
+    mesh.position.set(
+        downspout.position.x,
+        downspout.position.y,
+        downspout.position.z
+    );
+
+    mesh.castShadow =
+        true;
+
+    mesh.receiveShadow =
+        true;
+
+    return mesh;
+}
+
+function createDownspouts(
+    data,
+    material
+) {
+    const group =
+        new THREE.Group();
+
+    group.name =
+        'downspouts';
+
+    if (
+        !data?.enabled ||
+        !Array.isArray(
+            data.items
+        )
+    ) {
+        return group;
+    }
+
+    for (
+        const downspout
+        of data.items
+    ) {
+        group.add(
+            createDownspout(
+                downspout,
+                material
+            )
+        );
+    }
+
+    return group;
+}
+
 function createObject(
     context
 ) {
@@ -246,6 +276,9 @@ function createObject(
 
     const data =
         context.geometry.gutters;
+
+    const downspouts =
+        context.geometry.downspouts;
 
     const root =
         new THREE.Group();
@@ -295,9 +328,12 @@ function createObject(
         );
     }
 
-    /*
-     * Deliberately no downspouts.
-     */
+    root.add(
+        createDownspouts(
+            downspouts,
+            material
+        )
+    );
 
     return root;
 }
@@ -321,7 +357,9 @@ function disposeObject(
                 child.geometry
             ) {
                 child.geometry.dispose();
-                child.geometry = null;
+
+                child.geometry =
+                    null;
             }
         }
     );

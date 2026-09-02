@@ -1,5 +1,3 @@
-// js/model/geometry/BuildingGeometryContract.js
-
 const REQUIRED_SECTIONS = Object.freeze([
     'bounds',
     'envelope',
@@ -15,6 +13,7 @@ const REQUIRED_SECTIONS = Object.freeze([
     'wainscot',
     'trims',
     'gutters',
+    'downspouts',
     'awnings',
     'liner',
     'mezzanine',
@@ -63,7 +62,9 @@ function freezeDeep(
 
     for (
         const child
-        of Object.values(value)
+        of Object.values(
+            value
+        )
     ) {
         freezeDeep(
             child
@@ -83,7 +84,9 @@ function validateGeometry(
         'BuildingGeometry'
     );
 
-    if (!data.model) {
+    if (
+        !data.model
+    ) {
         throw new TypeError(
             'BuildingGeometry.model is required'
         );
@@ -205,6 +208,9 @@ export function createBuildingGeometryContract(
 
         gutters:
             data.gutters,
+
+        downspouts:
+            data.downspouts,
 
         awnings:
             data.awnings,

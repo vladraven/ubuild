@@ -49,6 +49,11 @@ import {
 from './controllers/interior-options-controller.js';
 
 import {
+    createDrivewayController
+}
+from './controllers/driveway-controller.js';
+
+import {
     createAwningsController
 }
 from './controllers/awnings-controller.js';
@@ -152,6 +157,12 @@ export function createUIAdapter(
             update
         });
 
+    const driveway =
+        createDrivewayController({
+            runtime,
+            update
+        });
+
     const awnings =
         createAwningsController({
             runtime,
@@ -200,6 +211,8 @@ export function createUIAdapter(
 
         interiorOptions.syncFromModel();
 
+        driveway.syncFromModel();
+
         awnings.syncFromModel();
 
         sidebarSummary.sync();
@@ -234,6 +247,8 @@ export function createUIAdapter(
         wallVisibility.bind();
 
         interiorOptions.bind();
+
+        driveway.bind();
 
         awnings.bind();
 

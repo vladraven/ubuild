@@ -9,6 +9,9 @@ const DEFAULT_GUTTER_THICKNESS = 0.01;
 const INNER_WALL_RATIO = 1.75;
 const OUTER_WALL_RATIO = 0.75;
 
+const DOWN_SPOUT_SPACING =
+    6.096;
+
 function point(
     x,
     y,
@@ -196,16 +199,6 @@ function createEave(
             ? roof.eaves.left
             : roof.eaves.right;
 
-    /*
-     * The gutter is parallel to the wall.
-     *
-     * The roof eave gives us the roof-edge
-     * line. The gutter is shifted vertically
-     * below that edge and horizontally so
-     * half of its width projects outside the
-     * roof edge.
-     */
-
     const outward =
         side === 'L'
             ? -1
@@ -253,6 +246,144 @@ function createEave(
             source.edge.length +
             offset.lengthOffset
     });
+}
+
+function createDownspout(
+    side,
+    index,
+    position
+) {
+    return Object.freeze({
+        id:
+            `${side}-${index}`,
+
+        side,
+
+        position
+    });
+}
+
+function createDownspoutsForEave(
+    eave
+) {
+    const downspouts =
+        [];
+
+    const start =
+        eave.front;
+
+    const end =
+        eave.back;
+
+    const length =
+        eave.edge.length;
+
+    /*
+     * There must always be a downspout
+     * at both ends.
+     *
+     * The interval between any two
+     * downspouts may not exceed 20 ft.
+     */
+
+    const segments =
+        Math.max(
+            1,
+            Math.ceil(
+                length /
+                DOWN_SPOUT_SPACING
+            )
+        );
+
+    const spacing =
+        length /
+        segments;
+
+    const direction =
+        point(
+            (
+                end.x -
+                start.x
+            ) / length,
+
+            (
+                end.y -
+                start.y
+            ) / length,
+
+            (
+                end.z -
+                start.z
+            ) / length
+        );
+
+    for (
+        let index = 0;
+        index <= segments;
+        index++
+    ) {
+        const distance =
+            spacing *
+            index;
+
+        const position =
+            point(
+                start.x +
+                    direction.x *
+                    distance,
+
+                start.y +
+                    direction.y *
+                    distance,
+
+                start.z +
+                    direction.z *
+                    distance
+            );
+
+        downspouts.push(
+            createDownspout(
+                eave.side,
+                index,
+                position
+            )
+        );
+    }
+
+    return downspouts;
+}
+
+function createDownspouts(
+    eaves
+) {
+    const downspouts =
+        [];
+
+    for (
+        const side
+        of SIDES
+    ) {
+        const eave =
+            side === 'L'
+                ? eaves.left
+                : eaves.right;
+
+        if (
+            !eave
+        ) {
+            continue;
+        }
+
+        downspouts.push(
+            ...createDownspoutsForEave(
+                eave
+            )
+        );
+    }
+
+    return Object.freeze(
+        downspouts
+    );
 }
 
 function createEmpty() {
@@ -490,26 +621,18 @@ export function createGuttersGeometry(
             right.length
         );
 
-    /*
-     * Deliberately empty.
-     *
-     * There are no vertical downspouts.
-     * There are no shoes.
-     * There are no straps.
-     * There are no outlets.
-     */
-
     const downspouts =
-        Object.freeze([]);
-
-    const outlets =
-        Object.freeze([]);
+        createDownspouts(
+            eaves
+        );
 
     const anchors =
-        Object.freeze([
-            left.front,
-            right.front
-        ]);
+        Object.freeze(
+            downspouts.map(
+                downspout =>
+                    downspout.position
+            )
+        );
 
     return Object.freeze({
         enabled: true,
@@ -528,7 +651,8 @@ export function createGuttersGeometry(
 
         downspouts,
 
-        outlets,
+        outlets:
+            Object.freeze([]),
 
         anchors,
 

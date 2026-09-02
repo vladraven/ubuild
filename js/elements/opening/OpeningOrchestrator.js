@@ -14,7 +14,9 @@ const DEFAULTS = Object.freeze({
     depth: 0.2,
     windowDepth: 0.15,
     glassDepth: 0.02,
-    panelGap: 0.02
+    panelGap: 0.02,
+    hydraulicOpenAngle: 0.3,
+    hydraulicPanelDepth: 0.15
 });
 
 function assertContext(context) {
@@ -435,7 +437,6 @@ function createBiFoldDoor(opening, context) {
         zOffset
     );
 
-    // Fold outward from the building.
     bottom.rotation.x = -0.1;
 
     group.add(bottom);
@@ -450,7 +451,6 @@ function createBiFoldDoor(opening, context) {
         zOffset
     );
 
-    // Fold outward from the building.
     top.rotation.x = 0.1;
 
     group.add(top);
@@ -465,6 +465,7 @@ function createHydraulicDoor(opening, context) {
 
     const width = opening.dimensions.width;
     const height = opening.dimensions.height;
+    const frameThickness = DEFAULTS.frameThickness;
 
     group.add(
         createFrame(width, height, context)
@@ -476,19 +477,37 @@ function createHydraulicDoor(opening, context) {
         context.colors?.wall
     );
 
-    const panel = createBox(
-        width,
-        height,
-        DEFAULTS.depth - 0.05,
-        material,
+    const panelWidth = width - frameThickness * 2;
+    const panelHeight = height - frameThickness;
+    const panelDepth = DEFAULTS.hydraulicPanelDepth;
+
+    const pivot = new THREE.Group();
+
+    pivot.name = 'hydraulic-door-pivot';
+
+    // Pivot is the upper door edge. The panel hangs from this edge.
+    pivot.position.set(
         0,
-        height / 4,
-        height / 4
+        height / 2 - frameThickness,
+        -panelDepth / 2
     );
 
-    panel.rotation.x = -0.3;
+    pivot.rotation.x = DEFAULTS.hydraulicOpenAngle;
 
-    group.add(panel);
+    const panel = createBox(
+        panelWidth,
+        panelHeight,
+        panelDepth,
+        material,
+        0,
+        -panelHeight / 2,
+        0
+    );
+
+    panel.name = 'hydraulic-door-panel';
+
+    pivot.add(panel);
+    group.add(pivot);
 
     return group;
 }
