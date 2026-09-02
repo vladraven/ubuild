@@ -1,5 +1,18 @@
 import * as THREE from 'three';
 
+const LINER_RIDGE_HEIGHT =
+    1;
+
+const LINER_RIDGE_WIDTH =
+    LINER_RIDGE_HEIGHT * 4;
+
+const LINER_RIDGE_GAP =
+    LINER_RIDGE_HEIGHT * 4;
+
+const LINER_RIDGE_PERIOD =
+    LINER_RIDGE_WIDTH +
+    LINER_RIDGE_GAP;
+
 function assertContext(
     context
 ) {
@@ -34,28 +47,19 @@ function resolveMaterial(
     context
 ) {
     if (
-        typeof context.materials.get ===
+        typeof context.materials.get !==
         'function'
     ) {
-        const material =
-            context.materials.get(
-                'interiorWall',
-                context.colors?.interiorWall ||
-                '#EEEEEE'
-            );
-
-        material.side =
-            THREE.DoubleSide;
-
-        material.needsUpdate =
-            true;
-
-        return material;
+        return (
+            context.materials.interiorWall ||
+            context.materials.wallMetal
+        );
     }
 
-    return (
-        context.materials.interiorWall ||
-        context.materials.wallMetal
+    return context.materials.get(
+        'interiorWall',
+        context.colors?.interiorWall ||
+        '#EEEEEE'
     );
 }
 
@@ -144,13 +148,89 @@ function createGeometry(
     );
 }
 
+function getSideWidth(
+    geometry
+) {
+    geometry.computeBoundingBox();
+
+    const box =
+        geometry.boundingBox;
+
+    if (
+        !box
+    ) {
+        return 1;
+    }
+
+    return Math.max(
+        1,
+        box.max.x -
+        box.min.x
+    );
+}
+
+function createMaterial(
+    source,
+    width
+) {
+    const material =
+        source.clone();
+
+    material.side =
+        THREE.DoubleSide;
+
+    // Each wall needs its own texture scale.
+    if (
+        !source.bumpMap
+    ) {
+        material.needsUpdate =
+            true;
+
+        return material;
+    }
+
+    const bumpMap =
+        source.bumpMap.clone();
+
+    bumpMap.wrapS =
+        THREE.RepeatWrapping;
+
+    bumpMap.wrapT =
+        THREE.RepeatWrapping;
+
+    bumpMap.repeat.set(
+        width /
+        LINER_RIDGE_PERIOD,
+        1
+    );
+
+    bumpMap.needsUpdate =
+        true;
+
+    material.bumpMap =
+        bumpMap;
+
+    material.needsUpdate =
+        true;
+
+    return material;
+}
+
 function createSideMesh(
     sideData,
-    material
+    sourceMaterial
 ) {
     const geometry =
         createGeometry(
             sideData
+        );
+
+    const material =
+        createMaterial(
+            sourceMaterial,
+            getSideWidth(
+                geometry
+            )
         );
 
     const mesh =
@@ -280,6 +360,26 @@ function createObject(
     return root;
 }
 
+function disposeMaterial(
+    material
+) {
+    if (
+        !material
+    ) {
+        return;
+    }
+
+    if (
+        material.bumpMap &&
+        material.bumpMap !==
+        material.userData?.sharedBumpMap
+    ) {
+        material.bumpMap.dispose();
+    }
+
+    material.dispose();
+}
+
 function disposeObject(
     object
 ) {
@@ -305,6 +405,28 @@ function disposeObject(
                 child.geometry =
                     null;
             }
+
+            if (
+                Array.isArray(
+                    child.material
+                )
+            ) {
+                for (
+                    const material
+                    of child.material
+                ) {
+                    disposeMaterial(
+                        material
+                    );
+                }
+            } else {
+                disposeMaterial(
+                    child.material
+                );
+            }
+
+            child.material =
+                null;
         }
     );
 

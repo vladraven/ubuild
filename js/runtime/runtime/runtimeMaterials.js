@@ -18,6 +18,21 @@ const COLOR_MUTATION_METHODS = [
     'fromArray'
 ];
 
+const LINER_RIDGE_UNITS =
+    4;
+
+const LINER_GAP_UNITS =
+    4;
+
+const LINER_TEXTURE_WIDTH =
+    512;
+
+const LINER_TEXTURE_HEIGHT =
+    2;
+
+const LINER_BUMP_SCALE =
+    0.2;
+
 function normalizeColor(
     value,
     fallback
@@ -198,12 +213,14 @@ function createPanelMaterial(
     const material =
         new THREE.MeshStandardMaterial({
             color,
-            // Painted metal panels: keep metalness low so pure white/beige
-            // is not desaturated by PBR (was 0.42 → looked grey without IBL)
-            metalness: 0.1,
-            roughness: 0.55,
-            envMapIntensity: 1.0,
-            side: THREE.DoubleSide
+            metalness:
+                0.1,
+            roughness:
+                0.55,
+            envMapIntensity:
+                1.0,
+            side:
+                THREE.DoubleSide
         });
 
     if (
@@ -236,6 +253,83 @@ function createMetalMaterial(
         roughness,
         side: THREE.DoubleSide
     });
+}
+
+function createLinerBumpMap() {
+    const data =
+        new Uint8Array(
+            LINER_TEXTURE_WIDTH *
+            LINER_TEXTURE_HEIGHT
+        );
+
+    const periodUnits =
+        LINER_RIDGE_UNITS +
+        LINER_GAP_UNITS;
+
+    const ridgeRatio =
+        LINER_RIDGE_UNITS /
+        periodUnits;
+
+    for (
+        let y = 0;
+        y < LINER_TEXTURE_HEIGHT;
+        y++
+    ) {
+        for (
+            let x = 0;
+            x < LINER_TEXTURE_WIDTH;
+            x++
+        ) {
+            const index =
+                (
+                    y *
+                    LINER_TEXTURE_WIDTH
+                ) +
+                x;
+
+            const position =
+                x /
+                LINER_TEXTURE_WIDTH;
+
+            // 4H wide ridge, 4H gap.
+            data[index] =
+                position < ridgeRatio ?
+                255 :
+                0;
+        }
+    }
+
+    const texture =
+        new THREE.DataTexture(
+            data,
+            LINER_TEXTURE_WIDTH,
+            LINER_TEXTURE_HEIGHT,
+            THREE.RedFormat,
+            THREE.UnsignedByteType
+        );
+
+    texture.wrapS =
+        THREE.RepeatWrapping;
+
+    texture.wrapT =
+        THREE.RepeatWrapping;
+
+    texture.magFilter =
+        THREE.LinearFilter;
+
+    texture.minFilter =
+        THREE.LinearFilter;
+
+    texture.generateMipmaps =
+        false;
+
+    texture.colorSpace =
+        THREE.NoColorSpace;
+
+    texture.needsUpdate =
+        true;
+
+    return texture;
 }
 
 function registerMaterial(
@@ -356,6 +450,9 @@ export function createMaterialSystem(
             panelLength * 0.8,
             panelWidth * 1.5
         );
+
+    const linerBumpMap =
+        createLinerBumpMap();
 
     const materials =
         new Map();
@@ -666,7 +763,13 @@ export function createMaterialSystem(
                 0.1,
 
             roughness:
-                0.8,
+                0.55,
+
+            bumpMap:
+                linerBumpMap,
+
+            bumpScale:
+                LINER_BUMP_SCALE,
 
             side:
                 THREE.DoubleSide
@@ -928,6 +1031,8 @@ export function createMaterialSystem(
         applyColors,
 
         dispose() {
+            linerBumpMap.dispose();
+
             for (
                 const material
                 of materials.values()

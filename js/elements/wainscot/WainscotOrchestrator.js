@@ -18,9 +18,6 @@ const WALL_KEYS = Object.freeze([
     'right'
 ]);
 
-const WAINSCOT_DEPTH_OFFSET =
-    0.005;
-
 const WAINSCOT_SURFACE_OFFSET =
     0.003;
 
@@ -68,11 +65,13 @@ function resolveMaterial(
             3
         );
 
+    let material;
+
     if (
         typeof context.materials.get ===
         'function'
     ) {
-        const material =
+        material =
             context.materials.get(
                 'wainscotMetal',
                 context.colors?.wainscot,
@@ -80,20 +79,19 @@ function resolveMaterial(
                     normalMap
                 }
             );
-
-        material.side =
-            THREE.FrontSide;
-
-        material.needsUpdate =
-            true;
-
-        return material;
+    } else {
+        material =
+            context.materials.wainscotMetal ||
+            context.materials.wallMetal;
     }
 
-    return (
-        context.materials.wainscotMetal ||
-        context.materials.wallMetal
-    );
+    material.side =
+        THREE.FrontSide;
+
+    material.needsUpdate =
+        true;
+
+    return material;
 }
 
 function getSpan(
@@ -347,7 +345,6 @@ function createSegment(
     maxX,
     minY,
     maxY,
-    depth,
     material
 ) {
     const shape =
@@ -376,13 +373,8 @@ function createSegment(
     shape.closePath();
 
     const geometry =
-        new THREE.ExtrudeGeometry(
-            shape,
-            {
-                depth,
-                bevelEnabled:
-                    false
-            }
+        new THREE.ShapeGeometry(
+            shape
         );
 
     const mesh =
@@ -404,7 +396,6 @@ function createSegments(
     range,
     wsHeight,
     masks,
-    depth,
     material
 ) {
     const grid =
@@ -437,8 +428,7 @@ function createSegments(
             (
                 minY +
                 maxY
-            ) /
-            2;
+            ) / 2;
 
         for (
             let xIndex = 0;
@@ -460,10 +450,9 @@ function createSegments(
                 (
                     minX +
                     maxX
-                ) /
-                2;
+                ) / 2;
 
-            // Apply the opening mask directly to wainscot.
+            // Skip opening areas.
             if (
                 isMasked(
                     centerX,
@@ -480,7 +469,6 @@ function createSegments(
                     maxX,
                     minY,
                     maxY,
-                    depth,
                     material
                 )
             );
@@ -493,8 +481,7 @@ function createSegments(
 function placeMesh(
     object,
     sideCode,
-    envelope,
-    depth
+    envelope
 ) {
     if (
         sideCode === 'F'
@@ -505,6 +492,9 @@ function placeMesh(
             -WAINSCOT_SURFACE_OFFSET
         );
 
+        object.rotation.y =
+            Math.PI;
+
         return;
     }
 
@@ -514,9 +504,8 @@ function placeMesh(
         object.position.set(
             0,
             0,
-            envelope.length -
-                depth +
-                WAINSCOT_SURFACE_OFFSET
+            envelope.length +
+            WAINSCOT_SURFACE_OFFSET
         );
 
         return;
@@ -526,9 +515,8 @@ function placeMesh(
         sideCode === 'L'
     ) {
         object.position.set(
-            -envelope.width / 2 +
-                depth -
-                WAINSCOT_SURFACE_OFFSET,
+            -envelope.width / 2 -
+            WAINSCOT_SURFACE_OFFSET,
             0,
             0
         );
@@ -540,9 +528,8 @@ function placeMesh(
     }
 
     object.position.set(
-        envelope.width / 2 -
-            depth +
-            WAINSCOT_SURFACE_OFFSET,
+        envelope.width / 2 +
+        WAINSCOT_SURFACE_OFFSET,
         0,
         envelope.length
     );
@@ -556,8 +543,7 @@ function createWainscotMesh(
     wsHeight,
     openings,
     material,
-    envelope,
-    wallThickness
+    envelope
 ) {
     const sideCode =
         SIDE_MAP[
@@ -584,16 +570,11 @@ function createWainscotMesh(
             wsHeight
         );
 
-    const depth =
-        wallThickness +
-        WAINSCOT_DEPTH_OFFSET;
-
     const mesh =
         createSegments(
             range,
             wsHeight,
             masks,
-            depth,
             material
         );
 
@@ -603,8 +584,7 @@ function createWainscotMesh(
     placeMesh(
         mesh,
         sideCode,
-        envelope,
-        depth
+        envelope
     );
 
     return mesh;
@@ -648,9 +628,6 @@ function createObject(
     const envelope =
         context.geometry.envelope;
 
-    const wallThickness =
-        context.model.walls.thickness;
-
     for (
         const wallKey of WALL_KEYS
     ) {
@@ -660,8 +637,7 @@ function createObject(
                 wsHeight,
                 openings,
                 material,
-                envelope,
-                wallThickness
+                envelope
             )
         );
     }
