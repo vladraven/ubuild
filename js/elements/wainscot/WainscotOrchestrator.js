@@ -1,22 +1,32 @@
 import * as THREE from 'three';
 
 import {
-    getPanelNormalMapForUse
+    getPanelNormalMapForUse,
+    getPanelRepeat,
+    normalizePanelProfile
 } from '../../panels/PanelProfiles.js';
 
-const SIDE_MAP = Object.freeze({
-    front: 'F',
-    back: 'B',
-    left: 'L',
-    right: 'R'
-});
+const DEFAULT_PROFILE =
+    'awr';
 
-const WALL_KEYS = Object.freeze([
-    'front',
-    'back',
-    'left',
-    'right'
-]);
+const NORMAL_SCALE =
+    0.8;
+
+const SIDE_MAP =
+    Object.freeze({
+        front: 'F',
+        back: 'B',
+        left: 'L',
+        right: 'R'
+    });
+
+const WALL_KEYS =
+    Object.freeze([
+        'front',
+        'back',
+        'left',
+        'right'
+    ]);
 
 const WAINSCOT_SURFACE_OFFSET =
     0.003;
@@ -50,48 +60,31 @@ function assertContext(
     }
 }
 
-function resolveMaterial(
+function getProfileId(
     context
 ) {
-    const profileId =
+    return normalizePanelProfile(
         context.model?.panels?.profile ||
-        'awr';
+        DEFAULT_PROFILE
+    );
+}
 
-    const normalMap =
-        getPanelNormalMapForUse(
-            profileId,
-            'wainscot',
-            10,
-            3
-        );
-
-    let material;
-
+function getSourceMaterial(
+    context
+) {
     if (
         typeof context.materials.get ===
         'function'
     ) {
-        material =
-            context.materials.get(
-                'wainscotMetal',
-                context.colors?.wainscot,
-                {
-                    normalMap
-                }
-            );
-    } else {
-        material =
-            context.materials.wainscotMetal ||
-            context.materials.wallMetal;
+        return context.materials.get(
+            'wainscotMetal'
+        );
     }
 
-    material.side =
-        THREE.FrontSide;
-
-    material.needsUpdate =
-        true;
-
-    return material;
+    return (
+        context.materials.wainscotMetal ||
+        context.materials.wallMetal
+    );
 }
 
 function getSpan(
@@ -106,6 +99,63 @@ function getSpan(
     }
 
     return envelope.length;
+}
+
+function resolveMaterial(
+    context,
+    profileId,
+    wallKey,
+    width
+) {
+    const source =
+        getSourceMaterial(
+            context
+        );
+
+    if (
+        !source
+    ) {
+        return null;
+    }
+
+    const normalMap =
+        getPanelNormalMapForUse(
+            profileId,
+            `wainscot-${wallKey}`,
+            getPanelRepeat(
+                width,
+                profileId
+            ),
+            1
+        );
+
+    const material =
+        source.clone();
+
+    material.name =
+        `wainscot-${wallKey}`;
+
+    material.normalMap =
+        normalMap;
+
+    material.normalScale =
+        normalMap ?
+        new THREE.Vector2(
+            NORMAL_SCALE,
+            NORMAL_SCALE
+        ) :
+        new THREE.Vector2(
+            0,
+            0
+        );
+
+    material.side =
+        THREE.FrontSide;
+
+    material.needsUpdate =
+        true;
+
+    return material;
 }
 
 function getRange(
@@ -152,7 +202,7 @@ function getMasks(
     openings,
     sideCode,
     envelope,
-    wsHeight
+    wainscotHeight
 ) {
     const span =
         getSpan(
@@ -170,7 +220,8 @@ function getMasks(
         [];
 
     for (
-        const opening of openings
+        const opening
+        of openings
     ) {
         if (
             opening.side !==
@@ -208,7 +259,7 @@ function getMasks(
             maxX <= range.min ||
             minX >= range.max ||
             maxY <= 0 ||
-            minY >= wsHeight
+            minY >= wainscotHeight
         ) {
             continue;
         }
@@ -257,7 +308,7 @@ function addEdges(
 
 function getGrid(
     range,
-    wsHeight,
+    wainscotHeight,
     masks
 ) {
     const xEdges =
@@ -269,11 +320,12 @@ function getGrid(
     const yEdges =
         new Set([
             0,
-            wsHeight
+            wainscotHeight
         ]);
 
     for (
-        const mask of masks
+        const mask
+        of masks
     ) {
         addEdges(
             xEdges,
@@ -286,7 +338,7 @@ function getGrid(
         addEdges(
             yEdges,
             0,
-            wsHeight,
+            wainscotHeight,
             mask.minY,
             mask.maxY
         );
@@ -325,7 +377,8 @@ function isMasked(
     masks
 ) {
     for (
-        const mask of masks
+        const mask
+        of masks
     ) {
         if (
             x >= mask.minX &&
@@ -394,14 +447,14 @@ function createSegment(
 
 function createSegments(
     range,
-    wsHeight,
+    wainscotHeight,
     masks,
     material
 ) {
     const grid =
         getGrid(
             range,
-            wsHeight,
+            wainscotHeight,
             masks
         );
 
@@ -452,7 +505,6 @@ function createSegments(
                     maxX
                 ) / 2;
 
-            // Skip opening areas.
             if (
                 isMasked(
                     centerX,
@@ -539,11 +591,12 @@ function placeMesh(
 }
 
 function createWainscotMesh(
+    context,
     wallKey,
-    wsHeight,
+    wainscotHeight,
     openings,
-    material,
-    envelope
+    envelope,
+    profileId
 ) {
     const sideCode =
         SIDE_MAP[
@@ -556,6 +609,20 @@ function createWainscotMesh(
             envelope
         );
 
+    const material =
+        resolveMaterial(
+            context,
+            profileId,
+            wallKey,
+            span
+        );
+
+    if (
+        !material
+    ) {
+        return null;
+    }
+
     const range =
         getRange(
             sideCode,
@@ -567,13 +634,13 @@ function createWainscotMesh(
             openings,
             sideCode,
             envelope,
-            wsHeight
+            wainscotHeight
         );
 
     const mesh =
         createSegments(
             range,
-            wsHeight,
+            wainscotHeight,
             masks,
             material
         );
@@ -603,21 +670,21 @@ function createObject(
     root.name =
         'wainscot';
 
-    const wsHeight =
+    const wainscotHeight =
         context.model?.panels
             ?.wainscotHeight ||
         0;
 
     if (
-        wsHeight <= 0 ||
+        wainscotHeight <= 0 ||
         context.model?.visibility
             ?.wainscot === false
     ) {
         return root;
     }
 
-    const material =
-        resolveMaterial(
+    const profileId =
+        getProfileId(
             context
         );
 
@@ -629,16 +696,27 @@ function createObject(
         context.geometry.envelope;
 
     for (
-        const wallKey of WALL_KEYS
+        const wallKey
+        of WALL_KEYS
     ) {
-        root.add(
+        const mesh =
             createWainscotMesh(
+                context,
                 wallKey,
-                wsHeight,
+                wainscotHeight,
                 openings,
-                material,
-                envelope
-            )
+                envelope,
+                profileId
+            );
+
+        if (
+            !mesh
+        ) {
+            continue;
+        }
+
+        root.add(
+            mesh
         );
     }
 
@@ -654,32 +732,43 @@ function disposeObject(
         return;
     }
 
+    const materials =
+        new Set();
+
     object.traverse(
-        (
-            child
-        ) => {
+        child => {
             if (
                 !child.isMesh
             ) {
                 return;
             }
 
-            if (
-                child.geometry
-            ) {
-                child.geometry.dispose();
+            child.geometry?.dispose();
 
-                child.geometry =
-                    null;
+            child.geometry =
+                null;
+
+            if (
+                child.material &&
+                !materials.has(
+                    child.material
+                )
+            ) {
+                materials.add(
+                    child.material
+                );
+
+                child.material.dispose();
             }
+
+            child.material =
+                null;
         }
     );
 
-    const children =
-        object.children.slice();
-
     for (
-        const child of children
+        const child
+        of object.children.slice()
     ) {
         object.remove(
             child

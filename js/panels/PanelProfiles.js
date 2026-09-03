@@ -6,6 +6,9 @@ const PANEL_TEXTURE_SIZE =
 const PANEL_WIDTH_M =
     0.9144;
 
+const TEXTURE_REPEATS_PER_PANEL =
+    2;
+
 const HEIGHT_UNITS =
     4;
 
@@ -22,8 +25,37 @@ const SMOOTH_HEIGHT =
 const normalMapCache =
     new Map();
 
+const heightMapCache =
+    new Map();
+
 const slotMapCache =
     new Map();
+
+const PROFILE_ALIASES =
+    Object.freeze({
+        awr: 'awr',
+
+        ssr24: 'ssr24',
+        'ssr 24': 'ssr24',
+
+        deltaspan: 'deltaSpan',
+        'delta span': 'deltaSpan',
+        delta_span: 'deltaSpan',
+
+        eliterib: 'eliteRib',
+        'elite rib': 'eliteRib',
+        elite_rib: 'eliteRib',
+
+        imp: 'imp',
+
+        ultraspan: 'ultraSpan',
+        'ultra span': 'ultraSpan',
+        ultra_span: 'ultraSpan',
+
+        widespan: 'wideSpan',
+        'wide span': 'wideSpan',
+        wide_span: 'wideSpan'
+    });
 
 const PROFILE_DEFINITIONS =
     Object.freeze({
@@ -158,12 +190,68 @@ export const ROOF_PANEL_PROFILES =
         'ssr24'
     ]);
 
+export function normalizePanelProfile(
+    profileId = 'awr'
+) {
+    const raw =
+        String(
+            profileId
+        ).trim();
+
+    if (
+        PANEL_PROFILES[raw]
+    ) {
+        return raw;
+    }
+
+    const normalized =
+        raw
+            .toLowerCase()
+            .replace(
+                /[\s_-]+/g,
+                ' '
+            )
+            .trim();
+
+    return (
+        PROFILE_ALIASES[normalized] ||
+        PROFILE_ALIASES[
+            normalized.replace(
+                /\s+/g,
+                ''
+            )
+        ] ||
+        'awr'
+    );
+}
+
 export function getPanelProfile(
     profileId = 'awr'
 ) {
-    return (
-        PANEL_PROFILES[profileId] ||
-        PANEL_PROFILES.awr
+    const key =
+        normalizePanelProfile(
+            profileId
+        );
+
+    return PANEL_PROFILES[key];
+}
+
+export function getPanelRepeat(
+    widthM,
+    profileId = 'awr'
+) {
+    const profile =
+        getPanelProfile(
+            profileId
+        );
+
+    return Math.max(
+        1,
+        (
+            widthM /
+            profile.width
+        ) *
+        TEXTURE_REPEATS_PER_PANEL
     );
 }
 
@@ -179,12 +267,18 @@ function getHeightAt(
             points.length - 1
         ][0];
 
-    const x =
+    let x =
         (
             position *
             period
         ) %
         period;
+
+    if (
+        x < 0
+    ) {
+        x += period;
+    }
 
     for (
         let i = 0;
@@ -232,6 +326,52 @@ function getHeightAt(
     }
 
     return points[0][1];
+}
+
+function createHeightMapData(
+    profile
+) {
+    const size =
+        PANEL_TEXTURE_SIZE;
+
+    const data =
+        new Uint8Array(
+            size *
+            size
+        );
+
+    for (
+        let x = 0;
+        x < size;
+        x++
+    ) {
+        const height =
+            getHeightAt(
+                profile,
+                x / size
+            );
+
+        const value =
+            Math.round(
+                height *
+                255
+            );
+
+        for (
+            let y = 0;
+            y < size;
+            y++
+        ) {
+            data[
+                y *
+                size +
+                x
+            ] =
+                value;
+        }
+    }
+
+    return data;
 }
 
 function createNormalMapData(
@@ -375,6 +515,70 @@ function createNormalMapData(
     return data;
 }
 
+function createHeightMapTexture(
+    profileId
+) {
+    const profile =
+        getPanelProfile(
+            profileId
+        );
+
+    if (
+        profile.height ===
+        SMOOTH_HEIGHT
+    ) {
+        return null;
+    }
+
+    const texture =
+        new THREE.DataTexture(
+            createHeightMapData(
+                profile
+            ),
+            PANEL_TEXTURE_SIZE,
+            PANEL_TEXTURE_SIZE,
+            THREE.RedFormat,
+            THREE.UnsignedByteType
+        );
+
+    texture.wrapS =
+        THREE.RepeatWrapping;
+
+    texture.wrapT =
+        THREE.RepeatWrapping;
+
+    texture.magFilter =
+        THREE.LinearFilter;
+
+    texture.minFilter =
+        THREE.LinearMipmapLinearFilter;
+
+    texture.generateMipmaps =
+        true;
+
+    texture.colorSpace =
+        THREE.NoColorSpace;
+
+    texture.needsUpdate =
+        true;
+
+    texture.userData = {
+        isSharedProcedural:
+            true,
+
+        kind:
+            'panelHeightMap',
+
+        profileId:
+            profile.id,
+
+        panelDirection:
+            'vertical'
+    };
+
+    return texture;
+}
+
 function createPanelNormalMapTexture(
     profileId
 ) {
@@ -382,6 +586,13 @@ function createPanelNormalMapTexture(
         getPanelProfile(
             profileId
         );
+
+    if (
+        profile.height ===
+        SMOOTH_HEIGHT
+    ) {
+        return null;
+    }
 
     const texture =
         new THREE.DataTexture(
@@ -432,6 +643,38 @@ function createPanelNormalMapTexture(
     return texture;
 }
 
+export function generatePanelHeightMap(
+    profileId = 'awr'
+) {
+    const key =
+        getPanelProfile(
+            profileId
+        ).id;
+
+    if (
+        key === 'imp'
+    ) {
+        return null;
+    }
+
+    if (
+        !heightMapCache.has(
+            key
+        )
+    ) {
+        heightMapCache.set(
+            key,
+            createHeightMapTexture(
+                key
+            )
+        );
+    }
+
+    return heightMapCache.get(
+        key
+    );
+}
+
 export function generatePanelNormalMap(
     profileId = 'awr'
 ) {
@@ -439,6 +682,12 @@ export function generatePanelNormalMap(
         getPanelProfile(
             profileId
         ).id;
+
+    if (
+        key === 'imp'
+    ) {
+        return null;
+    }
 
     if (
         !normalMapCache.has(
@@ -458,14 +707,16 @@ export function generatePanelNormalMap(
     );
 }
 
-function createSlotNormalMap(
-    profileId,
-    slot
+function createSlotTexture(
+    base,
+    slot,
+    kind
 ) {
-    const base =
-        generatePanelNormalMap(
-            profileId
-        );
+    if (
+        !base
+    ) {
+        return null;
+    }
 
     const texture =
         base.clone();
@@ -479,7 +730,8 @@ function createSlotNormalMap(
         isSlotTexture:
             true,
 
-        slot
+        slot,
+        kind
     };
 
     texture.needsUpdate =
@@ -488,28 +740,27 @@ function createSlotNormalMap(
     return texture;
 }
 
-export function clonePanelNormalMap(
-    profileId = 'awr'
+function getSlotTexture(
+    profileId,
+    slot,
+    repeatX,
+    repeatY,
+    kind
 ) {
-    return createSlotNormalMap(
-        profileId,
-        'clone'
-    );
-}
-
-export function getPanelNormalMapForUse(
-    profileId = 'awr',
-    slot = 'default',
-    repeatX = 1,
-    repeatY = 1
-) {
-    const profileKey =
+    const profile =
         getPanelProfile(
             profileId
-        ).id;
+        );
+
+    if (
+        profile.height ===
+        SMOOTH_HEIGHT
+    ) {
+        return null;
+    }
 
     const cacheKey =
-        `${profileKey}:${slot}`;
+        `${kind}:${profile.id}:${slot}`;
 
     let texture =
         slotMapCache.get(
@@ -519,10 +770,21 @@ export function getPanelNormalMapForUse(
     if (
         !texture
     ) {
+        const base =
+            kind ===
+            'height' ?
+            generatePanelHeightMap(
+                profile.id
+            ) :
+            generatePanelNormalMap(
+                profile.id
+            );
+
         texture =
-            createSlotNormalMap(
-                profileKey,
-                slot
+            createSlotTexture(
+                base,
+                slot,
+                kind
             );
 
         slotMapCache.set(
@@ -536,70 +798,64 @@ export function getPanelNormalMapForUse(
         repeatY
     );
 
+    texture.needsUpdate =
+        true;
+
     return texture;
 }
 
-export function applyPhysicalPanelUVs(
-    geometry,
-    widthM,
-    heightM,
+export function getPanelHeightMapForUse(
+    profileId = 'awr',
+    slot = 'default',
+    repeatX = 1,
+    repeatY = 1
+) {
+    return getSlotTexture(
+        profileId,
+        slot,
+        repeatX,
+        repeatY,
+        'height'
+    );
+}
+
+export function getPanelNormalMapForUse(
+    profileId = 'awr',
+    slot = 'default',
+    repeatX = 1,
+    repeatY = 1
+) {
+    return getSlotTexture(
+        profileId,
+        slot,
+        repeatX,
+        repeatY,
+        'normal'
+    );
+}
+
+export function clonePanelNormalMap(
     profileId = 'awr'
 ) {
-    if (
-        !geometry ||
-        !geometry.attributes.position
-    ) {
-        return;
-    }
-
-    const profile =
-        getPanelProfile(
+    return createSlotTexture(
+        generatePanelNormalMap(
             profileId
-        );
+        ),
+        'clone',
+        'normal'
+    );
+}
 
-    const uRepeat =
-        widthM /
-        profile.width;
-
-    const vRepeat =
-        heightM /
-        profile.width;
-
-    const uvAttr =
-        geometry.attributes.uv;
-
-    if (
-        !uvAttr
-    ) {
-        return;
-    }
-
-    for (
-        let i = 0;
-        i < uvAttr.count;
-        i++
-    ) {
-        const u =
-            uvAttr.getX(
-                i
-            ) *
-            uRepeat;
-
-        const v =
-            uvAttr.getY(
-                i
-            ) *
-            vRepeat;
-
-        uvAttr.setXY(
-            i,
-            u,
-            v
-        );
-    }
-
-    uvAttr.needsUpdate =
-        true;
+export function clonePanelHeightMap(
+    profileId = 'awr'
+) {
+    return createSlotTexture(
+        generatePanelHeightMap(
+            profileId
+        ),
+        'clone',
+        'height'
+    );
 }
 
 export function disposePanelNormalMaps() {
@@ -620,4 +876,13 @@ export function disposePanelNormalMaps() {
     }
 
     normalMapCache.clear();
+
+    for (
+        const texture
+        of heightMapCache.values()
+    ) {
+        texture.dispose();
+    }
+
+    heightMapCache.clear();
 }

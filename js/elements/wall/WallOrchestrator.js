@@ -1,11 +1,16 @@
 import * as THREE from 'three';
 
 import {
-    getPanelNormalMapForUse
+    getPanelNormalMapForUse,
+    getPanelRepeat,
+    normalizePanelProfile
 } from '../../panels/PanelProfiles.js';
 
 const DEFAULT_PROFILE =
     'awr';
+
+const NORMAL_SCALE =
+    0.8;
 
 const SIDE_MAP =
     Object.freeze({
@@ -55,7 +60,7 @@ function assertContext(
 function getProfileId(
     context
 ) {
-    return (
+    return normalizePanelProfile(
         context.model?.panels?.profile ||
         DEFAULT_PROFILE
     );
@@ -106,9 +111,9 @@ function createMaterial(
         getPanelNormalMapForUse(
             profileId,
             `wall-${wallKey}`,
-            Math.max(
-                1,
-                width
+            getPanelRepeat(
+                width,
+                profileId
             ),
             1
         );
@@ -117,9 +122,14 @@ function createMaterial(
         normalMap;
 
     material.normalScale =
+        normalMap ?
         new THREE.Vector2(
-            0.5,
-            0.5
+            NORMAL_SCALE,
+            NORMAL_SCALE
+        ) :
+        new THREE.Vector2(
+            0,
+            0
         );
 
     material.side =

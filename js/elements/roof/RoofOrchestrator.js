@@ -1,8 +1,8 @@
 import * as THREE from 'three';
 
 import {
-    getPanelNormalMapForUse,
-    getPanelProfile
+    getPanelHeightMapForUse,
+    getPanelRepeat
 } from '../../panels/PanelProfiles.js';
 
 const ROOF_THICKNESS =
@@ -10,6 +10,9 @@ const ROOF_THICKNESS =
 
 const DEFAULT_PROFILE =
     'awr';
+
+const BUMP_SCALE =
+    0.18;
 
 function assertContext(
     context
@@ -76,7 +79,7 @@ function getSourceMaterial(
     );
 }
 
-function getPanelSize(
+function getPanelWidth(
     corners
 ) {
     const first =
@@ -93,59 +96,41 @@ function getPanelSize(
             corners[1].z
         );
 
-    const fourth =
-        new THREE.Vector3(
-            corners[3].x,
-            corners[3].y,
-            corners[3].z
-        );
-
-    return {
-        width:
-            first.distanceTo(
-                second
-            ),
-
-        height:
-            first.distanceTo(
-                fourth
-            )
-    };
+    return first.distanceTo(
+        second
+    );
 }
 
 function createPanelMaterial(
     source,
     profileId,
     slot,
-    width,
-    height
+    width
 ) {
-    const profile =
-        getPanelProfile(
-            profileId
-        );
-
     const material =
         source.clone();
 
-    const normalMap =
-        getPanelNormalMapForUse(
+    const bumpMap =
+        getPanelHeightMapForUse(
             profileId,
             slot,
-            width /
-            profile.width,
-            height /
-            profile.width
+            getPanelRepeat(
+                width,
+                profileId
+            ),
+            1
         );
 
     material.normalMap =
-        normalMap;
+        null;
 
-    material.normalScale =
-        new THREE.Vector2(
-            0.5,
-            0.5
-        );
+    material.bumpMap =
+        bumpMap;
+
+    material.bumpScale =
+        bumpMap ?
+        BUMP_SCALE :
+        0;
 
     material.side =
         THREE.DoubleSide;
@@ -281,7 +266,6 @@ function createSolidPlaneGeometry(
         );
     }
 
-    // Ceiling underside.
     addFace(
         bottom[0],
         bottom[2],
@@ -289,7 +273,6 @@ function createSolidPlaneGeometry(
         bottom[3]
     );
 
-    // Exterior roof.
     addFace(
         top[0],
         top[1],
@@ -356,21 +339,18 @@ function createSolidPlaneGeometry(
 
     geometry.clearGroups();
 
-    // Bottom uses ceiling material.
     geometry.addGroup(
         0,
         6,
         1
     );
 
-    // Top uses roof material.
     geometry.addGroup(
         6,
         6,
         0
     );
 
-    // Vertical edges.
     geometry.addGroup(
         12,
         6,
@@ -404,8 +384,8 @@ function createPanelMesh(
     profileId,
     sideMaterial
 ) {
-    const size =
-        getPanelSize(
+    const width =
+        getPanelWidth(
             panel.corners
         );
 
@@ -414,8 +394,7 @@ function createPanelMesh(
             sourceMaterial,
             profileId,
             `roof-${panel.index}`,
-            size.width,
-            size.height
+            width
         );
 
     const ceilingMaterial =
@@ -423,8 +402,7 @@ function createPanelMesh(
             sourceMaterial,
             profileId,
             `ceiling-${panel.index}`,
-            size.width,
-            size.height
+            width
         );
 
     const geometry =
