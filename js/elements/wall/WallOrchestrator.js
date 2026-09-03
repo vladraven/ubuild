@@ -12,8 +12,8 @@ import {
 const DEFAULT_PROFILE =
     'awr';
 
-const NORMAL_SCALE =
-    1.5;
+const BUMP_SCALE =
+    0.35;
 
 const SIDE_MAP =
     Object.freeze({
@@ -119,10 +119,10 @@ function createMaterial(
                 width,
 
             mapType:
-                PanelMapType.NORMAL,
+                PanelMapType.HEIGHT,
 
-            normalScale:
-                NORMAL_SCALE,
+            bumpScale:
+                BUMP_SCALE,
 
             side:
                 THREE.DoubleSide
@@ -447,13 +447,6 @@ function createObject(
     root.name =
         'walls';
 
-    if (
-        context.model?.visibility?.walls ===
-        false
-    ) {
-        return root;
-    }
-
     const profileId =
         getProfileId(
             context
@@ -476,20 +469,11 @@ function createObject(
         {};
 
     for (
-        const [
-            wallKey,
-            wallData
-        ]
-        of Object.entries(
+        const wallKey
+        of Object.keys(
             context.geometry.walls
         )
     ) {
-        if (
-            !wallData?.shapePoints
-        ) {
-            continue;
-        }
-
         if (
             !isWallVisible(
                 wallKey,
@@ -499,7 +483,18 @@ function createObject(
             continue;
         }
 
-        root.add(
+        const wallData =
+            context.geometry.walls[
+                wallKey
+            ];
+
+        if (
+            !wallData
+        ) {
+            continue;
+        }
+
+        const mesh =
             createWallMesh(
                 wallData,
                 openings,
@@ -507,7 +502,10 @@ function createObject(
                 sourceMaterial,
                 envelope,
                 profileId
-            )
+            );
+
+        root.add(
+            mesh
         );
     }
 
@@ -523,6 +521,9 @@ function disposeObject(
         return;
     }
 
+    const materials =
+        new Set();
+
     object.traverse(
         child => {
             if (
@@ -533,23 +534,21 @@ function disposeObject(
 
             child.geometry?.dispose();
 
+            child.geometry =
+                null;
+
             if (
-                Array.isArray(
+                child.material &&
+                !materials.has(
                     child.material
                 )
             ) {
-                for (
-                    const material
-                    of child.material
-                ) {
-                    material.dispose();
-                }
-            } else {
-                child.material?.dispose();
-            }
+                materials.add(
+                    child.material
+                );
 
-            child.geometry =
-                null;
+                child.material.dispose();
+            }
 
             child.material =
                 null;
@@ -570,8 +569,8 @@ function disposeObject(
 
 export const WallOrchestrator =
     Object.freeze({
-
-        id: 'walls',
+        id:
+            'wall',
 
         create(
             context
