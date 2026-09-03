@@ -10,7 +10,7 @@ import {
 } from '../../panels/PanelMaterialFactory.js';
 
 const DEFAULT_PROFILE = 'awr';
-const BUMP_SCALE = 0.3;
+const BUMP_SCALE = 0.95;
 
 const SIDE_MAP = Object.freeze({
     front: 'F', back: 'B', left: 'L', right: 'R'

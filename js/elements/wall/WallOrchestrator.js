@@ -13,7 +13,7 @@ const DEFAULT_PROFILE =
     'awr';
 
 const BUMP_SCALE =
-    0.35;
+    0.95;
 
 const SIDE_MAP =
     Object.freeze({
