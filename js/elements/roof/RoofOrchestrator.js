@@ -1,9 +1,13 @@
 import * as THREE from 'three';
 
 import {
-    getPanelHeightMapForUse,
-    getPanelRepeat
+    normalizePanelProfile
 } from '../../panels/PanelProfiles.js';
+
+import {
+    createPanelMaterial,
+    PanelMapType
+} from '../../panels/PanelMaterialFactory.js';
 
 const ROOF_THICKNESS =
     0.10;
@@ -12,7 +16,10 @@ const DEFAULT_PROFILE =
     'awr';
 
 const BUMP_SCALE =
-    0.18;
+    0.5;
+
+const SIDE_MAP_TYPE =
+    PanelMapType.NONE;
 
 function assertContext(
     context
@@ -54,7 +61,7 @@ function assertContext(
 function getProfileId(
     context
 ) {
-    return (
+    return normalizePanelProfile(
         context.model?.roof?.profile ||
         DEFAULT_PROFILE
     );
@@ -68,8 +75,7 @@ function getSourceMaterial(
         'function'
     ) {
         return context.materials.get(
-            'roofMetal',
-            context.colors?.roof
+            'roofMetal'
         );
     }
 
@@ -101,71 +107,56 @@ function getPanelWidth(
     );
 }
 
-function createPanelMaterial(
+function createRoofMaterial(
     source,
     profileId,
     slot,
     width
 ) {
-    const material =
-        source.clone();
-
-    const bumpMap =
-        getPanelHeightMapForUse(
+    return createPanelMaterial(
+        source,
+        {
             profileId,
+
             slot,
-            getPanelRepeat(
+
+            span:
                 width,
-                profileId
-            ),
-            1
-        );
 
-    material.normalMap =
-        null;
+            mapType:
+                PanelMapType.HEIGHT,
 
-    material.bumpMap =
-        bumpMap;
+            bumpScale:
+                BUMP_SCALE,
 
-    material.bumpScale =
-        bumpMap ?
-        BUMP_SCALE :
-        0;
-
-    material.side =
-        THREE.DoubleSide;
-
-    material.needsUpdate =
-        true;
-
-    return material;
+            side:
+                THREE.DoubleSide
+        }
+    );
 }
 
 function createSideMaterial(
     source
 ) {
-    const material =
-        source.clone();
+    return createPanelMaterial(
+        source,
+        {
+            profileId:
+                DEFAULT_PROFILE,
 
-    material.normalMap =
-        null;
+            slot:
+                'roof-side',
 
-    material.bumpMap =
-        null;
+            span:
+                1,
 
-    material.roughnessMap =
-        null;
+            mapType:
+                SIDE_MAP_TYPE,
 
-    material.metalnessMap =
-        null;
-
-    material.side =
-        THREE.DoubleSide;
-
-    material.needsUpdate =
-        true;
-
-    return material;
+            side:
+                THREE.DoubleSide
+        }
+    );
 }
 
 function createSolidPlaneGeometry(
@@ -390,7 +381,7 @@ function createPanelMesh(
         );
 
     const roofMaterial =
-        createPanelMaterial(
+        createRoofMaterial(
             sourceMaterial,
             profileId,
             `roof-${panel.index}`,
@@ -398,7 +389,7 @@ function createPanelMesh(
         );
 
     const ceilingMaterial =
-        createPanelMaterial(
+        createRoofMaterial(
             sourceMaterial,
             profileId,
             `ceiling-${panel.index}`,
@@ -511,9 +502,6 @@ function createObject(
         createSideMaterial(
             sourceMaterial
         );
-
-    root.userData.sideMaterial =
-        sideMaterial;
 
     for (
         const [

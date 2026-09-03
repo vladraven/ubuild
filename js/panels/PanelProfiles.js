@@ -22,6 +22,12 @@ const RIB_HEIGHT =
 const SMOOTH_HEIGHT =
     0;
 
+const NORMAL_STRENGTH =
+    8;
+
+const NORMAL_SAMPLE_PIXELS =
+    2;
+
 const normalMapCache =
     new Map();
 
@@ -374,6 +380,66 @@ function createHeightMapData(
     return data;
 }
 
+function getNormalAt(
+    profile,
+    position,
+    sampleStep
+) {
+    const left =
+        getHeightAt(
+            profile,
+            position -
+            sampleStep
+        );
+
+    const right =
+        getHeightAt(
+            profile,
+            position +
+            sampleStep
+        );
+
+    const slope =
+        (
+            right -
+            left
+        ) /
+        (
+            sampleStep *
+            2
+        );
+
+    const nx =
+        -slope *
+        NORMAL_STRENGTH;
+
+    const ny =
+        0;
+
+    const nz =
+        1;
+
+    const length =
+        Math.hypot(
+            nx,
+            ny,
+            nz
+        );
+
+    return {
+        x:
+            nx /
+            length,
+
+        y:
+            ny,
+
+        z:
+            nz /
+            length
+    };
+}
+
 function createNormalMapData(
     profile
 ) {
@@ -388,7 +454,7 @@ function createNormalMapData(
         );
 
     const sampleStep =
-        1 /
+        NORMAL_SAMPLE_PIXELS /
         size;
 
     for (
@@ -396,63 +462,17 @@ function createNormalMapData(
         x < size;
         x++
     ) {
-        const position =
-            x /
-            size;
-
-        const left =
-            getHeightAt(
+        const normal =
+            getNormalAt(
                 profile,
-                position -
+                x / size,
                 sampleStep
             );
-
-        const right =
-            getHeightAt(
-                profile,
-                position +
-                sampleStep
-            );
-
-        const slope =
-            (
-                right -
-                left
-            ) *
-            0.5;
-
-        const nx =
-            -slope;
-
-        const ny =
-            0;
-
-        const nz =
-            1;
-
-        const length =
-            Math.hypot(
-                nx,
-                ny,
-                nz
-            );
-
-        const normalizedX =
-            nx /
-            length;
-
-        const normalizedY =
-            ny /
-            length;
-
-        const normalizedZ =
-            nz /
-            length;
 
         const red =
             Math.round(
                 (
-                    normalizedX *
+                    normal.x *
                     0.5 +
                     0.5
                 ) *
@@ -462,7 +482,7 @@ function createNormalMapData(
         const green =
             Math.round(
                 (
-                    normalizedY *
+                    normal.y *
                     0.5 +
                     0.5
                 ) *
@@ -472,7 +492,7 @@ function createNormalMapData(
         const blue =
             Math.round(
                 (
-                    normalizedZ *
+                    normal.z *
                     0.5 +
                     0.5
                 ) *

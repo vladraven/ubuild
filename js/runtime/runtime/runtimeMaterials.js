@@ -2,10 +2,6 @@ import {
     THREE
 } from './runtimeImports.js';
 
-import {
-    getPanelNormalMapForUse
-} from '../../panels/PanelProfiles.js';
-
 const MATERIAL_COLOR_DEBUG =
     true;
 
@@ -207,39 +203,23 @@ function watchMaterialColor(
 }
 
 function createPanelMaterial(
-    color,
-    normalMap = null
+    color
 ) {
-    const material =
-        new THREE.MeshStandardMaterial({
-            color,
-            metalness:
-                0.1,
-            roughness:
-                0.55,
-            envMapIntensity:
-                1.0,
-            side:
-                THREE.DoubleSide
-        });
+    return new THREE.MeshStandardMaterial({
+        color,
 
-    if (
-        normalMap
-    ) {
-        material.normalMap =
-            normalMap;
+        metalness:
+            0.1,
 
-        material.normalScale =
-            new THREE.Vector2(
-                0.5,
-                0.5
-            );
-    }
+        roughness:
+            0.55,
 
-    material.needsUpdate =
-        true;
+        envMapIntensity:
+            1.0,
 
-    return material;
+        side:
+            THREE.DoubleSide
+    });
 }
 
 function createMetalMaterial(
@@ -251,7 +231,8 @@ function createMetalMaterial(
         color,
         metalness,
         roughness,
-        side: THREE.DoubleSide
+        side:
+            THREE.DoubleSide
     });
 }
 
@@ -291,7 +272,7 @@ function createLinerBumpMap() {
                 x /
                 LINER_TEXTURE_WIDTH;
 
-            // 4H wide ridge, 4H gap.
+            // 4H ridge, 4H gap.
             data[index] =
                 position < ridgeRatio ?
                 255 :
@@ -408,49 +389,6 @@ export function createMaterialSystem(
     const colors =
         model?.colors || {};
 
-    const profileId =
-        model?.roof?.profile ||
-        'awr';
-
-    const dimensions =
-        model?.dimensions || {};
-
-    const panelLength =
-        Math.max(
-            1,
-            dimensions.length || 10
-        );
-
-    const panelWidth =
-        Math.max(
-            1,
-            dimensions.width || 10
-        );
-
-    const wallNormalMap =
-        getPanelNormalMapForUse(
-            'awr',
-            'wall',
-            panelLength,
-            panelWidth
-        );
-
-    const wainscotNormalMap =
-        getPanelNormalMapForUse(
-            'awr',
-            'wainscot',
-            panelLength,
-            panelWidth
-        );
-
-    const roofNormalMap =
-        getPanelNormalMapForUse(
-            profileId,
-            'roof',
-            panelLength * 0.8,
-            panelWidth * 1.5
-        );
-
     const linerBumpMap =
         createLinerBumpMap();
 
@@ -464,8 +402,7 @@ export function createMaterialSystem(
             normalizeColor(
                 colors.wall,
                 0xffffff
-            ),
-            wallNormalMap
+            )
         )
     );
 
@@ -476,8 +413,7 @@ export function createMaterialSystem(
             normalizeColor(
                 colors.wall,
                 0xffffff
-            ),
-            wallNormalMap
+            )
         )
     );
 
@@ -488,8 +424,7 @@ export function createMaterialSystem(
             normalizeColor(
                 colors.wainscot,
                 0xffffff
-            ),
-            wainscotNormalMap
+            )
         )
     );
 
@@ -511,9 +446,6 @@ export function createMaterialSystem(
 
             envMapIntensity:
                 1.15,
-
-            normalMap:
-                roofNormalMap,
 
             side:
                 THREE.DoubleSide

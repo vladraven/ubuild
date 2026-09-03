@@ -1,16 +1,19 @@
 import * as THREE from 'three';
 
 import {
-    getPanelNormalMapForUse,
-    getPanelRepeat,
     normalizePanelProfile
 } from '../../panels/PanelProfiles.js';
+
+import {
+    createPanelMaterial,
+    PanelMapType
+} from '../../panels/PanelMaterialFactory.js';
 
 const DEFAULT_PROFILE =
     'awr';
 
 const NORMAL_SCALE =
-    0.8;
+    1.5;
 
 const SIDE_MAP =
     Object.freeze({
@@ -104,41 +107,27 @@ function createMaterial(
     wallKey,
     width
 ) {
-    const material =
-        source.clone();
-
-    const normalMap =
-        getPanelNormalMapForUse(
+    return createPanelMaterial(
+        source,
+        {
             profileId,
-            `wall-${wallKey}`,
-            getPanelRepeat(
+
+            slot:
+                `wall-${wallKey}`,
+
+            span:
                 width,
-                profileId
-            ),
-            1
-        );
 
-    material.normalMap =
-        normalMap;
+            mapType:
+                PanelMapType.NORMAL,
 
-    material.normalScale =
-        normalMap ?
-        new THREE.Vector2(
-            NORMAL_SCALE,
-            NORMAL_SCALE
-        ) :
-        new THREE.Vector2(
-            0,
-            0
-        );
+            normalScale:
+                NORMAL_SCALE,
 
-    material.side =
-        THREE.DoubleSide;
-
-    material.needsUpdate =
-        true;
-
-    return material;
+            side:
+                THREE.DoubleSide
+        }
+    );
 }
 
 function createShape(

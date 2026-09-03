@@ -1,16 +1,19 @@
 import * as THREE from 'three';
 
 import {
-    getPanelNormalMapForUse,
-    getPanelRepeat,
     normalizePanelProfile
 } from '../../panels/PanelProfiles.js';
+
+import {
+    createPanelMaterial,
+    PanelMapType
+} from '../../panels/PanelMaterialFactory.js';
 
 const DEFAULT_PROFILE =
     'awr';
 
 const NORMAL_SCALE =
-    0.8;
+    1.5;
 
 const SIDE_MAP =
     Object.freeze({
@@ -105,7 +108,7 @@ function resolveMaterial(
     context,
     profileId,
     wallKey,
-    width
+    span
 ) {
     const source =
         getSourceMaterial(
@@ -118,42 +121,30 @@ function resolveMaterial(
         return null;
     }
 
-    const normalMap =
-        getPanelNormalMapForUse(
-            profileId,
-            `wainscot-${wallKey}`,
-            getPanelRepeat(
-                width,
-                profileId
-            ),
-            1
-        );
-
     const material =
-        source.clone();
+        createPanelMaterial(
+            source,
+            {
+                profileId,
+
+                slot:
+                    `wainscot-${wallKey}`,
+
+                span,
+
+                mapType:
+                    PanelMapType.NORMAL,
+
+                normalScale:
+                    NORMAL_SCALE,
+
+                side:
+                    THREE.FrontSide
+            }
+        );
 
     material.name =
         `wainscot-${wallKey}`;
-
-    material.normalMap =
-        normalMap;
-
-    material.normalScale =
-        normalMap ?
-        new THREE.Vector2(
-            NORMAL_SCALE,
-            NORMAL_SCALE
-        ) :
-        new THREE.Vector2(
-            0,
-            0
-        );
-
-    material.side =
-        THREE.FrontSide;
-
-    material.needsUpdate =
-        true;
 
     return material;
 }
