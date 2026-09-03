@@ -1,25 +1,31 @@
 import * as THREE from 'three';
 
 import {
-    getPanelNormalMapForUse,
-    applyPhysicalPanelUVs
+    getPanelNormalMapForUse
 } from '../../panels/PanelProfiles.js';
 
-const SIDE_MAP = Object.freeze({
-    front: 'F',
-    back: 'B',
-    left: 'L',
-    right: 'R'
-});
+const DEFAULT_PROFILE =
+    'awr';
 
-const VISIBILITY_MAP = Object.freeze({
-    front: 'wallFront',
-    back: 'wallBack',
-    left: 'wallLeft',
-    right: 'wallRight'
-});
+const SIDE_MAP =
+    Object.freeze({
+        front: 'F',
+        back: 'B',
+        left: 'L',
+        right: 'R'
+    });
 
-function assertContext(context) {
+const VISIBILITY_MAP =
+    Object.freeze({
+        front: 'wallFront',
+        back: 'wallBack',
+        left: 'wallLeft',
+        right: 'wallRight'
+    });
+
+function assertContext(
+    context
+) {
     if (
         !context ||
         typeof context !== 'object'
@@ -46,47 +52,39 @@ function assertContext(context) {
     }
 }
 
-function getWallMaterial(context) {
-    const profileId =
+function getProfileId(
+    context
+) {
+    return (
         context.model?.panels?.profile ||
-        'awr';
+        DEFAULT_PROFILE
+    );
+}
 
-    const normalMap =
-        getPanelNormalMapForUse(
-            profileId,
-            'wall',
-            Math.max(
-                1,
-                context.model?.dimensions?.length ||
-                10
-            ),
-            Math.max(
-                1,
-                context.model?.dimensions?.height ||
-                5
-            )
-        );
+function getWallWidth(
+    wallKey,
+    envelope
+) {
+    if (
+        wallKey === 'left' ||
+        wallKey === 'right'
+    ) {
+        return envelope.length;
+    }
 
+    return envelope.width;
+}
+
+function getMaterial(
+    context
+) {
     if (
         typeof context.materials.get ===
         'function'
     ) {
-        const material =
-            context.materials.get(
-                'wallMetal',
-                context.colors?.wall,
-                {
-                    normalMap
-                }
-            );
-
-        material.side =
-            THREE.DoubleSide;
-
-        material.needsUpdate =
-            true;
-
-        return material;
+        return context.materials.get(
+            'wallMetal'
+        );
     }
 
     return (
@@ -95,13 +93,48 @@ function getWallMaterial(context) {
     );
 }
 
-function createWallMeshWithHoles(
-    wallData,
-    openings,
+function createMaterial(
+    source,
+    profileId,
     wallKey,
-    material,
-    envelope,
-    profileId
+    width
+) {
+    const material =
+        source.clone();
+
+    const normalMap =
+        getPanelNormalMapForUse(
+            profileId,
+            `wall-${wallKey}`,
+            Math.max(
+                1,
+                width
+            ),
+            1
+        );
+
+    material.normalMap =
+        normalMap;
+
+    material.normalScale =
+        new THREE.Vector2(
+            0.5,
+            0.5
+        );
+
+    material.side =
+        THREE.DoubleSide;
+
+    material.needsUpdate =
+        true;
+
+    return material;
+}
+
+function createShape(
+    wallData,
+    wallKey,
+    envelope
 ) {
     const shape =
         new THREE.Shape();
@@ -109,31 +142,8 @@ function createWallMeshWithHoles(
     const sideCode =
         SIDE_MAP[wallKey];
 
-    const thickness =
-        wallData.thickness;
-
     let points =
         wallData.shapePoints;
-
-    /*
-     * Walls are real solid panels with thickness.
-     *
-     * Do not enlarge the wall footprint here.
-     *
-     * The wall geometry already describes the building
-     * envelope. Extrusion provides the physical wall
-     * thickness.
-     *
-     * Previous implementation introduced:
-     *
-     *     overlap = thickness * 0.5
-     *
-     * and extended every wall beyond the envelope.
-     *
-     * That created an artificial solid volume at the
-     * building corners which covered the foundation
-     * and corner trims.
-     */
 
     if (
         sideCode === 'L' ||
@@ -160,7 +170,10 @@ function createWallMeshWithHoles(
     }
 
     points.forEach(
-        (point, index) => {
+        (
+            point,
+            index
+        ) => {
             if (
                 index === 0
             ) {
@@ -168,167 +181,164 @@ function createWallMeshWithHoles(
                     point.x,
                     point.y
                 );
-            } else {
-                shape.lineTo(
-                    point.x,
-                    point.y
-                );
+
+                return;
             }
+
+            shape.lineTo(
+                point.x,
+                point.y
+            );
         }
     );
 
     shape.closePath();
 
-    openings
-        .filter(
-            opening =>
-                opening.side ===
-                sideCode
-        )
-        .forEach(
-            opening => {
-                const openingWidth =
-                    opening.dimensions.width;
+    return shape;
+}
 
-                const openingHeight =
-                    opening.dimensions.height;
+function addOpenings(
+    shape,
+    openings,
+    sideCode,
+    envelope
+) {
+    for (
+        const opening
+        of openings
+    ) {
+        if (
+            opening.side !==
+            sideCode
+        ) {
+            continue;
+        }
 
-                const openingY =
-                    opening.bounds.min.y;
+        const width =
+            opening.dimensions.width;
 
-                let holeCenterX;
+        const height =
+            opening.dimensions.height;
 
-                if (
-                    sideCode === 'F' ||
-                    sideCode === 'B'
-                ) {
-                    holeCenterX =
-                        opening.x;
-                } else if (
-                    sideCode === 'L'
-                ) {
-                    holeCenterX =
-                        opening.x;
-                } else {
-                    holeCenterX =
-                        envelope.length -
-                        opening.x;
-                }
+        const y =
+            opening.bounds.min.y;
 
-                const holeMinX =
-                    holeCenterX -
-                    openingWidth / 2;
+        let centerX =
+            opening.x;
 
-                const holeMaxX =
-                    holeCenterX +
-                    openingWidth / 2;
+        if (
+            sideCode === 'R'
+        ) {
+            centerX =
+                envelope.length -
+                opening.x;
+        }
 
-                const holePath =
-                    new THREE.Path();
+        const minX =
+            centerX -
+            width / 2;
 
-                holePath.moveTo(
-                    holeMinX,
-                    openingY
-                );
+        const maxX =
+            centerX +
+            width / 2;
 
-                holePath.lineTo(
-                    holeMaxX,
-                    openingY
-                );
+        const hole =
+            new THREE.Path();
 
-                holePath.lineTo(
-                    holeMaxX,
-                    openingY +
-                    openingHeight
-                );
-
-                holePath.lineTo(
-                    holeMinX,
-                    openingY +
-                    openingHeight
-                );
-
-                holePath.closePath();
-
-                shape.holes.push(
-                    holePath
-                );
-            }
+        hole.moveTo(
+            minX,
+            y
         );
 
-    const geometry =
-        new THREE.ExtrudeGeometry(
-            shape,
-            {
-                depth:
-                    thickness,
-
-                bevelEnabled:
-                    false
-            }
+        hole.lineTo(
+            maxX,
+            y
         );
 
-    applyPhysicalPanelUVs(
-        geometry,
-        envelope.width,
-        wallData.height ??
-            envelope.height,
-        profileId
+        hole.lineTo(
+            maxX,
+            y + height
+        );
+
+        hole.lineTo(
+            minX,
+            y + height
+        );
+
+        hole.closePath();
+
+        shape.holes.push(
+            hole
+        );
+    }
+}
+
+function createGeometry(
+    wallData,
+    openings,
+    wallKey,
+    envelope
+) {
+    const shape =
+        createShape(
+            wallData,
+            wallKey,
+            envelope
+        );
+
+    addOpenings(
+        shape,
+        openings,
+        SIDE_MAP[wallKey],
+        envelope
     );
 
-    const mesh =
-        new THREE.Mesh(
-            geometry,
-            material
-        );
+    return new THREE.ExtrudeGeometry(
+        shape,
+        {
+            depth:
+                wallData.thickness,
 
-    mesh.name =
-        `wall-mesh-${sideCode}`;
+            bevelEnabled:
+                false
+        }
+    );
+}
 
-    /*
-     * Position the extruded wall so that
-     * its OUTER face remains on the envelope.
-     */
-
+function placeMesh(
+    mesh,
+    sideCode,
+    envelope,
+    thickness
+) {
     if (
         sideCode === 'F'
     ) {
-        /*
-         * Front wall:
-         *
-         * local extrusion +Z
-         * points toward the building interior.
-         */
         mesh.position.set(
             0,
             0,
             0
         );
-    } else if (
+
+        return;
+    }
+
+    if (
         sideCode === 'B'
     ) {
-        /*
-         * Back wall:
-         *
-         * extrusion extends toward -Z.
-         */
         mesh.position.set(
             0,
             0,
             envelope.length -
             thickness
         );
-    } else if (
+
+        return;
+    }
+
+    if (
         sideCode === 'L'
     ) {
-        /*
-         * Local +Z becomes world -X
-         * after Y rotation.
-         *
-         * Outer face remains:
-         *
-         *     x = -width / 2
-         */
         mesh.position.set(
             -envelope.width / 2 +
             thickness,
@@ -338,26 +348,66 @@ function createWallMeshWithHoles(
 
         mesh.rotation.y =
             -Math.PI / 2;
-    } else if (
-        sideCode === 'R'
-    ) {
-        /*
-         * Local +Z becomes world +X.
-         *
-         * Outer face remains:
-         *
-         *     x = +width / 2
-         */
-        mesh.position.set(
-            envelope.width / 2 -
-            thickness,
-            0,
-            envelope.length
+
+        return;
+    }
+
+    mesh.position.set(
+        envelope.width / 2 -
+        thickness,
+        0,
+        envelope.length
+    );
+
+    mesh.rotation.y =
+        Math.PI / 2;
+}
+
+function createWallMesh(
+    wallData,
+    openings,
+    wallKey,
+    sourceMaterial,
+    envelope,
+    profileId
+) {
+    const geometry =
+        createGeometry(
+            wallData,
+            openings,
+            wallKey,
+            envelope
         );
 
-        mesh.rotation.y =
-            Math.PI / 2;
-    }
+    const material =
+        createMaterial(
+            sourceMaterial,
+            profileId,
+            wallKey,
+            getWallWidth(
+                wallKey,
+                envelope
+            )
+        );
+
+    const mesh =
+        new THREE.Mesh(
+            geometry,
+            material
+        );
+
+    const sideCode =
+        SIDE_MAP[wallKey];
+
+    mesh.name =
+        `wall-mesh-${sideCode}`;
+
+    placeMesh(
+        mesh,
+        sideCode,
+        envelope,
+        wallData.thickness
+    );
 
     mesh.castShadow =
         true;
@@ -372,20 +422,16 @@ function isWallVisible(
     wallKey,
     visibility
 ) {
-    const visibilityKey =
-        VISIBILITY_MAP[
-            wallKey
-        ];
+    const key =
+        VISIBILITY_MAP[wallKey];
 
     if (
-        !visibilityKey
+        !key
     ) {
         return true;
     }
 
-    return visibility[
-        visibilityKey
-    ] !==
+    return visibility[key] !==
         false;
 }
 
@@ -410,11 +456,12 @@ function createObject(
     }
 
     const profileId =
-        context.model?.panels?.profile ||
-        'awr';
+        getProfileId(
+            context
+        );
 
-    const material =
-        getWallMaterial(
+    const sourceMaterial =
+        getMaterial(
             context
         );
 
@@ -454,11 +501,11 @@ function createObject(
         }
 
         root.add(
-            createWallMeshWithHoles(
+            createWallMesh(
                 wallData,
                 openings,
                 wallKey,
-                material,
+                sourceMaterial,
                 envelope,
                 profileId
             )
@@ -485,27 +532,37 @@ function disposeObject(
                 return;
             }
 
-            if (
-                child.geometry
-            ) {
-                child.geometry.dispose();
+            child.geometry?.dispose();
 
-                child.geometry =
-                    null;
+            if (
+                Array.isArray(
+                    child.material
+                )
+            ) {
+                for (
+                    const material
+                    of child.material
+                ) {
+                    material.dispose();
+                }
+            } else {
+                child.material?.dispose();
             }
+
+            child.geometry =
+                null;
+
+            child.material =
+                null;
         }
     );
 
-    const children =
-        object.children.slice();
-
     for (
-        let i = 0;
-        i < children.length;
-        i++
+        const child
+        of object.children.slice()
     ) {
         object.remove(
-            children[i]
+            child
         );
     }
 

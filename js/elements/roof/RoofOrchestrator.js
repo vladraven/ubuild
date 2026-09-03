@@ -1,9 +1,19 @@
 import * as THREE from 'three';
-import { getPanelNormalMapForUse } from '../../panels/PanelProfiles.js';
 
-const ROOF_THICKNESS = 0.10;
+import {
+    getPanelNormalMapForUse,
+    getPanelProfile
+} from '../../panels/PanelProfiles.js';
 
-function assertContext(context) {
+const ROOF_THICKNESS =
+    0.10;
+
+const DEFAULT_PROFILE =
+    'awr';
+
+function assertContext(
+    context
+) {
     if (
         !context ||
         typeof context !== 'object'
@@ -13,107 +23,164 @@ function assertContext(context) {
         );
     }
 
-    if (!context.geometry?.roof) {
+    if (
+        !context.geometry?.roof
+    ) {
         throw new TypeError(
             'Roof geometry is required'
         );
     }
 
-    if (!context.panelGeometry?.roof) {
+    if (
+        !context.panelGeometry?.roof
+    ) {
         throw new TypeError(
             'Roof panel geometry is required'
         );
     }
 
-    if (!context.materials) {
+    if (
+        !context.materials
+    ) {
         throw new TypeError(
             'Material system is required'
         );
     }
 }
 
-function resolveMaterial(context) {
-    const profileId =
+function getProfileId(
+    context
+) {
+    return (
         context.model?.roof?.profile ||
-        'awr';
+        DEFAULT_PROFILE
+    );
+}
 
-    const normalMap =
-        getPanelNormalMapForUse(
-            profileId,
-            'roof',
-            Math.max(
-                1,
-                context.model?.dimensions?.length ||
-                10
-            ) * 0.8,
-            Math.max(
-                1,
-                context.model?.dimensions?.width ||
-                10
-            ) * 1.5
-        );
-
+function getSourceMaterial(
+    context
+) {
     if (
         typeof context.materials.get ===
         'function'
     ) {
-        const material =
-            context.materials.get(
-                'roofMetal',
-                context.colors?.roof,
-                {
-                    normalMap
-                }
-            );
-
-        material.side =
-            THREE.DoubleSide;
-
-        material.needsUpdate =
-            true;
-
-        return material;
+        return context.materials.get(
+            'roofMetal',
+            context.colors?.roof
+        );
     }
 
-    if (
-        context.materials.roofMetal
-    ) {
-        return context.materials.roofMetal;
-    }
-
-    if (
+    return (
+        context.materials.roofMetal ||
         context.materials.roof
-    ) {
-        return context.materials.roof;
-    }
-
-    throw new Error(
-        'Roof material is not available'
     );
 }
 
-function createSideMaterial(
-    material
+function getPanelSize(
+    corners
 ) {
-    const sideMaterial =
-        material.clone();
+    const first =
+        new THREE.Vector3(
+            corners[0].x,
+            corners[0].y,
+            corners[0].z
+        );
 
-    sideMaterial.normalMap =
-        null;
+    const second =
+        new THREE.Vector3(
+            corners[1].x,
+            corners[1].y,
+            corners[1].z
+        );
 
-    sideMaterial.bumpMap =
-        null;
+    const fourth =
+        new THREE.Vector3(
+            corners[3].x,
+            corners[3].y,
+            corners[3].z
+        );
 
-    sideMaterial.roughnessMap =
-        null;
+    return {
+        width:
+            first.distanceTo(
+                second
+            ),
 
-    sideMaterial.metalnessMap =
-        null;
+        height:
+            first.distanceTo(
+                fourth
+            )
+    };
+}
 
-    sideMaterial.needsUpdate =
+function createPanelMaterial(
+    source,
+    profileId,
+    slot,
+    width,
+    height
+) {
+    const profile =
+        getPanelProfile(
+            profileId
+        );
+
+    const material =
+        source.clone();
+
+    const normalMap =
+        getPanelNormalMapForUse(
+            profileId,
+            slot,
+            width /
+            profile.width,
+            height /
+            profile.width
+        );
+
+    material.normalMap =
+        normalMap;
+
+    material.normalScale =
+        new THREE.Vector2(
+            0.5,
+            0.5
+        );
+
+    material.side =
+        THREE.DoubleSide;
+
+    material.needsUpdate =
         true;
 
-    return sideMaterial;
+    return material;
+}
+
+function createSideMaterial(
+    source
+) {
+    const material =
+        source.clone();
+
+    material.normalMap =
+        null;
+
+    material.bumpMap =
+        null;
+
+    material.roughnessMap =
+        null;
+
+    material.metalnessMap =
+        null;
+
+    material.side =
+        THREE.DoubleSide;
+
+    material.needsUpdate =
+        true;
+
+    return material;
 }
 
 function createSolidPlaneGeometry(
@@ -121,7 +188,9 @@ function createSolidPlaneGeometry(
     thickness
 ) {
     if (
-        !Array.isArray(corners) ||
+        !Array.isArray(
+            corners
+        ) ||
         corners.length !== 4
     ) {
         throw new TypeError(
@@ -144,25 +213,30 @@ function createSolidPlaneGeometry(
             vertex =>
                 new THREE.Vector3(
                     vertex.x,
-                    vertex.y - thickness,
+                    vertex.y -
+                    thickness,
                     vertex.z
                 )
         );
 
-    const positions = [];
-    const uvs = [];
-    const indices = [];
+    const positions =
+        [];
+
+    const uvs =
+        [];
+
+    const indices =
+        [];
 
     function addFace(
         a,
         b,
         c,
-        d,
-        uvScaleU = 1,
-        uvScaleV = 1
+        d
     ) {
         const base =
-            positions.length / 3;
+            positions.length /
+            3;
 
         positions.push(
             a.x,
@@ -186,14 +260,14 @@ function createSolidPlaneGeometry(
             0,
             0,
 
-            uvScaleU,
+            1,
             0,
 
-            uvScaleU,
-            uvScaleV,
+            1,
+            1,
 
             0,
-            uvScaleV
+            1
         );
 
         indices.push(
@@ -207,11 +281,7 @@ function createSolidPlaneGeometry(
         );
     }
 
-    /*
-     * Bottom.
-     *
-     * Independent vertices.
-     */
+    // Ceiling underside.
     addFace(
         bottom[0],
         bottom[2],
@@ -219,11 +289,7 @@ function createSolidPlaneGeometry(
         bottom[3]
     );
 
-    /*
-     * Top.
-     *
-     * Independent vertices.
-     */
+    // Exterior roof.
     addFace(
         top[0],
         top[1],
@@ -231,11 +297,6 @@ function createSolidPlaneGeometry(
         top[3]
     );
 
-    /*
-     * Side 0.
-     *
-     * Independent vertices.
-     */
     addFace(
         bottom[0],
         bottom[1],
@@ -243,9 +304,6 @@ function createSolidPlaneGeometry(
         top[0]
     );
 
-    /*
-     * Side 1.
-     */
     addFace(
         bottom[1],
         bottom[2],
@@ -253,9 +311,6 @@ function createSolidPlaneGeometry(
         top[1]
     );
 
-    /*
-     * Side 2.
-     */
     addFace(
         bottom[2],
         bottom[3],
@@ -263,9 +318,6 @@ function createSolidPlaneGeometry(
         top[2]
     );
 
-    /*
-     * Side 3.
-     */
     addFace(
         bottom[3],
         bottom[0],
@@ -296,66 +348,51 @@ function createSolidPlaneGeometry(
         indices
     );
 
-    /*
-     * Every face owns its own vertices.
-     *
-     * 6 faces × 4 vertices = 24 vertices.
-     *
-     * Therefore the top surface and the
-     * vertical side faces cannot share normals.
-     */
     geometry.computeVertexNormals();
 
     geometry.computeBoundingBox();
 
     geometry.computeBoundingSphere();
 
-    /*
-     * Material groups:
-     *
-     * 0 = bottom
-     * 1 = top
-     * 2 = side 0
-     * 3 = side 1
-     * 4 = side 2
-     * 5 = side 3
-     */
     geometry.clearGroups();
 
+    // Bottom uses ceiling material.
     geometry.addGroup(
         0,
         6,
         1
     );
 
+    // Top uses roof material.
     geometry.addGroup(
         6,
         6,
         0
     );
 
+    // Vertical edges.
     geometry.addGroup(
         12,
         6,
-        1
+        2
     );
 
     geometry.addGroup(
         18,
         6,
-        1
+        2
     );
 
     geometry.addGroup(
         24,
         6,
-        1
+        2
     );
 
     geometry.addGroup(
         30,
         6,
-        1
+        2
     );
 
     return geometry;
@@ -363,9 +400,33 @@ function createSolidPlaneGeometry(
 
 function createPanelMesh(
     panel,
-    material,
+    sourceMaterial,
+    profileId,
     sideMaterial
 ) {
+    const size =
+        getPanelSize(
+            panel.corners
+        );
+
+    const roofMaterial =
+        createPanelMaterial(
+            sourceMaterial,
+            profileId,
+            `roof-${panel.index}`,
+            size.width,
+            size.height
+        );
+
+    const ceilingMaterial =
+        createPanelMaterial(
+            sourceMaterial,
+            profileId,
+            `ceiling-${panel.index}`,
+            size.width,
+            size.height
+        );
+
     const geometry =
         createSolidPlaneGeometry(
             panel.corners,
@@ -376,7 +437,8 @@ function createPanelMesh(
         new THREE.Mesh(
             geometry,
             [
-                material,
+                roofMaterial,
+                ceilingMaterial,
                 sideMaterial
             ]
         );
@@ -402,7 +464,8 @@ function createPanelMesh(
 function createPlaneGroup(
     planeId,
     panels,
-    material,
+    sourceMaterial,
+    profileId,
     sideMaterial
 ) {
     const group =
@@ -418,7 +481,8 @@ function createPlaneGroup(
         group.add(
             createPanelMesh(
                 panel,
-                material,
+                sourceMaterial,
+                profileId,
                 sideMaterial
             )
         );
@@ -447,15 +511,31 @@ function createObject(
         return root;
     }
 
-    const material =
-        resolveMaterial(
+    const profileId =
+        getProfileId(
             context
         );
 
+    const sourceMaterial =
+        getSourceMaterial(
+            context
+        );
+
+    if (
+        !sourceMaterial
+    ) {
+        throw new Error(
+            'Roof material is not available'
+        );
+    }
+
     const sideMaterial =
         createSideMaterial(
-            material
+            sourceMaterial
         );
+
+    root.userData.sideMaterial =
+        sideMaterial;
 
     for (
         const [
@@ -467,32 +547,54 @@ function createObject(
         )
     ) {
         if (
-            Array.isArray(
+            !Array.isArray(
                 panels
-            ) &&
-            panels.length
+            ) ||
+            !panels.length
         ) {
-            root.add(
-                createPlaneGroup(
-                    planeId,
-                    panels,
-                    material,
-                    sideMaterial
-                )
-            );
+            continue;
         }
+
+        root.add(
+            createPlaneGroup(
+                planeId,
+                panels,
+                sourceMaterial,
+                profileId,
+                sideMaterial
+            )
+        );
     }
 
-    root.userData.sideMaterial =
-        sideMaterial;
-
     return root;
+}
+
+function disposeMaterial(
+    material,
+    disposedMaterials
+) {
+    if (
+        !material ||
+        disposedMaterials.has(
+            material
+        )
+    ) {
+        return;
+    }
+
+    disposedMaterials.add(
+        material
+    );
+
+    material.dispose();
 }
 
 function disposeObject(
     object
 ) {
-    if (!object) {
+    if (
+        !object
+    ) {
         return;
     }
 
@@ -507,12 +609,7 @@ function disposeObject(
                 return;
             }
 
-            if (
-                child.geometry
-            ) {
-                child.geometry.dispose();
-                child.geometry = null;
-            }
+            child.geometry?.dispose();
 
             if (
                 Array.isArray(
@@ -523,30 +620,29 @@ function disposeObject(
                     const material
                     of child.material
                 ) {
-                    if (
-                        material ===
-                        object.userData?.sideMaterial &&
-                        !disposedMaterials.has(
-                            material
-                        )
-                    ) {
-                        material.dispose();
-
-                        disposedMaterials.add(
-                            material
-                        );
-                    }
+                    disposeMaterial(
+                        material,
+                        disposedMaterials
+                    );
                 }
+            } else {
+                disposeMaterial(
+                    child.material,
+                    disposedMaterials
+                );
             }
+
+            child.geometry =
+                null;
+
+            child.material =
+                null;
         }
     );
 
-    const children =
-        object.children.slice();
-
     for (
         const child
-        of children
+        of object.children.slice()
     ) {
         object.remove(
             child
@@ -558,7 +654,9 @@ function disposeObject(
 
 export const RoofOrchestrator =
     Object.freeze({
-        id: 'roof',
+
+        id:
+            'roof',
 
         create(
             context
@@ -572,7 +670,9 @@ export const RoofOrchestrator =
             object,
             context
         ) {
-            if (!object) {
+            if (
+                !object
+            ) {
                 return createObject(
                     context
                 );
