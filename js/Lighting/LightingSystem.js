@@ -8,16 +8,15 @@ export function createLightingSystem(scene) {
     const lightsGroup = new THREE.Group();
     lightsGroup.name = 'lighting-system';
 
-    // 1. Радикально снижаем "всепроникающий" свет, чтобы он не убивал тени в гофре
-    const hemisphereLight = new THREE.HemisphereLight(0xdedede, 0x5a5a6a, 0.25); // было 0.4
+    const ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
+    lightsGroup.add(ambientLight);
+
+    const hemisphereLight = new THREE.HemisphereLight(0xffffff, 0x777777, 0.3);
     hemisphereLight.position.set(0, 200, 0);
     lightsGroup.add(hemisphereLight);
 
-    const ambientLight = new THREE.AmbientLight(0xdedede, 0.15); // было 0.35
-    lightsGroup.add(ambientLight);
-
-    // 2. Оставляем солнце мощным, потому что именно оно прорисовывает рельеф
-    const sunLight = new THREE.DirectionalLight(0xdedede, 0.85); // Солнце теперь главный источник
+    // Снижаем интенсивность солнца до 0.8, чтобы убрать пересвет на белых панелях
+    const sunLight = new THREE.DirectionalLight(0xffffff, 0.8);
     sunLight.position.set(150, 250, 120);
     sunLight.castShadow = true;
 
@@ -53,10 +52,7 @@ export function createLightingSystem(scene) {
         }
     }
 
-    function getState() {
-        return Object.freeze({});
-    }
-
+    function getState() { return Object.freeze({}); }
     function dispose() {
         sunLight.dispose();
         ambientLight.dispose();
@@ -66,9 +62,6 @@ export function createLightingSystem(scene) {
     }
 
     return Object.freeze({
-        lightsGroup,
-        update,
-        getState,
-        dispose
+        lightsGroup, update, getState, dispose
     });
 }

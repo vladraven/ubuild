@@ -15,14 +15,8 @@ export function createEnvironmentSystem(config = {}) {
 
     group.add(groundSystem.group);
 
-    function update(input = {}) {
-        // Заглушка, чтобы не ломался API
-        return getState();
-    }
-
-    function updateBounds(buildingBounds) {
-        groundSystem.updateBounds(buildingBounds);
-    }
+    function update() { return Object.freeze({}); }
+    function updateBounds(bounds) { groundSystem.updateBounds(bounds); }
 
     function applyToScene(scene) {
         if (!scene) return;
@@ -30,7 +24,7 @@ export function createEnvironmentSystem(config = {}) {
         // Legacy Fog
         scene.fog = new THREE.FogExp2(0xdce7f3, 0.0006);
 
-        // Legacy Skybox
+        // Легаси-небо
         const skyPath = 'https://cdn.jsdelivr.net/gh/mrdoob/three.js@r148/examples/textures/cube/skyboxsun25deg/';
         const cubeTextureLoader = new THREE.CubeTextureLoader();
         cubeTextureLoader.setCrossOrigin('anonymous');
@@ -43,34 +37,27 @@ export function createEnvironmentSystem(config = {}) {
             skyPath + 'pz.jpg',
             skyPath + 'nz.jpg'
         ], (texture) => {
-            // Исправляем цветовое пространство для новых версий Three.js
             if ('colorSpace' in texture) {
                 texture.colorSpace = THREE.SRGBColorSpace;
             } else if ('encoding' in texture) {
                 texture.encoding = THREE.sRGBEncoding;
             }
             
+            // Назначаем легаси-скабокс фоном...
             scene.background = texture;
-            // ВАЖНО: Присваиваем скайбокс в environment, чтобы панели здания отражали небо!
+            // ... И КАРТОЙ ОТРАЖЕНИЙ! Металл будет реалистичным.
             scene.environment = texture; 
             
             if (onNeedRender) onNeedRender();
         });
     }
 
-    function tick() {
-        // Анимации неба больше нет
-    }
-
-    function setOnNeedRender(fn) {
-        onNeedRender = typeof fn === 'function' ? fn : null;
+    function tick() {}
+    function setOnNeedRender(fn) { 
+        onNeedRender = typeof fn === 'function' ? fn : null; 
         groundSystem.setOnNeedRender(onNeedRender);
     }
-
-    function getState() {
-        return Object.freeze({});
-    }
-
+    function getState() { return Object.freeze({}); }
     function dispose() {
         groundSystem.dispose();
         group.clear();
@@ -78,13 +65,6 @@ export function createEnvironmentSystem(config = {}) {
     }
 
     return Object.freeze({
-        group,
-        update,
-        tick,
-        updateBounds,
-        applyToScene,
-        setOnNeedRender,
-        getState,
-        dispose
+        group, update, tick, updateBounds, applyToScene, setOnNeedRender, getState, dispose
     });
 }

@@ -5,7 +5,6 @@ export function createTerrain(config = {}) {
     const segments = config.segments || 128;
 
     const geometry = new THREE.PlaneGeometry(size, size, segments, segments);
-    // В легаси вращался меш, здесь мы сразу кладем геометрию на землю
     geometry.rotateX(-Math.PI / 2);
 
     const position = geometry.attributes.position;
@@ -16,7 +15,7 @@ export function createTerrain(config = {}) {
         const x = position.getX(i);
         const z = position.getZ(i); 
 
-        // Легаси-рельеф (с плоским центром под здание)
+        // Легаси-рельеф холмов
         const distFromCenter = Math.hypot(x, z);
         if (distFromCenter > 90) {
             const factor = Math.min(1.0, (distFromCenter - 90) / 350);
@@ -26,11 +25,12 @@ export function createTerrain(config = {}) {
             position.setY(i, 0);
         }
 
-        // Легаси-затемнение (ВАЖНО! Это убирает "кислотность" травы)
         const noise = (Math.sin(x * 0.005) + Math.cos(z * 0.006) + Math.sin((x + z) * 0.002)) / 3;
         const hue = 0.3 + (noise * 0.12);
         const saturation = 0.25 + (noise * 0.08);
-        const lightness = 0.3 + (noise * 0.08); // Темная база!
+        
+        // ВАЖНО: Подняли lightness до 0.6, чтобы трава не была черной в новом sRGB пространстве
+        const lightness = 0.6 + (noise * 0.08); 
         
         colorObj.setHSL(hue, saturation, lightness);
         colors[i * 3] = colorObj.r;

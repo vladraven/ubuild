@@ -54,12 +54,12 @@ export function createRenderer(
     renderer.outputColorSpace =
         THREE.SRGBColorSpace;
 
-//   renderer.toneMapping =
-//       THREE.ACESFilmicToneMapping;
+   renderer.toneMapping =
+       THREE.ACESFilmicToneMapping;
 
     // Raised from 1.0 so white/beige panels stay bright under ACES + IBL
     renderer.toneMappingExposure =
-        .75;
+        1;
 
     container.appendChild(
         renderer.domElement

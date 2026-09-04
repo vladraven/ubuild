@@ -76,6 +76,62 @@ function mergeValues(
     return result;
 }
 
+function getRegistryIds(
+    registry
+) {
+    if (
+        registry &&
+        typeof registry.ids === 'function'
+    ) {
+        return registry.ids();
+    }
+
+    if (
+        registry &&
+        registry.entries instanceof Map
+    ) {
+        return Array.from(
+            registry.entries.keys()
+        );
+    }
+
+    if (
+        registry &&
+        registry.items instanceof Map
+    ) {
+        return Array.from(
+            registry.items.keys()
+        );
+    }
+
+    if (
+        registry &&
+        registry.registry instanceof Map
+    ) {
+        return Array.from(
+            registry.registry.keys()
+        );
+    }
+
+    return [];
+}
+
+function isElementVisible(
+    visibility,
+    key
+) {
+    if (
+        !Object.prototype.hasOwnProperty.call(
+            visibility,
+            key
+        )
+    ) {
+        return true;
+    }
+
+    return visibility[key] !== false;
+}
+
 export function createUpdateSystem({
     model,
     geometry,
@@ -202,6 +258,12 @@ export function createUpdateSystem({
         };
     }
 
+    function getElementIds() {
+        return getRegistryIds(
+            registry
+        );
+    }
+
     function createElements() {
         clearRoot(
             buildingRoot
@@ -219,12 +281,13 @@ export function createUpdateSystem({
 
         for (
             const key
-            of Object.keys(
-                visibility
-            )
+            of getElementIds()
         ) {
             if (
-                visibility[key] === false
+                !isElementVisible(
+                    visibility,
+                    key
+                )
             ) {
                 continue;
             }
@@ -296,9 +359,7 @@ export function createUpdateSystem({
 
         for (
             const key
-            of Object.keys(
-                visibility
-            )
+            of getElementIds()
         ) {
             let orchestrator =
                 null;
@@ -322,7 +383,10 @@ export function createUpdateSystem({
                 );
 
             if (
-                visibility[key] === false
+                !isElementVisible(
+                    visibility,
+                    key
+                )
             ) {
                 if (
                     previous &&

@@ -1,6 +1,8 @@
 import * as THREE from 'three';
 
-function assertContext(context) {
+function assertContext(
+    context
+) {
     if (
         !context ||
         typeof context !== 'object'
@@ -30,21 +32,7 @@ function assertContext(context) {
 const RIDGE_CAP_WIDTH = 0.25;
 const RIDGE_CAP_THICKNESS = 0.02;
 
-/*
- * The ridge cap must terminate inside the front/back rake trims.
- *
- * This is measured along the ridge direction.
- *
- * It is deliberately owned by RidgeOrchestrator because it describes
- * the physical length of the ridge cap, not the rake trim.
- */
 const RIDGE_CAP_END_INSET = 0.04;
-
-/*
- * Small vertical tuck into the roof/rake intersection.
- *
- * This controls the vertical seating of the ridge cap only.
- */
 const RIDGE_CAP_TUCK = 0.015;
 
 function resolveMaterial(
@@ -95,7 +83,9 @@ function createRidgeEdge(
     const direction =
         end
             .clone()
-            .sub(start);
+            .sub(
+                start
+            );
 
     const length =
         direction.length();
@@ -157,7 +147,8 @@ function createRidgeMesh(
         edge.length;
 
     if (
-        length <= 0.001
+        length <=
+        0.001
     ) {
         return null;
     }
@@ -165,12 +156,6 @@ function createRidgeMesh(
     const halfWidth =
         RIDGE_CAP_WIDTH /
         2;
-
-    /*
-     * The ridge profile follows the actual roof pitch.
-     *
-     * rise = halfWidth * tan(pitch)
-     */
 
     const pitchAngle =
         Number(
@@ -186,10 +171,6 @@ function createRidgeMesh(
     const shape =
         new THREE.Shape();
 
-    /*
-     * Outer triangular shell.
-     */
-
     shape.moveTo(
         -halfWidth,
         -rise
@@ -204,13 +185,6 @@ function createRidgeMesh(
         halfWidth,
         -rise
     );
-
-    /*
-     * Return along the inner side.
-     *
-     * This gives the ridge cap its actual
-     * material thickness.
-     */
 
     shape.lineTo(
         halfWidth,
@@ -235,18 +209,19 @@ function createRidgeMesh(
         new THREE.ExtrudeGeometry(
             shape,
             {
-                depth: length,
-                bevelEnabled: false,
-                steps: 1,
-                curveSegments: 1
+                depth:
+                    length,
+
+                bevelEnabled:
+                    false,
+
+                steps:
+                    1,
+
+                curveSegments:
+                    1
             }
         );
-
-    /*
-     * Extrusion is along local Z.
-     *
-     * Center it around the shortened ridge edge.
-     */
 
     geometry.translate(
         0,
@@ -280,20 +255,32 @@ function createRidgeMesh(
         ) / 2
     );
 
-    /*
-     * The roof ridge in the current geometry
-     * runs along the local Z direction.
-     *
-     * Keep the existing coordinate convention.
-     */
-
     mesh.position.y -=
         RIDGE_CAP_TUCK;
 
-    mesh.castShadow = true;
-    mesh.receiveShadow = true;
+    mesh.castShadow =
+        true;
+
+    mesh.receiveShadow =
+        true;
 
     return mesh;
+}
+
+function isVisible(
+    context
+) {
+    const visibility =
+        context.model?.visibility ||
+        {};
+
+    return (
+        visibility.ridge !==
+        false
+    ) && (
+        visibility.trims !==
+        false
+    );
 }
 
 function createObject(
@@ -310,7 +297,9 @@ function createObject(
         'ridge';
 
     if (
-        context.model?.visibility?.ridge === false
+        !isVisible(
+            context
+        )
     ) {
         return root;
     }
@@ -318,12 +307,14 @@ function createObject(
     const roof =
         context.geometry.roof;
 
-    /*
-     * Ridge exists only on a gabled roof.
-     */
+    if (
+        roof.type !==
+        'gabled'
+    ) {
+        return root;
+    }
 
     if (
-        roof.type !== 'gabled' ||
         !roof.ridge ||
         !roof.ridge.edge
     ) {
@@ -334,14 +325,6 @@ function createObject(
         resolveMaterial(
             context
         );
-
-    /*
-     * The complete ridge edge comes from
-     * RoofGeometry.
-     *
-     * RidgeOrchestrator owns the final
-     * physical cap length.
-     */
 
     const edge =
         createRidgeEdge(
@@ -394,7 +377,9 @@ function disposeObject(
                 child.geometry
             ) {
                 child.geometry.dispose();
-                child.geometry = null;
+
+                child.geometry =
+                    null;
             }
         }
     );
@@ -404,7 +389,8 @@ function disposeObject(
 
     for (
         let i = 0;
-        i < children.length;
+        i <
+        children.length;
         i++
     ) {
         object.remove(
@@ -417,7 +403,8 @@ function disposeObject(
 
 export const RidgeOrchestrator =
     Object.freeze({
-        id: 'ridge',
+        id:
+            'ridge',
 
         create(
             context
