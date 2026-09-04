@@ -100,20 +100,22 @@ const DEFAULTS = Object.freeze({
         height: 4.8768
     }),
 
-    roof: Object.freeze({
-        type: 'gabled',
+	roof: Object.freeze({
+		type: 'gabled',
 
-        pitchRatio:
-        0.1666666667,
+		profile: 'awr',
 
-        overhangs:
-        Object.freeze({
-            front: 0,
-            back: 0,
-            left: 0,
-            right: 0
-        })
-    }),
+		pitchRatio:
+			0.1666666667,
+
+		overhangs:
+			Object.freeze({
+				front: 0,
+				back: 0,
+				left: 0,
+				right: 0
+			})
+	}),
 
     walls: Object.freeze({
         thickness: 0.15

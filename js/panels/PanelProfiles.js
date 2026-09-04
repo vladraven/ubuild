@@ -18,12 +18,24 @@ const NORMAL_STRENGTH =
 const NORMAL_SAMPLE_PIXELS =
     2;
 
-/*
- * Profile periods packed into one panel-width of texture UV.
- * With UV.u = 0..1 across a physical span of `profile.width` metres,
- * corrugation density is TEXTURE_REPEATS_PER_PANEL periods per panel width.
- * Keep this in sync with the UV contract in PanelMaterialFactory.
- */
+const AWR_DENSITY =
+    1.0;
+
+const SSR24_DENSITY =
+    1.5;
+
+const DELTA_SPAN_DENSITY =
+    1.2;
+
+const ELITE_RIB_DENSITY =
+    1.3;
+
+const ULTRA_SPAN_DENSITY =
+    1.1;
+
+const WIDE_SPAN_DENSITY =
+    0.8;
+
 const TEXTURE_REPEATS_PER_PANEL =
     1;
 
@@ -36,13 +48,25 @@ const normalMapCache =
 const slotMapCache =
     new Map();
 
+function getProfileWidth(
+    density
+) {
+    return (
+        PANEL_WIDTH_M /
+        density
+    );
+}
+
 export const PROFILE_DEFINITIONS =
     Object.freeze({
 
         awr: Object.freeze({
             id: 'awr',
             name: 'AWR',
-            width: PANEL_WIDTH_M,
+            width:
+                getProfileWidth(
+                    AWR_DENSITY
+                ),
             height: RIB_HEIGHT,
 
             profile: Object.freeze([
@@ -74,7 +98,10 @@ export const PROFILE_DEFINITIONS =
         deltaSpan: Object.freeze({
             id: 'deltaSpan',
             name: 'Delta Span',
-            width: PANEL_WIDTH_M,
+            width:
+                getProfileWidth(
+                    DELTA_SPAN_DENSITY
+                ),
             height: RIB_HEIGHT,
 
             profile: Object.freeze([
@@ -106,7 +133,10 @@ export const PROFILE_DEFINITIONS =
         eliteRib: Object.freeze({
             id: 'eliteRib',
             name: 'Elite Rib',
-            width: PANEL_WIDTH_M,
+            width:
+                getProfileWidth(
+                    ELITE_RIB_DENSITY
+                ),
             height: RIB_HEIGHT,
 
             profile: Object.freeze([
@@ -150,7 +180,10 @@ export const PROFILE_DEFINITIONS =
         ssr24: Object.freeze({
             id: 'ssr24',
             name: 'SSR24',
-            width: PANEL_WIDTH_M,
+            width:
+                getProfileWidth(
+                    SSR24_DENSITY
+                ),
             height: RIB_HEIGHT,
 
             profile: Object.freeze([
@@ -182,7 +215,10 @@ export const PROFILE_DEFINITIONS =
         ultraSpan: Object.freeze({
             id: 'ultraSpan',
             name: 'Ultra Span',
-            width: PANEL_WIDTH_M,
+            width:
+                getProfileWidth(
+                    ULTRA_SPAN_DENSITY
+                ),
             height: RIB_HEIGHT,
 
             profile: Object.freeze([
@@ -211,7 +247,10 @@ export const PROFILE_DEFINITIONS =
         wideSpan: Object.freeze({
             id: 'wideSpan',
             name: 'Wide Span',
-            width: PANEL_WIDTH_M,
+            width:
+                getProfileWidth(
+                    WIDE_SPAN_DENSITY
+                ),
             height: RIB_HEIGHT,
 
             profile: Object.freeze([
@@ -442,7 +481,8 @@ function createHeightMapData(
         const height =
             getHeightAt(
                 profile,
-                x / size
+                x /
+                size
             );
 
         const value =
@@ -553,7 +593,8 @@ function createNormalMapData(
         const normal =
             getNormalAt(
                 profile,
-                x / size,
+                x /
+                size,
                 sampleStep
             );
 
@@ -681,7 +722,7 @@ function createHeightMapTexture(
             profile.id,
 
         panelWidth:
-            PANEL_WIDTH_M,
+            profile.width,
 
         repeatsPerPanel:
             TEXTURE_REPEATS_PER_PANEL,
@@ -751,7 +792,7 @@ function createPanelNormalMapTexture(
             profile.id,
 
         panelWidth:
-            PANEL_WIDTH_M,
+            profile.width,
 
         repeatsPerPanel:
             TEXTURE_REPEATS_PER_PANEL,
