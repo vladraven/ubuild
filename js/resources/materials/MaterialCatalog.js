@@ -15,43 +15,43 @@ const MATERIAL_NAMES = Object.freeze([
 const MATERIAL_DEFINITIONS = Object.freeze({
     steel: Object.freeze({
         type: 'metal',
-        roughness: 0.45,
-        metalness: 0.85
+        roughness: 1,
+        metalness: 1
     }),
 
     structuralSteel: Object.freeze({
         type: 'metal',
-        roughness: 0.5,
-        metalness: 0.9
+        roughness: 1,
+        metalness: 1
     }),
 
     wallMetal: Object.freeze({
-        type: 'metal',
-        roughness: 0.5,
-        metalness: 0.85
+        type: 'dielectric',
+        roughness: 0.55,
+        metalness: 0
     }),
 
     wainscotMetal: Object.freeze({
-        type: 'metal',
-        roughness: 0.5,
-        metalness: 0.85
+        type: 'dielectric',
+        roughness: 0.6,
+        metalness: 0
     }),
 
     roofMetal: Object.freeze({
-        type: 'metal',
-        roughness: 0.48,
-        metalness: 0.85
+        type: 'dielectric',
+        roughness: 0.5,
+        metalness: 0
     }),
 
     trimMetal: Object.freeze({
-        type: 'metal',
+        type: 'dielectric',
         roughness: 0.5,
-        metalness: 0.85
+        metalness: 0
     }),
 
     concrete: Object.freeze({
         type: 'dielectric',
-        roughness: 0.85,
+        roughness: 1,
         metalness: 0
     }),
 
@@ -65,20 +65,20 @@ const MATERIAL_DEFINITIONS = Object.freeze({
 
     ceiling: Object.freeze({
         type: 'dielectric',
-        roughness: 0.7,
+        roughness: 1,
         metalness: 0
     }),
 
     interiorWall: Object.freeze({
         type: 'dielectric',
-        roughness: 0.7,
+        roughness: 1,
         metalness: 0
     }),
 
     mezzanine: Object.freeze({
         type: 'metal',
-        roughness: 0.55,
-        metalness: 0.8
+        roughness: 1,
+        metalness: 1
     })
 });
 
