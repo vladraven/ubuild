@@ -108,8 +108,16 @@ function resolveMaterial(
     context,
     profileId,
     wallKey,
-    span
+    span,
+    segmentIndex = 0
 ) {
+    /*
+     * UV contract (same as roof / walls):
+     * PlaneGeometry provides UV.u = 0..1 across the segment.
+     * span must be the physical segment width in metres, NOT the
+     * full wall length. Otherwise corrugation density scales with
+     * building size and diverges from roof/walls.
+     */
     const source =
         getSourceMaterial(
             context
@@ -128,7 +136,7 @@ function resolveMaterial(
                 profileId,
 
                 slot:
-                    `wainscot-${wallKey}`,
+                    `wainscot-${wallKey}-${segmentIndex}`,
 
                 span,
 
@@ -144,7 +152,7 @@ function resolveMaterial(
         );
 
     material.name =
-        `wainscot-${wallKey}`;
+        `wainscot-${wallKey}-${segmentIndex}`;
 
     return material;
 }
@@ -400,6 +408,11 @@ function createSegment(
             1
         );
 
+    /*
+     * PlaneGeometry already exposes UV.u = 0..1 across width.
+     * material.span must equal (maxX - minX) so repeatX matches
+     * roof/wall density (periods per metre).
+     */
     const mesh =
         new THREE.Mesh(
             geometry,
@@ -435,7 +448,9 @@ function createSegments(
     range,
     wainscotHeight,
     masks,
-    material
+    context,
+    profileId,
+    wallKey
 ) {
     const grid =
         getGrid(
@@ -446,6 +461,9 @@ function createSegments(
 
     const group =
         new THREE.Group();
+
+    let segmentIndex =
+        0;
 
     for (
         let yIndex = 0;
@@ -503,6 +521,27 @@ function createSegments(
                 continue;
             }
 
+            const segmentSpan =
+                Math.max(
+                    maxX - minX,
+                    1e-6
+                );
+
+            const material =
+                resolveMaterial(
+                    context,
+                    profileId,
+                    wallKey,
+                    segmentSpan,
+                    segmentIndex
+                );
+
+            if (
+                !material
+            ) {
+                continue;
+            }
+
             group.add(
                 createSegment(
                     minX,
@@ -512,6 +551,9 @@ function createSegments(
                     material
                 )
             );
+
+            segmentIndex +=
+                1;
         }
     }
 
@@ -610,30 +652,16 @@ function createWainscotMesh(
             wallKey
         ];
 
-    const span =
+    const wallSpan =
         getSpan(
             sideCode,
             envelope
         );
 
-    const material =
-        resolveMaterial(
-            context,
-            profileId,
-            wallKey,
-            span
-        );
-
-    if (
-        !material
-    ) {
-        return null;
-    }
-
     const range =
         getRange(
             sideCode,
-            span
+            wallSpan
         );
 
     const masks =
@@ -649,8 +677,16 @@ function createWainscotMesh(
             range,
             wainscotHeight,
             masks,
-            material
+            context,
+            profileId,
+            wallKey
         );
+
+    if (
+        mesh.children.length === 0
+    ) {
+        return null;
+    }
 
     mesh.name =
         `wainscot-mesh-${sideCode}`;

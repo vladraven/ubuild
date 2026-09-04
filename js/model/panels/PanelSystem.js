@@ -1,4 +1,4 @@
-const DEFAULT_PANEL_WIDTH = 1;
+const DEFAULT_PANEL_WIDTH = .5;
 
 const WALL_SIDES = Object.freeze([
             'front',

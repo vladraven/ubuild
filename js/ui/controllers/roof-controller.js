@@ -1,210 +1,853 @@
 import { setElementVal } from '../dom-helpers.js';
 
-export function createRoofController({ runtime, update, syncAll }) {
-    if (!runtime) {
-        throw new TypeError('UBuildRuntime instance is required for RoofController');
+const ROOF_TYPE_GABLED =
+    'gabled';
+
+const ROOF_TYPE_LEFT_SLOPED =
+    'left-sloped';
+
+const ROOF_TYPE_RIGHT_SLOPED =
+    'right-sloped';
+
+const SSR_PROFILE_PATTERN =
+    /ssr|snap/i;
+
+export function createRoofController(
+    {
+        runtime,
+        update,
+        syncAll
+    }
+) {
+    if (
+        !runtime
+    ) {
+        throw new TypeError(
+            'UBuildRuntime instance is required for RoofController'
+        );
     }
 
-    function formatPitchRatio(ratio) {
-        const pitch12 = Number(ratio) * 12;
-        const formatted = parseFloat(pitch12.toFixed(1)).toString();
+    function formatPitchRatio(
+        ratio
+    ) {
+        const pitch12 =
+            Number(
+                ratio
+            ) * 12;
+
+        const formatted =
+            parseFloat(
+                pitch12
+                    .toFixed(1)
+            )
+                .toString();
+
         return `${formatted}:12`;
     }
 
-    function parsePitchInput(raw) {
-        if (raw === undefined || raw === null) return NaN;
-        const str = String(raw).trim().replace(/:12$/i, '').trim();
-        const num = parseFloat(str);
-        return Number.isFinite(num) ? num : NaN;
+    function parsePitchInput(
+        raw
+    ) {
+        if (
+            raw === undefined ||
+            raw === null
+        ) {
+            return NaN;
+        }
+
+        const value =
+            String(
+                raw
+            )
+                .trim();
+
+        const ratioMatch =
+            value.match(
+                /^([+-]?(?:\d+\.?\d*|\.\d+))\s*:\s*12$/i
+            );
+
+        if (
+            ratioMatch
+        ) {
+            const rise =
+                Number(
+                    ratioMatch[1]
+                );
+
+            return Number.isFinite(
+                rise
+            )
+                ? rise / 12
+                : NaN;
+        }
+
+        const numeric =
+            parseFloat(
+                value
+            );
+
+        return Number.isFinite(
+            numeric
+        )
+            ? numeric
+            : NaN;
+    }
+
+    function getConstraints() {
+        return window
+            .ConfiguratorBackendConstraints ||
+            {};
+    }
+
+    function getProfilePitchMax(
+        profile,
+        constraints
+    ) {
+        if (
+            SSR_PROFILE_PATTERN.test(
+                profile
+            )
+        ) {
+            const ssrMax =
+                Number(
+                    constraints.pitch_ssr24 ??
+                    0.1667
+                );
+
+            return Number.isFinite(
+                ssrMax
+            ) &&
+            ssrMax > 0
+                ? ssrMax
+                : 0.1667;
+        }
+
+        const awrMax =
+            Number(
+                constraints.pitch_awr ??
+                constraints.pitch_awr_max ??
+                1
+            );
+
+        return Number.isFinite(
+            awrMax
+        ) &&
+        awrMax > 0
+            ? awrMax
+            : 1;
     }
 
     function getPitchLimits() {
-        const constraints = window.ConfiguratorBackendConstraints || {};
-        const profile = String(runtime.model.roof?.profile || 'awr').toLowerCase();
-        const roofType = String(runtime.model.roof?.type || 'gabled').toLowerCase();
-        const pitchEl = document.getElementById('inputPitch');
+        const constraints =
+            getConstraints();
 
-        let min = Number(pitchEl?.min);
-        let max = Number(pitchEl?.max);
-        let step = Number(pitchEl?.step);
+        const profile =
+            String(
+                runtime
+                    .model
+                    .roof
+                    ?.profile ||
+                'awr'
+            )
+                .trim()
+                .toLowerCase();
 
-        if (!Number.isFinite(min) || min < 0) {
-            min = Number(constraints.pitch_min ?? 0);
+        const roofType =
+            String(
+                runtime
+                    .model
+                    .roof
+                    ?.type ||
+                ROOF_TYPE_GABLED
+            )
+                .trim()
+                .toLowerCase();
+
+        const pitchEl =
+            document.getElementById(
+                'inputPitch'
+            ) ||
+            document.querySelector(
+                '#roof-pitch'
+            ) ||
+            document.querySelector(
+                '#slider-pitch'
+            );
+
+        let min =
+            Number(
+                constraints.pitch_min ??
+                0
+            );
+
+        let max =
+            getProfilePitchMax(
+                profile,
+                constraints
+            );
+
+        let step =
+            Number(
+                constraints.pitch_step ??
+                0.001
+            );
+
+        if (
+            SSR_PROFILE_PATTERN.test(
+                profile
+            )
+        ) {
+            const ssrMin =
+                Number(
+                    constraints.pitch_ssr24_min
+                );
+
+            const ssrStep =
+                Number(
+                    constraints.pitch_ssr24_step
+                );
+
+            if (
+                Number.isFinite(
+                    ssrMin
+                ) &&
+                ssrMin >= 0
+            ) {
+                min =
+                    ssrMin;
+            }
+
+            if (
+                Number.isFinite(
+                    ssrStep
+                ) &&
+                ssrStep > 0
+            ) {
+                step =
+                    ssrStep;
+            }
         }
 
-        if (!Number.isFinite(max) || max <= 0) {
-            max = Number(constraints.pitch_awr_max ?? constraints.pitch_awr ?? 1);
+        if (
+            roofType ===
+            ROOF_TYPE_LEFT_SLOPED ||
+            roofType ===
+            ROOF_TYPE_RIGHT_SLOPED
+        ) {
+            const slopedMax =
+                Number(
+                    constraints.pitch_sloped_max ??
+                    0.1667
+                );
+
+            max =
+                Math.min(
+                    max,
+                    Number.isFinite(
+                        slopedMax
+                    ) &&
+                    slopedMax > 0
+                        ? slopedMax
+                        : 0.1667
+                );
         }
 
-        if (!Number.isFinite(step) || step <= 0) {
-            step = Number(constraints.pitch_step ?? 0.001);
+        if (
+            Number.isFinite(
+                Number(
+                    pitchEl?.min
+                )
+            ) &&
+            Number(
+                pitchEl.min
+            ) >= 0
+        ) {
+            min =
+                Math.max(
+                    min,
+                    Number(
+                        pitchEl.min
+                    )
+                );
         }
 
-        if (profile.includes('ssr') || profile.includes('snap')) {
-            min = Number(constraints.pitch_ssr24_min ?? min);
-            max = Number(constraints.pitch_ssr24_max ?? constraints.pitch_ssr24 ?? max);
-            step = Number(constraints.pitch_ssr24_step ?? step);
+        if (
+            !Number.isFinite(
+                min
+            ) ||
+            min < 0
+        ) {
+            min = 0;
         }
 
-        if (roofType === 'left-sloped' || roofType === 'right-sloped') {
-            max = Math.min(max, Number(constraints.pitch_sloped_max ?? 0.1667));
+        if (
+            !Number.isFinite(
+                max
+            ) ||
+            max <= min
+        ) {
+            max =
+                Math.max(
+                    1,
+                    min + 0.001
+                );
         }
 
-        if (!Number.isFinite(min) || min < 0) min = 0;
-        if (!Number.isFinite(max) || max <= min) max = 1;
-        if (!Number.isFinite(step) || step <= 0) step = 0.001;
+        if (
+            !Number.isFinite(
+                step
+            ) ||
+            step <= 0
+        ) {
+            step = 0.001;
+        }
 
-        return { min, max, step };
+        return Object.freeze(
+            {
+                min,
+                max,
+                step
+            }
+        );
+    }
+
+    function clampPitch(
+        ratio,
+        limits
+    ) {
+        return Math.max(
+            limits.min,
+            Math.min(
+                limits.max,
+                ratio
+            )
+        );
     }
 
     function updatePitchControls() {
-        const ratio = Number(runtime.model.roof?.pitchRatio ?? 0.05);
-        const limits = getPitchLimits();
-        const value = Math.max(limits.min, Math.min(limits.max, ratio));
+        const ratio =
+            Number(
+                runtime
+                    .model
+                    .roof
+                    ?.pitchRatio ??
+                0.05
+            );
 
-        for (const selector of ['#inputPitch', '#roof-pitch', '#slider-pitch']) {
-            const el = document.querySelector(selector);
-            if (!el) continue;
+        const limits =
+            getPitchLimits();
 
-            if (el.type === 'range') {
-                el.min = limits.min;
-                el.max = limits.max;
-                el.step = limits.step;
-                el.value = value;
+        const value =
+            clampPitch(
+                Number.isFinite(
+                    ratio
+                )
+                    ? ratio
+                    : limits.min,
+                limits
+            );
+
+        for (
+            const selector of [
+                '#inputPitch',
+                '#roof-pitch',
+                '#slider-pitch'
+            ]
+        ) {
+            const element =
+                document.querySelector(
+                    selector
+                );
+
+            if (
+                !element
+            ) {
+                continue;
             }
+
+            element.min =
+                String(
+                    limits.min
+                );
+
+            element.max =
+                String(
+                    limits.max
+                );
+
+            element.step =
+                String(
+                    limits.step
+                );
+
+            element.value =
+                String(
+                    value
+                );
         }
 
-        const formatted = formatPitchRatio(value);
-        setElementVal(['#valPitch', '#val-pitch'], formatted);
+        const formatted =
+            formatPitchRatio(
+                value
+            );
 
-        const minLabel = document.querySelector('#lblMinPitch');
-        const maxLabel = document.querySelector('#lblMaxPitch');
+        setElementVal(
+            [
+                '#valPitch',
+                '#val-pitch'
+            ],
+            formatted
+        );
 
-        if (minLabel) minLabel.textContent = formatPitchRatio(limits.min);
-        if (maxLabel) maxLabel.textContent = formatPitchRatio(limits.max);
-    }
+        const minLabel =
+            document.querySelector(
+                '#lblMinPitch'
+            );
 
-    function handlePitchChange(rawValue, fromSlider) {
-        const limits = getPitchLimits();
-        let ratio;
-
-        if (fromSlider) {
-            ratio = parseFloat(rawValue);
-        } else {
-            const rise = parsePitchInput(rawValue);
-            if (!Number.isFinite(rise)) return;
-            ratio = rise / 12;
-        }
-
-        if (!Number.isFinite(ratio)) return;
-
-        const clamped = Math.max(limits.min, Math.min(limits.max, ratio));
-
-        update({
-            roof: {
-                ...runtime.model.roof,
-                pitchRatio: clamped
-            }
-        });
-    }
-
-    function bindPitch() {
-        document.querySelectorAll('#inputPitch,#roof-pitch,#slider-pitch').forEach((el) => {
-            el.addEventListener('input', (e) => handlePitchChange(e.target.value, true));
-            el.addEventListener('change', (e) => handlePitchChange(e.target.value, true));
-        });
-
-        document
-            .querySelectorAll('#valPitch,#val-pitch,select[name="roof-pitch"]')
-            .forEach((el) => {
-                el.addEventListener('input', (e) => handlePitchChange(e.target.value, false));
-                el.addEventListener('change', (e) => handlePitchChange(e.target.value, false));
-            });
-
-        const roofProfile = document.querySelector('#roofProfile');
-        if (roofProfile) {
-            roofProfile.addEventListener('change', () => {
-                updatePitchControls();
-            });
-        }
-    }
-
-    function applyRoofType(type) {
-        const normalized = String(type || '').trim().toLowerCase();
+        const maxLabel =
+            document.querySelector(
+                '#lblMaxPitch'
+            );
 
         if (
-            normalized !== 'gabled' &&
-            normalized !== 'left-sloped' &&
-            normalized !== 'right-sloped'
+            minLabel
+        ) {
+            minLabel.textContent =
+                formatPitchRatio(
+                    limits.min
+                );
+        }
+
+        if (
+            maxLabel
+        ) {
+            maxLabel.textContent =
+                formatPitchRatio(
+                    limits.max
+                );
+        }
+    }
+
+    function applyPitch(
+        ratio
+    ) {
+        const limits =
+            getPitchLimits();
+
+        const clamped =
+            clampPitch(
+                ratio,
+                limits
+            );
+
+        update(
+            {
+                roof:
+                    {
+                        ...runtime
+                            .model
+                            .roof,
+
+                        pitchRatio:
+                            clamped
+                    }
+            }
+        );
+    }
+
+    function handlePitchChange(
+        rawValue,
+        fromSlider
+    ) {
+        let ratio;
+
+        if (
+            fromSlider
+        ) {
+            ratio =
+                Number(
+                    rawValue
+                );
+        } else {
+            const rise =
+                parsePitchInput(
+                    rawValue
+                );
+
+            if (
+                !Number.isFinite(
+                    rise
+                )
+            ) {
+                return;
+            }
+
+            ratio =
+                rise;
+        }
+
+        if (
+            !Number.isFinite(
+                ratio
+            )
         ) {
             return;
         }
 
-        const currentRoof = runtime.model.roof || {};
-        const nextModel = {
-            ...runtime.model,
-            roof: {
-                ...currentRoof,
-                type: normalized
-            }
-        };
+        applyPitch(
+            ratio
+        );
+    }
 
-        runtime.update(nextModel);
+    function bindPitch() {
+        document
+            .querySelectorAll(
+                '#inputPitch,#roof-pitch,#slider-pitch'
+            )
+            .forEach(
+                element => {
+                    element.addEventListener(
+                        'input',
+                        event => {
+                            handlePitchChange(
+                                event.target.value,
+                                true
+                            );
+                        }
+                    );
+
+                    element.addEventListener(
+                        'change',
+                        event => {
+                            handlePitchChange(
+                                event.target.value,
+                                true
+                            );
+                        }
+                    );
+                }
+            );
+
+        document
+            .querySelectorAll(
+                '#valPitch,#val-pitch,select[name="roof-pitch"]'
+            )
+            .forEach(
+                element => {
+                    element.addEventListener(
+                        'input',
+                        event => {
+                            handlePitchChange(
+                                event.target.value,
+                                false
+                            );
+                        }
+                    );
+
+                    element.addEventListener(
+                        'change',
+                        event => {
+                            handlePitchChange(
+                                event.target.value,
+                                false
+                            );
+                        }
+                    );
+                }
+            );
+    }
+
+    function normalizeRoofType(
+        type
+    ) {
+        const normalized =
+            String(
+                type ||
+                ''
+            )
+                .trim()
+                .toLowerCase();
+
+        if (
+            normalized ===
+            ROOF_TYPE_GABLED
+        ) {
+            return normalized;
+        }
+
+        if (
+            normalized ===
+            ROOF_TYPE_LEFT_SLOPED
+        ) {
+            return normalized;
+        }
+
+        if (
+            normalized ===
+            ROOF_TYPE_RIGHT_SLOPED
+        ) {
+            return normalized;
+        }
+
+        return null;
+    }
+
+    function applyRoofType(
+        type
+    ) {
+        const normalized =
+            normalizeRoofType(
+                type
+            );
+
+        if (
+            !normalized
+        ) {
+            return;
+        }
+
+        const currentRoof =
+            runtime.model.roof ||
+            {};
+
+        const nextModel =
+            {
+                ...runtime.model,
+
+                roof:
+                    {
+                        ...currentRoof,
+
+                        type:
+                            normalized
+                    }
+            };
+
+        const limits =
+            getPitchLimitsFor(
+                nextModel.roof
+            );
+
+        nextModel.roof.pitchRatio =
+            clampPitch(
+                Number(
+                    nextModel
+                        .roof
+                        .pitchRatio ??
+                    limits.min
+                ),
+                limits
+            );
+
+        runtime.update(
+            nextModel
+        );
+
         syncAll();
 
-        if (typeof runtime.render === 'function') {
+        updatePitchControls();
+
+        if (
+            typeof runtime.render ===
+            'function'
+        ) {
+            runtime.render();
+        }
+    }
+
+    function getPitchLimitsFor(
+        roof
+    ) {
+        const previousRoof =
+            runtime.model.roof;
+
+        const previousModel =
+            runtime.model;
+
+        runtime.model =
+            {
+                ...previousModel,
+
+                roof:
+                    {
+                        ...previousRoof,
+                        ...roof
+                    }
+            };
+
+        const limits =
+            getPitchLimits();
+
+        runtime.model =
+            previousModel;
+
+        return limits;
+    }
+
+    function applyRoofProfile(
+        profile
+    ) {
+        const nextModel =
+            {
+                ...runtime.model,
+
+                roof:
+                    {
+                        ...runtime
+                            .model
+                            .roof,
+
+                        profile
+                    }
+            };
+
+        const limits =
+            getPitchLimitsFor(
+                nextModel.roof
+            );
+
+        const currentPitch =
+            Number(
+                nextModel
+                    .roof
+                    .pitchRatio ??
+                limits.min
+            );
+
+        nextModel.roof.pitchRatio =
+            clampPitch(
+                currentPitch,
+                limits
+            );
+
+        runtime.update(
+            nextModel
+        );
+
+        syncAll();
+
+        updatePitchControls();
+
+        if (
+            typeof runtime.render ===
+            'function'
+        ) {
+            runtime.render();
+        }
+    }
+
+    function applyWallProfile(
+        profile
+    ) {
+        runtime.update(
+            {
+                ...runtime.model,
+
+                panels:
+                    {
+                        ...runtime
+                            .model
+                            .panels,
+
+                        profile
+                    }
+            }
+        );
+
+        syncAll();
+
+        if (
+            typeof runtime.render ===
+            'function'
+        ) {
             runtime.render();
         }
     }
 
     function bindRoofControls() {
-        const roofType = document.querySelector('#roofType');
-        if (roofType) {
-            roofType.addEventListener('change', (event) => {
-                applyRoofType(event.target.value);
-            });
+        const roofType =
+            document.querySelector(
+                '#roofType'
+            );
+
+        if (
+            roofType
+        ) {
+            roofType.addEventListener(
+                'change',
+                event => {
+                    applyRoofType(
+                        event.target.value
+                    );
+                }
+            );
         }
 
-        document.addEventListener('click', (event) => {
-            const button = event.target.closest('[data-roof-type], .roof-type-btn');
-            if (!button) return;
+        document.addEventListener(
+            'click',
+            event => {
+                const button =
+                    event.target.closest(
+                        '[data-roof-type], .roof-type-btn'
+                    );
 
-            event.preventDefault();
+                if (
+                    !button
+                ) {
+                    return;
+                }
 
-            const type =
-                button.getAttribute('data-roof-type') ||
-                button.value ||
-                button.getAttribute('value');
+                event.preventDefault();
 
-            applyRoofType(type);
-        });
+                const type =
+                    button.getAttribute(
+                        'data-roof-type'
+                    ) ||
+                    button.value ||
+                    button.getAttribute(
+                        'value'
+                    );
 
-        const roofProfile = document.querySelector('#roofProfile');
-        if (roofProfile) {
-            roofProfile.addEventListener('change', (event) => {
-                runtime.update({
-                    ...runtime.model,
-                    roof: {
-                        ...runtime.model.roof,
-                        profile: event.target.value
-                    }
-                });
+                applyRoofType(
+                    type
+                );
+            }
+        );
 
-                updatePitchControls();
-            });
+        const roofProfile =
+            document.querySelector(
+                '#roofProfile'
+            );
+
+        if (
+            roofProfile
+        ) {
+            roofProfile.addEventListener(
+                'change',
+                event => {
+                    applyRoofProfile(
+                        event.target.value
+                    );
+                }
+            );
         }
 
-        const wallProfile = document.querySelector('#wallProfile');
-        if (wallProfile) {
-            wallProfile.addEventListener('change', (event) => {
-                runtime.update({
-                    ...runtime.model,
-                    panels: {
-                        ...runtime.model.panels,
-                        profile: event.target.value
-                    }
-                });
-            });
+        const wallProfile =
+            document.querySelector(
+                '#wallProfile'
+            );
+
+        if (
+            wallProfile
+        ) {
+            wallProfile.addEventListener(
+                'change',
+                event => {
+                    applyWallProfile(
+                        event.target.value
+                    );
+                }
+            );
         }
     }
 
@@ -216,24 +859,76 @@ export function createRoofController({ runtime, update, syncAll }) {
     function syncFromModel() {
         updatePitchControls();
 
-        const model = runtime.model;
-        const roofType = model.roof?.type || 'gabled';
-        const roofProfile = model.roof?.profile || 'awr';
-        const wallProfile = model.panels?.profile || 'awr';
+        const model =
+            runtime.model;
 
-        document.querySelectorAll('[data-roof-type],.roof-type-btn').forEach((btn) => {
-            const type = btn.getAttribute('data-roof-type') || btn.value;
-            btn.classList.toggle('active', type === roofType);
-        });
+        const roofType =
+            model
+                .roof
+                ?.type ||
+            ROOF_TYPE_GABLED;
 
-        setElementVal(['#roofType', 'select[name="roof-type"]'], roofType);
-        setElementVal(['#roofProfile', 'select[name="roof-profile"]'], roofProfile);
-        setElementVal(['#wallProfile', 'select[name="wall-profile"]'], wallProfile);
+        const roofProfile =
+            model
+                .roof
+                ?.profile ||
+            'awr';
+
+        const wallProfile =
+            model
+                .panels
+                ?.profile ||
+            'awr';
+
+        document
+            .querySelectorAll(
+                '[data-roof-type],.roof-type-btn'
+            )
+            .forEach(
+                button => {
+                    const type =
+                        button.getAttribute(
+                            'data-roof-type'
+                        ) ||
+                        button.value;
+
+                    button.classList.toggle(
+                        'active',
+                        type === roofType
+                    );
+                }
+            );
+
+        setElementVal(
+            [
+                '#roofType',
+                'select[name="roof-type"]'
+            ],
+            roofType
+        );
+
+        setElementVal(
+            [
+                '#roofProfile',
+                'select[name="roof-profile"]'
+            ],
+            roofProfile
+        );
+
+        setElementVal(
+            [
+                '#wallProfile',
+                'select[name="wall-profile"]'
+            ],
+            wallProfile
+        );
     }
 
-    return Object.freeze({
-        bind,
-        syncFromModel,
-        getPitchLimits
-    });
+    return Object.freeze(
+        {
+            bind,
+            syncFromModel,
+            getPitchLimits
+        }
+    );
 }

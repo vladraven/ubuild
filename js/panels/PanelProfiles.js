@@ -18,6 +18,12 @@ const NORMAL_STRENGTH =
 const NORMAL_SAMPLE_PIXELS =
     2;
 
+/*
+ * Profile periods packed into one panel-width of texture UV.
+ * With UV.u = 0..1 across a physical span of `profile.width` metres,
+ * corrugation density is TEXTURE_REPEATS_PER_PANEL periods per panel width.
+ * Keep this in sync with the UV contract in PanelMaterialFactory.
+ */
 const TEXTURE_REPEATS_PER_PANEL =
     1;
 

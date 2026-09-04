@@ -199,14 +199,21 @@ function resolveRepeatX(
     profileId
 ) {
     /*
-     * Physical panel width controls the profile repeat.
+     * UV / repeat contract (must be the same for roof, walls, wainscot):
      *
-     * PanelSystem / PanelGeometry split the building into
-     * physical 1.0 m panels. Therefore:
+     * - Mesh UV.u runs 0..1 across the physical panel (or segment) width.
+     * - options.span is that physical width in metres.
+     * - repeatX = getPanelRepeat(span) = (span / profile.width) * TEXTURE_REPEATS_PER_PANEL
      *
-     * 1.0 m panel = 2 profile repeats
+     * Density of corrugation is therefore constant in periods per metre and
+     * does not depend on how the wall/roof is subdivided into panels.
      *
-     * The final partial panel receives a proportional repeat.
+     * Partial end panels pass their actual width as span so the last
+     * period is proportional.
+     *
+     * Do NOT pass full-wall length as span when UV is 0..1 on a segment.
+     * Do NOT use metre-space UVs with span-proportional repeatX (that
+     * makes density proportional to panel width).
      */
     if (
         Number.isFinite(

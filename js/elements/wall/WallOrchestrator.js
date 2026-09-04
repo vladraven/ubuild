@@ -556,6 +556,86 @@ function addPanelOpenings(
     }
 }
 
+function normalizePanelUVs(
+    geometry,
+    minX,
+    maxX,
+    minY,
+    maxY
+) {
+    /*
+     * ExtrudeGeometry writes shape-space metres into UVs.
+     * Unify with roof: UV.u = 0..1 across panel width, UV.v = 0..1 across height.
+     * Then createPanelMaterial(span = panel.width) yields the same
+     * corrugation density as on the roof, independent of panelWidth.
+     */
+    const position =
+        geometry.getAttribute(
+            'position'
+        );
+
+    if (
+        !position
+    ) {
+        return;
+    }
+
+    const width =
+        Math.max(
+            maxX - minX,
+            EPSILON
+        );
+
+    const height =
+        Math.max(
+            maxY - minY,
+            EPSILON
+        );
+
+    const count =
+        position.count;
+
+    const uvs =
+        new Float32Array(
+            count * 2
+        );
+
+    for (
+        let i = 0;
+        i < count;
+        i++
+    ) {
+        const x =
+            position.getX(
+                i
+            );
+
+        const y =
+            position.getY(
+                i
+            );
+
+        uvs[i * 2] =
+            (x - minX) /
+            width;
+
+        uvs[i * 2 + 1] =
+            (y - minY) /
+            height;
+    }
+
+    geometry.setAttribute(
+        'uv',
+        new THREE.BufferAttribute(
+            uvs,
+            2
+        )
+    );
+
+    geometry.attributes.uv.needsUpdate =
+        true;
+}
+
 function createGeometry(
     wallData,
     panel,
@@ -563,6 +643,21 @@ function createGeometry(
     sideCode,
     envelope
 ) {
+    const interval =
+        getPanelInterval(
+            panel,
+            sideCode
+        );
+
+    const minX =
+        interval.start;
+
+    const maxX =
+        interval.end;
+
+    const minY =
+        interval.minY;
+
     const shape =
         createPanelShape(
             wallData,
@@ -578,16 +673,53 @@ function createGeometry(
         envelope
     );
 
-    return new THREE.ExtrudeGeometry(
-        shape,
-        {
-            depth:
-                wallData.thickness,
+    const geometry =
+        new THREE.ExtrudeGeometry(
+            shape,
+            {
+                depth:
+                    wallData.thickness,
 
-            bevelEnabled:
-                false
+                bevelEnabled:
+                    false
+            }
+        );
+
+    let maxY =
+        minY;
+
+    const position =
+        geometry.getAttribute(
+            'position'
+        );
+
+    if (
+        position
+    ) {
+        for (
+            let i = 0;
+            i < position.count;
+            i++
+        ) {
+            maxY =
+                Math.max(
+                    maxY,
+                    position.getY(
+                        i
+                    )
+                );
         }
+    }
+
+    normalizePanelUVs(
+        geometry,
+        minX,
+        maxX,
+        minY,
+        maxY
     );
+
+    return geometry;
 }
 
 function placeMesh(
