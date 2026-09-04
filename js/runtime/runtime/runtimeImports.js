@@ -1,6 +1,10 @@
 import * as THREE from 'three';
 
 import {
+    GLTFLoader
+} from 'three/examples/jsm/loaders/GLTFLoader.js';
+
+import {
     createBuildingModel
 } from '../../model/buildingModel.js';
 
@@ -73,6 +77,14 @@ import {
 } from '../../elements/awning/AwningElement.js';
 
 import {
+    createReferenceModelsOrchestrator
+} from '../../elements/referenceModels/ReferenceModelsOrchestrator.js';
+
+import {
+    createReferenceModelInteraction
+} from '../../interaction/ReferenceModelInteraction.js';
+
+import {
     createEnvironmentSystem
 } from '../../environment/EnvironmentSystem.js';
 
@@ -95,6 +107,8 @@ import {
 export {
     THREE,
 
+    GLTFLoader,
+
     createBuildingModel,
     createBuildingGeometry,
 
@@ -115,6 +129,9 @@ export {
     DrivewayOrchestrator,
     LogoOrchestrator,
     AwningElement,
+
+    createReferenceModelsOrchestrator,
+    createReferenceModelInteraction,
 
     createEnvironmentSystem,
     createLightingSystem,

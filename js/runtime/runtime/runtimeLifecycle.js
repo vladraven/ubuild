@@ -1,9 +1,12 @@
 import {
     THREE,
+    GLTFLoader,
     createEnvironmentSystem,
     createLightingSystem,
     createCameraControls,
-    createOpeningInteraction
+    createOpeningInteraction,
+    createReferenceModelsOrchestrator,
+    createReferenceModelInteraction
 } from './runtimeImports.js';
 
 import {
@@ -88,6 +91,30 @@ export function createLifecycle({
             scene,
             lighting
         );
+
+    const referenceModelsOrchestrator =
+        createReferenceModelsOrchestrator();
+
+    scene.add(
+        referenceModelsOrchestrator.group
+    );
+
+    const referenceModelLoader =
+        new GLTFLoader();
+
+    const referenceModelInteraction =
+        createReferenceModelInteraction({
+            camera,
+
+            domElement:
+                renderer.domElement,
+
+            group:
+                referenceModelsOrchestrator.group,
+
+            onDragEnd:
+                render
+        });
 
     const cameraControls =
         createCameraControls({
@@ -257,6 +284,22 @@ export function createLifecycle({
 
     function dispose() {
         if (
+            referenceModelInteraction &&
+            typeof referenceModelInteraction.dispose ===
+            'function'
+        ) {
+            referenceModelInteraction.dispose();
+        }
+
+        if (
+            referenceModelsOrchestrator &&
+            typeof referenceModelsOrchestrator.dispose ===
+            'function'
+        ) {
+            referenceModelsOrchestrator.dispose();
+        }
+
+        if (
             openingInteraction &&
             typeof openingInteraction.dispose ===
             'function'
@@ -314,6 +357,10 @@ export function createLifecycle({
     }
 
     return Object.freeze({
+        scene,
+
+        camera,
+
         environmentSystem,
 
         lightingSystem,
@@ -321,6 +368,13 @@ export function createLifecycle({
         cameraControls,
 
         openingInteraction,
+
+        referenceModels:
+            referenceModelsOrchestrator,
+
+        referenceModelLoader,
+
+        referenceModelInteraction,
 
         updateEnvironment,
 

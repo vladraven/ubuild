@@ -54,16 +54,135 @@ function assertContainer(container) {
     }
 }
 
+function createReferenceModelsAPI({
+    lifecycle,
+    buildingGeometry,
+    renderer
+}) {
+    const orchestrator =
+        lifecycle.referenceModels;
+
+    if (!orchestrator) {
+        return null;
+    }
+
+    const interaction =
+        lifecycle.referenceModelInteraction;
+
+    const loader =
+        lifecycle.referenceModelLoader;
+
+    const themeUri =
+        window.UBuildData?.themeUri ??
+        window.ConfiguratorData?.themeUri ??
+        '';
+
+    const models =
+        Object.freeze({
+            vehicle:
+                'ergoninane-fast-74.glb',
+
+            forklift:
+                'forza1903-low-poly-2490.glb',
+
+            airplane:
+                'plane.glb',
+
+            truck:
+                'scania.glb'
+        });
+
+    function resolveModel(
+        value
+    ) {
+        if (
+            typeof value !==
+            'string'
+        ) {
+            return null;
+        }
+
+        if (
+            models[value]
+        ) {
+            return models[value];
+        }
+
+        if (
+            Object.values(
+                models
+            ).includes(
+                value
+            )
+        ) {
+            return value;
+        }
+
+        return null;
+    }
+
+    function toggle(
+        value,
+        enabled
+    ) {
+        const fileName =
+            resolveModel(
+                value
+            );
+
+        if (
+            !fileName ||
+            !loader
+        ) {
+            return;
+        }
+
+        orchestrator.toggleModel(
+            fileName,
+            Boolean(enabled),
+            loader,
+            themeUri,
+            buildingGeometry.bounds,
+            () => {
+                renderer.render(
+                    lifecycle.scene,
+                    lifecycle.camera
+                );
+            }
+        );
+    }
+
+    return Object.freeze({
+        models,
+
+        group:
+            orchestrator.group,
+
+        toggle,
+
+        interaction,
+
+        dispose:
+            () => {
+                orchestrator.dispose();
+            }
+    });
+}
+
 export function createUBuildRuntime({
     container,
     model = {},
     environment = {},
     lighting = {}
 } = {}) {
-    assertContainer(container);
+    assertContainer(
+        container
+    );
 
     let buildingModel =
-        createBuildingModel(model);
+        createBuildingModel(
+            model
+        );
 
     const buildingGeometry =
         createBuildingGeometry(
@@ -134,8 +253,17 @@ export function createUBuildRuntime({
             renderer,
             container,
             buildingRoot,
+            geometry:
+                buildingGeometry,
             environment,
             lighting
+        });
+
+    const referenceModels =
+        createReferenceModelsAPI({
+            lifecycle,
+            buildingGeometry,
+            renderer
         });
 
     const updateSystem =
@@ -212,7 +340,9 @@ export function createUBuildRuntime({
         return updateSystem.autoFrame();
     }
 
-    function setDateTimeLocation(config = {}) {
+    function setDateTimeLocation(
+        config = {}
+    ) {
         return updateSystem.setDateTimeLocation(
             config
         );
@@ -284,6 +414,8 @@ export function createUBuildRuntime({
 
             interaction:
                 lifecycle.openingInteraction,
+
+            referenceModels,
 
             start,
 

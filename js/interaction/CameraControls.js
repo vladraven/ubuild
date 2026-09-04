@@ -15,7 +15,7 @@ export function createCameraControls({
     }
 
     const MIN_ZOOM =
-        40;
+        30;
 
     const MAX_ZOOM =
         90;
@@ -1084,6 +1084,10 @@ export function createCameraControls({
             3;
 
         applySpherical();
+
+        setAutoRotate(
+            true
+        );
     }
 
     function dispose() {
