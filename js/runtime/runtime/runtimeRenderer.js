@@ -51,15 +51,12 @@ export function createRenderer(
     renderer.shadowMap.type =
         THREE.PCFSoftShadowMap;
 
-    renderer.outputColorSpace =
-        THREE.SRGBColorSpace;
 
-   //renderer.toneMapping = THREE.ACESFilmicToneMapping;
-	
-	//renderer.outputEncoding = THREE.sRGBEncoding;
-    // Raised from 1.0 so white/beige panels stay bright under ACES + IBL
-    renderer.toneMappingExposure =
-        1;
+
+renderer.outputColorSpace = THREE.SRGBColorSpace; 
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.outputEncoding = THREE.sRGBEncoding;
+    renderer.toneMappingExposure = .5;
 
     container.appendChild(
         renderer.domElement
