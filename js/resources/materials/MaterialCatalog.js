@@ -26,26 +26,26 @@ const MATERIAL_DEFINITIONS = Object.freeze({
     }),
 
     wallMetal: Object.freeze({
-        type: 'dielectric',
-        roughness: 0.55,
+        type: 'metal',
+        roughness: 0.75,
         metalness: 0
     }),
 
     wainscotMetal: Object.freeze({
-        type: 'dielectric',
-        roughness: 0.6,
+        type: 'metal',
+        roughness: 0.75,
         metalness: 0
     }),
 
     roofMetal: Object.freeze({
-        type: 'dielectric',
-        roughness: 0.5,
+        type: 'metal',
+        roughness: 0.75,
         metalness: 0
     }),
 
     trimMetal: Object.freeze({
         type: 'dielectric',
-        roughness: 0.5,
+        roughness: 0.75,
         metalness: 0
     }),
 
