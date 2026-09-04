@@ -6,8 +6,8 @@ const PANEL_WIDTH_M =
 const PANEL_TEXTURE_SIZE =
     1024;
 
-const RIB_HEIGHT =
-    1;
+const AWR_RIB_HEIGHT =
+    1.0;
 
 const SSR24_RIB_HEIGHT =
     1.5;
@@ -21,24 +21,6 @@ const NORMAL_STRENGTH =
 const NORMAL_SAMPLE_PIXELS =
     2;
 
-const AWR_DENSITY =
-    1.0;
-
-const SSR24_DENSITY =
-    0.5;
-
-const DELTA_SPAN_DENSITY =
-    1.2;
-
-const ELITE_RIB_DENSITY =
-    1.3;
-
-const ULTRA_SPAN_DENSITY =
-    1.1;
-
-const WIDE_SPAN_DENSITY =
-    0.8;
-
 const TEXTURE_REPEATS_PER_PANEL =
     1;
 
@@ -51,210 +33,245 @@ const normalMapCache =
 const slotMapCache =
     new Map();
 
-function getProfileWidth(
-    density
-) {
-    return (
-        PANEL_WIDTH_M /
-        density
-    );
-}
-
 export const PROFILE_DEFINITIONS =
     Object.freeze({
 
         awr: Object.freeze({
-            id: 'awr',
-            name: 'AWR',
+            id:
+                'awr',
+
+            name:
+                'AWR',
+
             width:
-                getProfileWidth(
-                    AWR_DENSITY
-                ),
-            height: RIB_HEIGHT,
+                PANEL_WIDTH_M,
 
-            profile: Object.freeze([
-                [0, 0],
-                [0.08, 0],
-                [0.08, 1],
-                [0.16, 1],
-                [0.16, 0],
+            height:
+                AWR_RIB_HEIGHT,
 
-                [0.33, 0],
-                [0.33, 1],
-                [0.41, 1],
-                [0.41, 0],
+            profile:
+                Object.freeze([
+                    [0, 0],
 
-                [0.58, 0],
-                [0.58, 1],
-                [0.66, 1],
-                [0.66, 0],
+                    [0.08, 0],
+                    [0.08, 1],
+                    [0.16, 1],
+                    [0.16, 0],
 
-                [0.83, 0],
-                [0.83, 1],
-                [0.91, 1],
-                [0.91, 0],
+                    [0.33, 0],
+                    [0.33, 1],
+                    [0.41, 1],
+                    [0.41, 0],
 
-                [1, 0]
-            ])
+                    [0.58, 0],
+                    [0.58, 1],
+                    [0.66, 1],
+                    [0.66, 0],
+
+                    [0.83, 0],
+                    [0.83, 1],
+                    [0.91, 1],
+                    [0.91, 0],
+
+                    [1, 0]
+                ])
         }),
 
         deltaSpan: Object.freeze({
-            id: 'deltaSpan',
-            name: 'Delta Span',
+            id:
+                'deltaSpan',
+
+            name:
+                'Delta Span',
+
             width:
-                getProfileWidth(
-                    DELTA_SPAN_DENSITY
-                ),
-            height: RIB_HEIGHT,
+                PANEL_WIDTH_M,
 
-            profile: Object.freeze([
-                [0, 0],
-                [0.08, 0],
-                [0.08, 1],
-                [0.16, 1],
-                [0.16, 0],
+            height:
+                AWR_RIB_HEIGHT,
 
-                [0.33, 0],
-                [0.33, 1],
-                [0.41, 1],
-                [0.41, 0],
+            profile:
+                Object.freeze([
+                    [0, 0],
 
-                [0.58, 0],
-                [0.58, 1],
-                [0.66, 1],
-                [0.66, 0],
+                    [0.10, 0],
+                    [0.10, 1],
+                    [0.22, 1],
+                    [0.22, 0],
 
-                [0.83, 0],
-                [0.83, 1],
-                [0.91, 1],
-                [0.91, 0],
+                    [0.44, 0],
+                    [0.44, 1],
+                    [0.56, 1],
+                    [0.56, 0],
 
-                [1, 0]
-            ])
+                    [0.78, 0],
+                    [0.78, 1],
+                    [0.90, 1],
+                    [0.90, 0],
+
+                    [1, 0]
+                ])
         }),
 
         eliteRib: Object.freeze({
-            id: 'eliteRib',
-            name: 'Elite Rib',
+            id:
+                'eliteRib',
+
+            name:
+                'Elite Rib',
+
             width:
-                getProfileWidth(
-                    ELITE_RIB_DENSITY
-                ),
-            height: RIB_HEIGHT,
+                PANEL_WIDTH_M,
 
-            profile: Object.freeze([
-                [0, 0],
-                [0.05, 0],
-                [0.05, 1],
-                [0.12, 1],
-                [0.12, 0],
+            height:
+                AWR_RIB_HEIGHT,
 
-                [0.30, 0],
-                [0.30, 1],
-                [0.37, 1],
-                [0.37, 0],
+            profile:
+                Object.freeze([
+                    [0, 0],
 
-                [0.55, 0],
-                [0.55, 1],
-                [0.62, 1],
-                [0.62, 0],
+                    [0.05, 0],
+                    [0.05, 1],
+                    [0.12, 1],
+                    [0.12, 0],
 
-                [0.80, 0],
-                [0.80, 1],
-                [0.87, 1],
-                [0.87, 0],
+                    [0.30, 0],
+                    [0.30, 1],
+                    [0.37, 1],
+                    [0.37, 0],
 
-                [1, 0]
-            ])
+                    [0.55, 0],
+                    [0.55, 1],
+                    [0.62, 1],
+                    [0.62, 0],
+
+                    [0.80, 0],
+                    [0.80, 1],
+                    [0.87, 1],
+                    [0.87, 0],
+
+                    [1, 0]
+                ])
         }),
 
         imp: Object.freeze({
-            id: 'imp',
-            name: 'IMP',
-            width: PANEL_WIDTH_M,
-            height: SMOOTH_HEIGHT,
+            id:
+                'imp',
 
-            profile: Object.freeze([
-                [0, 0],
-                [1, 0]
-            ])
+            name:
+                'IMP',
+
+            width:
+                PANEL_WIDTH_M,
+
+            height:
+                SMOOTH_HEIGHT,
+
+            profile:
+                Object.freeze([
+                    [0, 0],
+                    [1, 0]
+                ])
         }),
 
         ssr24: Object.freeze({
-            id: 'ssr24',
-            name: 'SSR24',
+            id:
+                'ssr24',
+
+            name:
+                'SSR24',
+
             width:
-                getProfileWidth(
-                    SSR24_DENSITY
-                ),
-            height: SSR24_RIB_HEIGHT,
+                PANEL_WIDTH_M,
 
-            profile: Object.freeze([
-                [0, 0],
+            height:
+                SSR24_RIB_HEIGHT,
 
-                [0.08, 0],
-                [0.08, 1.5],
-                [0.16, 1.5],
-                [0.16, 0],
+            profile:
+                Object.freeze([
+                    [0, 0],
 
-                [0.84, 0],
-                [0.84, 1.5],
-                [0.92, 1.5],
-                [0.92, 0],
+                    [0.14, 0],
+                    [0.14, 1.5],
+                    [0.24, 1.5],
+                    [0.24, 0],
 
-                [1, 0]
-            ])
+                    [0.76, 0],
+                    [0.76, 1.5],
+                    [0.86, 1.5],
+                    [0.86, 0],
+
+                    [1, 0]
+                ])
         }),
 
         ultraSpan: Object.freeze({
-            id: 'ultraSpan',
-            name: 'Ultra Span',
+            id:
+                'ultraSpan',
+
+            name:
+                'Ultra Span',
+
             width:
-                getProfileWidth(
-                    ULTRA_SPAN_DENSITY
-                ),
-            height: RIB_HEIGHT,
+                PANEL_WIDTH_M,
 
-            profile: Object.freeze([
-                [0, 0],
-                [0.06, 0],
-                [0.06, 1],
-                [0.14, 1],
-                [0.14, 0],
+            height:
+                AWR_RIB_HEIGHT,
 
-                [0.36, 0],
-                [0.36, 1],
-                [0.44, 1],
-                [0.44, 0],
+            profile:
+                Object.freeze([
+                    [0, 0],
 
-                [0.66, 0],
-                [0.66, 1],
-                [0.74, 1],
-                [0.74, 0],
+                    [0.06, 0],
+                    [0.06, 1],
+                    [0.14, 1],
+                    [0.14, 0],
 
-                [0.94, 0],
-                [0.94, 1],
-                [1, 1]
-            ])
+                    [0.36, 0],
+                    [0.36, 1],
+                    [0.44, 1],
+                    [0.44, 0],
+
+                    [0.66, 0],
+                    [0.66, 1],
+                    [0.74, 1],
+                    [0.74, 0],
+
+                    [0.94, 0],
+                    [0.94, 1],
+                    [1, 1]
+                ])
         }),
 
         wideSpan: Object.freeze({
-            id: 'wideSpan',
-            name: 'Wide Span',
-            width:
-                getProfileWidth(
-                    WIDE_SPAN_DENSITY
-                ),
-            height: RIB_HEIGHT,
+            id:
+                'wideSpan',
 
-            profile: Object.freeze([
-                [0, 0],
-                [1, 0],
-                [1, 1],
-                [3, 1],
-                [3, 0],
-                [4, 0]
-            ])
+            name:
+                'Wide Span',
+
+            width:
+                PANEL_WIDTH_M,
+
+            height:
+                AWR_RIB_HEIGHT,
+
+            profile:
+                Object.freeze([
+                    [0, 0],
+
+                    [0.18, 0],
+                    [0.18, 1],
+                    [0.32, 1],
+                    [0.32, 0],
+
+                    [0.68, 0],
+                    [0.68, 1],
+                    [0.82, 1],
+                    [0.82, 0],
+
+                    [1, 0]
+                ])
         })
     });
 
@@ -280,30 +297,59 @@ export const ROOF_PANEL_PROFILES =
 const PROFILE_ALIASES =
     Object.freeze({
 
-        awr: 'awr',
-        'a wr': 'awr',
+        awr:
+            'awr',
 
-        delta: 'deltaSpan',
-        'delta span': 'deltaSpan',
-        deltaspan: 'deltaSpan',
+        'a wr':
+            'awr',
 
-        elite: 'eliteRib',
-        'elite rib': 'eliteRib',
-        eliterib: 'eliteRib',
+        delta:
+            'deltaSpan',
 
-        imp: 'imp',
+        'delta span':
+            'deltaSpan',
 
-        ssr: 'ssr24',
-        ssr24: 'ssr24',
-        'ssr 24': 'ssr24',
+        deltaspan:
+            'deltaSpan',
 
-        ultra: 'ultraSpan',
-        'ultra span': 'ultraSpan',
-        ultraspan: 'ultraSpan',
+        elite:
+            'eliteRib',
 
-        wide: 'wideSpan',
-        'wide span': 'wideSpan',
-        widespan: 'wideSpan'
+        'elite rib':
+            'eliteRib',
+
+        eliterib:
+            'eliteRib',
+
+        imp:
+            'imp',
+
+        ssr:
+            'ssr24',
+
+        ssr24:
+            'ssr24',
+
+        'ssr 24':
+            'ssr24',
+
+        ultra:
+            'ultraSpan',
+
+        'ultra span':
+            'ultraSpan',
+
+        ultraspan:
+            'ultraSpan',
+
+        wide:
+            'wideSpan',
+
+        'wide span':
+            'wideSpan',
+
+        widespan:
+            'wideSpan'
     });
 
 export function normalizePanelProfile(
@@ -330,7 +376,9 @@ export function normalizePanelProfile(
             .trim();
 
     return (
-        PROFILE_ALIASES[normalized] ||
+        PROFILE_ALIASES[
+            normalized
+        ] ||
         PROFILE_ALIASES[
             normalized.replace(
                 /\s+/g,
@@ -344,12 +392,11 @@ export function normalizePanelProfile(
 export function getPanelProfile(
     profileId = 'awr'
 ) {
-    const key =
+    return PANEL_PROFILES[
         normalizePanelProfile(
             profileId
-        );
-
-    return PANEL_PROFILES[key];
+        )
+    ];
 }
 
 export function getPanelRepeat(
@@ -359,11 +406,6 @@ export function getPanelRepeat(
     const width =
         Number(
             widthM
-        );
-
-    const profile =
-        getPanelProfile(
-            profileId
         );
 
     if (
@@ -377,7 +419,7 @@ export function getPanelRepeat(
 
     return (
         width /
-        profile.width
+        PANEL_WIDTH_M
     ) *
     TEXTURE_REPEATS_PER_PANEL;
 }
@@ -408,19 +450,24 @@ function getHeightAt(
     }
 
     for (
-        let i = 0;
-        i < points.length - 1;
-        i++
+        let index = 0;
+        index <
+        points.length - 1;
+        index++
     ) {
         const current =
-            points[i];
+            points[index];
 
         const next =
-            points[i + 1];
+            points[
+                index + 1
+            ];
 
         if (
-            x < current[0] ||
-            x > next[0]
+            x <
+                current[0] ||
+            x >
+                next[0]
         ) {
             continue;
         }
@@ -430,7 +477,8 @@ function getHeightAt(
             current[0];
 
         if (
-            span === 0
+            span ===
+            0
         ) {
             return current[1];
         }
@@ -453,6 +501,30 @@ function getHeightAt(
     }
 
     return points[0][1];
+}
+
+function normalizeHeight(
+    profile,
+    height
+) {
+    if (
+        !Number.isFinite(
+            height
+        ) ||
+        profile.height <=
+        SMOOTH_HEIGHT
+    ) {
+        return 0;
+    }
+
+    return Math.max(
+        0,
+        Math.min(
+            1,
+            height /
+            profile.height
+        )
+    );
 }
 
 function createHeightMapData(
@@ -479,9 +551,15 @@ function createHeightMapData(
                 size
             );
 
+        const normalizedHeight =
+            normalizeHeight(
+                profile,
+                height
+            );
+
         const value =
             Math.round(
-                height *
+                normalizedHeight *
                 255
             );
 
@@ -508,17 +586,23 @@ function getNormalAt(
     sampleStep
 ) {
     const left =
-        getHeightAt(
+        normalizeHeight(
             profile,
-            position -
-            sampleStep
+            getHeightAt(
+                profile,
+                position -
+                sampleStep
+            )
         );
 
     const right =
-        getHeightAt(
+        normalizeHeight(
             profile,
-            position +
-            sampleStep
+            getHeightAt(
+                profile,
+                position +
+                sampleStep
+            )
         );
 
     const slope =
@@ -716,7 +800,7 @@ function createHeightMapTexture(
             profile.id,
 
         panelWidth:
-            profile.width,
+            PANEL_WIDTH_M,
 
         repeatsPerPanel:
             TEXTURE_REPEATS_PER_PANEL,
@@ -786,7 +870,7 @@ function createPanelNormalMapTexture(
             profile.id,
 
         panelWidth:
-            profile.width,
+            PANEL_WIDTH_M,
 
         repeatsPerPanel:
             TEXTURE_REPEATS_PER_PANEL,
@@ -799,70 +883,6 @@ function createPanelNormalMapTexture(
         true;
 
     return texture;
-}
-
-export function generatePanelHeightMap(
-    profileId = 'awr'
-) {
-    const key =
-        getPanelProfile(
-            profileId
-        ).id;
-
-    if (
-        key === 'imp'
-    ) {
-        return null;
-    }
-
-    if (
-        !heightMapCache.has(
-            key
-        )
-    ) {
-        heightMapCache.set(
-            key,
-            createHeightMapTexture(
-                key
-            )
-        );
-    }
-
-    return heightMapCache.get(
-        key
-    );
-}
-
-export function generatePanelNormalMap(
-    profileId = 'awr'
-) {
-    const key =
-        getPanelProfile(
-            profileId
-        ).id;
-
-    if (
-        key === 'imp'
-    ) {
-        return null;
-    }
-
-    if (
-        !normalMapCache.has(
-            key
-        )
-    ) {
-        normalMapCache.set(
-            key,
-            createPanelNormalMapTexture(
-                key
-            )
-        );
-    }
-
-    return normalMapCache.get(
-        key
-    );
 }
 
 function createSlotTexture(
@@ -968,6 +988,72 @@ function getSlotTexture(
         true;
 
     return texture;
+}
+
+export function generatePanelHeightMap(
+    profileId = 'awr'
+) {
+    const key =
+        getPanelProfile(
+            profileId
+        ).id;
+
+    if (
+        key ===
+        'imp'
+    ) {
+        return null;
+    }
+
+    if (
+        !heightMapCache.has(
+            key
+        )
+    ) {
+        heightMapCache.set(
+            key,
+            createHeightMapTexture(
+                key
+            )
+        );
+    }
+
+    return heightMapCache.get(
+        key
+    );
+}
+
+export function generatePanelNormalMap(
+    profileId = 'awr'
+) {
+    const key =
+        getPanelProfile(
+            profileId
+        ).id;
+
+    if (
+        key ===
+        'imp'
+    ) {
+        return null;
+    }
+
+    if (
+        !normalMapCache.has(
+            key
+        )
+    ) {
+        normalMapCache.set(
+            key,
+            createPanelNormalMapTexture(
+                key
+            )
+        );
+    }
+
+    return normalMapCache.get(
+        key
+    );
 }
 
 export function getPanelHeightMapForUse(

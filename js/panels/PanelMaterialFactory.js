@@ -2,8 +2,7 @@ import * as THREE from 'three';
 
 import {
     getPanelHeightMapForUse,
-    getPanelNormalMapForUse,
-    getPanelRepeat,
+    getPanelProfile,
     normalizePanelProfile
 } from './PanelProfiles.js';
 
@@ -19,22 +18,16 @@ const DEFAULT_SPAN =
 const DEFAULT_REPEAT_Y =
     1.0;
 
-const DEFAULT_NORMAL_SCALE =
-    1.0;
-
 const DEFAULT_BUMP_SCALE =
-    0.25;
+    0.5;
 
-const ROOF_SLOT_PREFIX =
-    'roof-';
+const DEFAULT_PROFILE_WIDTH =
+    1.0;
 
 export const PanelMapType =
     Object.freeze({
         NONE:
             'none',
-
-        NORMAL:
-            'normal',
 
         HEIGHT:
             'height'
@@ -57,13 +50,10 @@ function normalizeMapType(
     mapType
 ) {
     if (
-        Object.values(
-            PanelMapType
-        ).includes(
-            mapType
-        )
+        mapType ===
+        PanelMapType.HEIGHT
     ) {
-        return mapType;
+        return PanelMapType.HEIGHT;
     }
 
     return PanelMapType.NONE;
@@ -85,18 +75,72 @@ function getPositive(
     return fallback;
 }
 
-function createNormalScale(
-    value
+function resolveProfileId(
+    options
 ) {
-    const scale =
-        getPositive(
-            value,
-            DEFAULT_NORMAL_SCALE
+    return normalizePanelProfile(
+        options.profileId ||
+        DEFAULT_PROFILE
+    );
+}
+
+function resolveProfile(
+    profileId
+) {
+    return getPanelProfile(
+        profileId
+    );
+}
+
+function resolveSpan(
+    options
+) {
+    return getPositive(
+        options.span,
+        DEFAULT_SPAN
+    );
+}
+
+function resolveProfileWidth(
+    profile
+) {
+    return getPositive(
+        profile?.width,
+        DEFAULT_PROFILE_WIDTH
+    );
+}
+
+function resolveRepeatX(
+    options,
+    profileId
+) {
+    const span =
+        resolveSpan(
+            options
         );
 
-    return new THREE.Vector2(
-        scale,
-        scale
+    const profile =
+        resolveProfile(
+            profileId
+        );
+
+    const profileWidth =
+        resolveProfileWidth(
+            profile
+        );
+
+    return (
+        span /
+        profileWidth
+    );
+}
+
+function resolveRepeatY(
+    options
+) {
+    return getPositive(
+        options.repeatY,
+        DEFAULT_REPEAT_Y
     );
 }
 
@@ -117,205 +161,6 @@ function clearMaps(
 
     material.bumpScale =
         0;
-}
-
-function isRoofSlot(
-    slot
-) {
-    return (
-        typeof slot ===
-        'string'
-    ) &&
-    slot.startsWith(
-        ROOF_SLOT_PREFIX
-    ) &&
-    slot !==
-    'roof-ceiling' &&
-    slot !==
-    'roof-side';
-}
-
-function logRoofMaterial(
-    {
-        profileId,
-        slot,
-        span,
-        repeatX,
-        repeatY,
-        mapType,
-        material
-    }
-) {
-    if (
-        !isRoofSlot(
-            slot
-        )
-    ) {
-        return;
-    }
-
-    console.log(
-        '[Roof Panel Material]',
-        {
-            slot,
-
-            profileId,
-
-            mapType,
-
-            span,
-
-            repeatX,
-
-            repeatY,
-
-            sourceMap:
-                material.map
-                    ? {
-                        uuid:
-                            material.map.uuid,
-
-                        repeat:
-                            {
-                                x:
-                                    material
-                                        .map
-                                        .repeat
-                                        .x,
-
-                                y:
-                                    material
-                                        .map
-                                        .repeat
-                                        .y
-                            }
-                    }
-                    : null,
-
-            bumpMap:
-                material.bumpMap
-                    ? {
-                        uuid:
-                            material
-                                .bumpMap
-                                .uuid,
-
-                        profileId:
-                            material
-                                .bumpMap
-                                .userData
-                                ?.profileId,
-
-                        panelWidth:
-                            material
-                                .bumpMap
-                                .userData
-                                ?.panelWidth,
-
-                        repeat:
-                            {
-                                x:
-                                    material
-                                        .bumpMap
-                                        .repeat
-                                        .x,
-
-                                y:
-                                    material
-                                        .bumpMap
-                                        .repeat
-                                        .y
-                            }
-                    }
-                    : null,
-
-            normalMap:
-                material.normalMap
-                    ? {
-                        uuid:
-                            material
-                                .normalMap
-                                .uuid,
-
-                        profileId:
-                            material
-                                .normalMap
-                                .userData
-                                ?.profileId,
-
-                        panelWidth:
-                            material
-                                .normalMap
-                                .userData
-                                ?.panelWidth,
-
-                        repeat:
-                            {
-                                x:
-                                    material
-                                        .normalMap
-                                        .repeat
-                                        .x,
-
-                                y:
-                                    material
-                                        .normalMap
-                                        .repeat
-                                        .y
-                            }
-                    }
-                    : null,
-
-            bumpScale:
-                material.bumpScale,
-
-            normalScale:
-                material
-                    .normalScale
-                    ?.toArray(),
-
-            baseMapStillPresent:
-                Boolean(
-                    material.map
-                )
-        }
-    );
-}
-
-function applyNormalMap(
-    material,
-    profileId,
-    slot,
-    repeatX,
-    repeatY,
-    normalScale
-) {
-    const map =
-        getPanelNormalMapForUse(
-            profileId,
-            slot,
-            repeatX,
-            repeatY
-        );
-
-    material.normalMap =
-        map;
-
-    material.bumpMap =
-        null;
-
-    material.bumpScale =
-        0;
-
-    material.normalScale =
-        map
-            ? createNormalScale(
-                normalScale
-            )
-            : new THREE.Vector2(
-                0,
-                0
-            );
 }
 
 function applyHeightMap(
@@ -353,46 +198,18 @@ function applyHeightMap(
                 DEFAULT_BUMP_SCALE
             )
             : 0;
-}
 
-function resolveRepeatX(
-    options,
-    profileId
-) {
-    if (
-        Number.isFinite(
-            options.repeatX
-        ) &&
-        options.repeatX > 0
-    ) {
-        return options.repeatX;
-    }
-
-    const span =
-        getPositive(
-            options.span,
-            DEFAULT_SPAN
-        );
-
-    return getPanelRepeat(
-        span,
-        profileId
-    );
-}
-
-function resolveRepeatY(
-    options
-) {
-    return getPositive(
-        options.repeatY,
-        DEFAULT_REPEAT_Y
-    );
+    return map;
 }
 
 function applyMaps(
     material,
     options
 ) {
+    const slot =
+        options.slot ||
+        DEFAULT_SLOT;
+
     const mapType =
         normalizeMapType(
             options.mapType
@@ -402,22 +219,44 @@ function applyMaps(
         material
     );
 
+    const profileId =
+        resolveProfileId(
+            options
+        );
+
+    const span =
+        resolveSpan(
+            options
+        );
+
     if (
         mapType ===
         PanelMapType.NONE
     ) {
-        return;
+        return {
+            mapType,
+            profileId,
+            span,
+            repeatX:
+                0,
+            repeatY:
+                0,
+            profileWidth:
+                0,
+            map:
+                null
+        };
     }
 
-    const profileId =
-        normalizePanelProfile(
-            options.profileId ||
-            DEFAULT_PROFILE
+    const profile =
+        resolveProfile(
+            profileId
         );
 
-    const slot =
-        options.slot ||
-        DEFAULT_SLOT;
+    const profileWidth =
+        resolveProfileWidth(
+            profile
+        );
 
     const repeatX =
         resolveRepeatX(
@@ -430,48 +269,7 @@ function applyMaps(
             options
         );
 
-    if (
-        mapType ===
-        PanelMapType.NORMAL
-    ) {
-        applyNormalMap(
-            material,
-            profileId,
-            slot,
-            repeatX,
-            repeatY,
-            options.normalScale
-        );
-
-        logRoofMaterial(
-            {
-                profileId,
-
-                slot,
-
-                span:
-                    getPositive(
-                        options.span,
-                        DEFAULT_SPAN
-                    ),
-
-                repeatX,
-
-                repeatY,
-
-                mapType,
-
-                material
-            }
-        );
-
-        return;
-    }
-
-    if (
-        mapType ===
-        PanelMapType.HEIGHT
-    ) {
+    const map =
         applyHeightMap(
             material,
             profileId,
@@ -481,28 +279,15 @@ function applyMaps(
             options.bumpScale
         );
 
-        logRoofMaterial(
-            {
-                profileId,
-
-                slot,
-
-                span:
-                    getPositive(
-                        options.span,
-                        DEFAULT_SPAN
-                    ),
-
-                repeatX,
-
-                repeatY,
-
-                mapType,
-
-                material
-            }
-        );
-    }
+    return {
+        mapType,
+        profileId,
+        span,
+        repeatX,
+        repeatY,
+        profileWidth,
+        map
+    };
 }
 
 function applySide(
@@ -524,15 +309,9 @@ function applyName(
 
 function applyMetadata(
     material,
-    options,
+    result,
     slot
 ) {
-    const profileId =
-        normalizePanelProfile(
-            options.profileId ||
-            DEFAULT_PROFILE
-        );
-
     material.userData =
         {
             ...material.userData,
@@ -541,22 +320,155 @@ function applyMetadata(
                 true,
 
             panelProfile:
-                profileId,
+                result.profileId,
 
             panelSlot:
                 slot,
 
             panelMapType:
-                normalizeMapType(
-                    options.mapType
-                ),
+                result.mapType,
 
             panelSpan:
-                getPositive(
-                    options.span,
-                    DEFAULT_SPAN
-                )
+                result.span,
+
+            panelProfileWidth:
+                result.profileWidth,
+
+            panelRepeatX:
+                result.repeatX,
+
+            panelRepeatY:
+                result.repeatY
         };
+}
+
+function getTextureData(
+    texture
+) {
+    if (
+        !texture
+    ) {
+        return null;
+    }
+
+    return {
+        uuid:
+            texture.uuid,
+
+        profileId:
+            texture.userData
+                ?.profileId,
+
+        slot:
+            texture.userData
+                ?.slot,
+
+        repeat:
+            {
+                x:
+                    texture.repeat.x,
+
+                y:
+                    texture.repeat.y
+            },
+
+        wrapS:
+            texture.wrapS,
+
+        wrapT:
+            texture.wrapT,
+
+        imageWidth:
+            texture.image?.width,
+
+        imageHeight:
+            texture.image?.height,
+
+        format:
+            texture.format,
+
+        type:
+            texture.type
+    };
+}
+
+function logRoofMaterial(
+    slot,
+    material,
+    result
+) {
+    if (
+        typeof slot !==
+        'string'
+    ) {
+        return;
+    }
+
+    if (
+        !slot.startsWith(
+            'roof-'
+        )
+    ) {
+        return;
+    }
+
+    console.log(
+        '[Roof Panel Material]',
+        {
+            slot,
+
+            profileId:
+                result.profileId,
+
+            mapType:
+                result.mapType,
+
+            span:
+                result.span,
+
+            profileWidth:
+                result.profileWidth,
+
+            repeatX:
+                result.repeatX,
+
+            repeatY:
+                result.repeatY,
+
+            expectedPanelCount:
+                result.profileWidth > 0
+                    ? result.span /
+                    result.profileWidth
+                    : 0,
+
+            bumpMap:
+                getTextureData(
+                    material.bumpMap
+                ),
+
+            normalMap:
+                getTextureData(
+                    material.normalMap
+                ),
+
+            bumpScale:
+                material.bumpScale,
+
+            normalScale:
+                material
+                    .normalScale
+                    ?.toArray(),
+
+            side:
+                material.side,
+
+            materialType:
+                material.type,
+
+            materialName:
+                material.name
+        }
+    );
 }
 
 export function createPanelMaterial(
@@ -584,19 +496,25 @@ export function createPanelMaterial(
         options.side
     );
 
+    const result =
+        applyMaps(
+            material,
+            {
+                ...options,
+                slot
+            }
+        );
+
     applyMetadata(
         material,
-        options,
+        result,
         slot
     );
 
-    applyMaps(
+    logRoofMaterial(
+        slot,
         material,
-        {
-            ...options,
-
-            slot
-        }
+        result
     );
 
     material.needsUpdate =

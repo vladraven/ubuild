@@ -1,0 +1,222 @@
+import * as THREE from 'three';
+
+const PHASE_COLORS = Object.freeze({
+    night: Object.freeze({
+        sunColor: 0x111c33,
+        sunIntensity: 0.2,
+        ambientColor: 0x1a2638,
+        ambientIntensity: 0.5,
+        skyColor: 0x0a1424,
+        groundColor: 0x050a12,
+        envZenith: 0x0a1424,
+        envHorizon: 0x111c33,
+        envGround: 0xffffff
+    }),
+
+    sunrise: Object.freeze({
+        sunColor: 0xffccaa,
+        sunIntensity: 1.0,
+        ambientColor: 0xaa9c90,
+        ambientIntensity: 0.3,
+        skyColor: 0xdca27a,
+        groundColor: 0x2a2018,
+        envZenith: 0x4a6b8c,
+        envHorizon: 0xdca27a,
+        envGround: 0xffffff
+    }),
+
+    day: Object.freeze({
+        sunColor: 0xffffff,
+        sunIntensity: 1.6,
+        ambientColor: 0xffffff,
+        ambientIntensity: 0.1,    // Минимальный заливающий свет
+        skyColor: 0xffffff,
+        groundColor: 0x222222,
+        // Искусственная HDRI-карта для отражений (PBR)
+        envZenith: 0x4a90e2,      // Сочный синий для отражения в металле
+        envHorizon: 0xeef5f9,     // Светлый горизонт для бликов
+        envGround: 0xffffff       // Темный сланцево-серый низ для контраста в тенях
+    }),
+
+    sunset: Object.freeze({
+        sunColor: 0xffffff,
+        sunIntensity: 1.0,
+        ambientColor: 0xffffff,
+        ambientIntensity: 0.3,
+        skyColor: 0xcd8e78,
+        groundColor: 0xffffff,
+        envZenith: 0x687b99,
+        envHorizon: 0xcd8e78,
+        envGround: 0xffffff
+    })
+});
+
+// Кэш для процедурных текстур окружения, чтобы не пересоздавать их каждый кадр
+const envMapCache = {};
+
+function getProceduralEnvMap(phaseConfig) {
+    const cacheKey = `${phaseConfig.envZenith}_${phaseConfig.envHorizon}_${phaseConfig.envGround}`;
+    if (envMapCache[cacheKey]) {
+        return envMapCache[cacheKey];
+    }
+
+    // Создаем градиент 1x4 пикселя (Зенит -> Горизонт-Небо -> Горизонт-Земля -> Надир)
+    const data = new Uint8Array(4 * 4);
+    const zC = new THREE.Color(phaseConfig.envZenith);
+    const hC = new THREE.Color(phaseConfig.envHorizon);
+    const gC = new THREE.Color(phaseConfig.envGround);
+
+    // Зенит (небо)
+    data[0] = zC.r * 255; data[1] = zC.g * 255; data[2] = zC.b * 255; data[3] = 255;
+    // Горизонт (небо)
+    data[4] = hC.r * 255; data[5] = hC.g * 255; data[6] = hC.b * 255; data[7] = 255;
+    // Горизонт (земля - немного темнее)
+    const gH = gC.clone().multiplyScalar(0.6);
+    data[8] = gH.r * 255; data[9] = gH.g * 255; data[10] = gH.b * 255; data[11] = 255;
+    // Надир (земля)
+    data[12] = gC.r * 255; data[13] = gC.g * 255; data[14] = gC.b * 255; data[15] = 255;
+
+    const texture = new THREE.DataTexture(data, 1, 4, THREE.RGBAFormat);
+    texture.colorSpace = THREE.SRGBColorSpace;
+    texture.mapping = THREE.EquirectangularReflectionMapping; // Указываем, что это карта окружения
+    texture.magFilter = THREE.LinearFilter; // Линейная фильтрация сделает из 4 пикселей идеальный плавный градиент
+    texture.minFilter = THREE.LinearFilter;
+    texture.generateMipmaps = false;
+    texture.needsUpdate = true;
+
+    envMapCache[cacheKey] = texture;
+    return texture;
+}
+
+export function createLightingSystem(scene) {
+    if (!scene || typeof scene.add !== 'function') {
+        throw new TypeError('Three.js Scene is required to initialize LightingSystem');
+    }
+
+    const lightsGroup = new THREE.Group();
+    lightsGroup.name = 'lighting-system';
+
+    const ambientLight = new THREE.AmbientLight(0xffffff, 0.1);
+    ambientLight.name = 'light-ambient';
+    lightsGroup.add(ambientLight);
+
+    const hemisphereLight = new THREE.HemisphereLight(0xffffff, 0xffffff, 0.3);
+    hemisphereLight.name = 'light-hemisphere';
+    lightsGroup.add(hemisphereLight);
+
+    const sunLight = new THREE.DirectionalLight(0xffffff, 1.6);
+    sunLight.name = 'light-sun';
+    sunLight.castShadow = true;
+
+    sunLight.shadow.mapSize.width = 4096;
+    sunLight.shadow.mapSize.height = 4096;
+    sunLight.shadow.bias = 0.0015;
+    sunLight.shadow.normalBias = 0.02;
+    sunLight.shadow.radius = 2;
+
+    lightsGroup.add(sunLight);
+    lightsGroup.add(sunLight.target);
+    scene.add(lightsGroup);
+
+    let currentSolarState = null;
+
+    function update(solarState, buildingBounds = null) {
+        if (!solarState) return;
+
+        currentSolarState = solarState;
+        const phaseConfig = PHASE_COLORS[solarState.phase] || PHASE_COLORS.day;
+
+        // Применяем искусственную HDRI-карту только для отражений PBR материалов
+        scene.environment = getProceduralEnvMap(phaseConfig);
+
+        const elevationClamped = Math.max(0.1, solarState.elevation);
+        const phi = (90.0 - elevationClamped) * (Math.PI / 180.0);
+        const theta = (solarState.azimuth - 90.0) * (Math.PI / 180.0);
+        const radius = 250.0;
+
+        const sunX = radius * Math.sin(phi) * Math.cos(theta);
+        const sunY = radius * Math.cos(phi);
+        const sunZ = radius * Math.sin(phi) * Math.sin(theta);
+
+        sunLight.position.set(sunX, sunY, sunZ);
+
+        if (buildingBounds && buildingBounds.center) {
+            sunLight.target.position.set(
+                buildingBounds.center.x,
+                buildingBounds.center.y,
+                buildingBounds.center.z
+            );
+        } else {
+            sunLight.target.position.set(0, 0, 0);
+        }
+        
+        sunLight.target.updateMatrixWorld();
+
+        if (buildingBounds) {
+            const maxDim = Math.max(
+                buildingBounds.width || 30,
+                buildingBounds.height || 10,
+                buildingBounds.length || 40
+            );
+
+            const shadowSize = Math.max(10, maxDim * 0.75);
+
+            sunLight.shadow.camera.left = -shadowSize;
+            sunLight.shadow.camera.right = shadowSize;
+            sunLight.shadow.camera.top = shadowSize;
+            sunLight.shadow.camera.bottom = -shadowSize;
+            sunLight.shadow.camera.near = 1.0;
+            sunLight.shadow.camera.far = radius * 2.0;
+            sunLight.shadow.camera.updateProjectionMatrix();
+        }
+
+        sunLight.color.setHex(phaseConfig.sunColor);
+        sunLight.intensity = solarState.phase === 'night' ? 0.0 : phaseConfig.sunIntensity;
+
+        ambientLight.color.setHex(phaseConfig.ambientColor);
+        ambientLight.intensity = phaseConfig.ambientIntensity;
+
+        hemisphereLight.color.setHex(phaseConfig.skyColor);
+        hemisphereLight.groundColor.setHex(phaseConfig.groundColor);
+        hemisphereLight.intensity = solarState.phase === 'night' ? 0.15 : 0.3;
+    }
+
+    function getState() {
+        return Object.freeze({
+            solar: currentSolarState,
+            sun: {
+                position: { 
+                    x: sunLight.position.x, 
+                    y: sunLight.position.y, 
+                    z: sunLight.position.z 
+                },
+                intensity: sunLight.intensity,
+                color: sunLight.color.getHexString()
+            },
+            ambient: {
+                intensity: ambientLight.intensity,
+                color: ambientLight.color.getHexString()
+            }
+        });
+    }
+
+    function dispose() {
+        sunLight.dispose();
+        ambientLight.dispose();
+        hemisphereLight.dispose();
+        
+        // Очищаем кэш текстур
+        Object.values(envMapCache).forEach(tex => tex.dispose());
+        scene.environment = null;
+
+        lightsGroup.clear();
+        lightsGroup.removeFromParent();
+    }
+
+    return Object.freeze({
+        lightsGroup,
+        update,
+        getState,
+        dispose
+    });
+}

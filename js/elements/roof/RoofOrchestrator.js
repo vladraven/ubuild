@@ -1,7 +1,6 @@
 import * as THREE from 'three';
 
 import {
-    getPanelProfile,
     normalizePanelProfile
 } from '../../panels/PanelProfiles.js';
 
@@ -18,9 +17,6 @@ const DEFAULT_PROFILE =
 
 const BUMP_SCALE =
     0.5;
-
-const WIDTH_EPSILON =
-    0.000001;
 
 function assertContext(
     context
@@ -96,7 +92,7 @@ function toVector3(
     );
 }
 
-function getPanelWidth(
+function getPlaneWidth(
     corners
 ) {
     const first =
@@ -112,31 +108,6 @@ function getPanelWidth(
     return first.distanceTo(
         second
     );
-}
-
-function getPanelTargetWidth(
-    profileId
-) {
-    const profile =
-        getPanelProfile(
-            profileId
-        );
-
-    const width =
-        Number(
-            profile?.width
-        );
-
-    if (
-        Number.isFinite(
-            width
-        ) &&
-        width > 0
-    ) {
-        return width;
-    }
-
-    return 1;
 }
 
 function createRoofMaterial(
@@ -328,7 +299,7 @@ function createSolidPlaneGeometry(
         corners.length !== 4
     ) {
         throw new TypeError(
-            'Roof panel must contain four corners'
+            'Roof plane must contain four corners'
         );
     }
 
@@ -356,10 +327,10 @@ function createSolidPlaneGeometry(
         positions,
         uvs,
         indices,
-        top[0],
-        top[1],
-        top[2],
         top[3],
+        top[2],
+        top[1],
+        top[0],
         TOP_FACE_UVS
     );
 
@@ -367,10 +338,10 @@ function createSolidPlaneGeometry(
         positions,
         uvs,
         indices,
+        bottom[0],
+        bottom[1],
+        bottom[2],
         bottom[3],
-        bottom[2],
-        bottom[1],
-        bottom[0],
         STANDARD_FACE_UVS
     );
 
@@ -378,20 +349,9 @@ function createSolidPlaneGeometry(
         positions,
         uvs,
         indices,
-        bottom[0],
         bottom[1],
-        top[1],
+        bottom[0],
         top[0],
-        STANDARD_FACE_UVS
-    );
-
-    addFace(
-        positions,
-        uvs,
-        indices,
-        bottom[1],
-        bottom[2],
-        top[2],
         top[1],
         STANDARD_FACE_UVS
     );
@@ -401,8 +361,8 @@ function createSolidPlaneGeometry(
         uvs,
         indices,
         bottom[2],
-        bottom[3],
-        top[3],
+        bottom[1],
+        top[1],
         top[2],
         STANDARD_FACE_UVS
     );
@@ -412,9 +372,20 @@ function createSolidPlaneGeometry(
         uvs,
         indices,
         bottom[3],
-        bottom[0],
-        top[0],
+        bottom[2],
+        top[2],
         top[3],
+        STANDARD_FACE_UVS
+    );
+
+    addFace(
+        positions,
+        uvs,
+        indices,
+        bottom[0],
+        bottom[3],
+        top[3],
+        top[0],
         STANDARD_FACE_UVS
     );
 
@@ -488,25 +459,25 @@ function createSolidPlaneGeometry(
     return geometry;
 }
 
-function createProfilePanel(
-    sourcePanels
+function createContinuousPlane(
+    panels
 ) {
     if (
         !Array.isArray(
-            sourcePanels
+            panels
         ) ||
-        sourcePanels.length ===
+        panels.length ===
         0
     ) {
         return null;
     }
 
     const first =
-        sourcePanels[0];
+        panels[0];
 
     const last =
-        sourcePanels[
-            sourcePanels.length -
+        panels[
+            panels.length -
             1
         ];
 
@@ -534,168 +505,41 @@ function createProfilePanel(
         ];
 
     return {
-        index:
-            first.index,
-
-        sourcePanelIndexes:
-            sourcePanels.map(
-                panel =>
-                    panel.index
-            ),
-
         corners,
 
         width:
-            getPanelWidth(
+            getPlaneWidth(
                 corners
+            ),
+
+        sourcePanelIndexes:
+            panels.map(
+                panel =>
+                    panel.index
             )
     };
 }
 
-function groupPanelsForProfile(
-    panels,
-    profileId
-) {
-    if (
-        !Array.isArray(
-            panels
-        ) ||
-        panels.length ===
-        0
-    ) {
-        return [];
-    }
-
-    const targetWidth =
-        getPanelTargetWidth(
-            profileId
-        );
-
-    const groups =
-        [];
-
-    let currentPanels =
-        [];
-
-    let currentWidth =
-        0;
-
-    for (
-        const panel
-        of panels
-    ) {
-        const width =
-            getPanelWidth(
-                panel.corners
-            );
-
-        if (
-            currentPanels.length > 0 &&
-            currentWidth +
-            width >
-            targetWidth +
-            WIDTH_EPSILON
-        ) {
-            const grouped =
-                createProfilePanel(
-                    currentPanels
-                );
-
-            if (
-                grouped
-            ) {
-                groups.push(
-                    grouped
-                );
-            }
-
-            currentPanels =
-                [];
-
-            currentWidth =
-                0;
-        }
-
-        currentPanels.push(
-            panel
-        );
-
-        currentWidth +=
-            width;
-
-        if (
-            Math.abs(
-                currentWidth -
-                targetWidth
-            ) <=
-            WIDTH_EPSILON
-        ) {
-            const grouped =
-                createProfilePanel(
-                    currentPanels
-                );
-
-            if (
-                grouped
-            ) {
-                groups.push(
-                    grouped
-                );
-            }
-
-            currentPanels =
-                [];
-
-            currentWidth =
-                0;
-        }
-    }
-
-    if (
-        currentPanels.length > 0
-    ) {
-        const grouped =
-            createProfilePanel(
-                currentPanels
-            );
-
-        if (
-            grouped
-        ) {
-            groups.push(
-                grouped
-            );
-        }
-    }
-
-    return groups;
-}
-
-function createPanelMesh(
-    panel,
+function createPlaneMesh(
+    plane,
+    planeId,
     sourceMaterial,
     profileId,
     ceilingMaterial,
     sideMaterial
 ) {
-    const width =
-        panel.width ??
-        getPanelWidth(
-            panel.corners
+    const geometry =
+        createSolidPlaneGeometry(
+            plane.corners,
+            ROOF_THICKNESS
         );
 
     const roofMaterial =
         createRoofMaterial(
             sourceMaterial,
             profileId,
-            `roof-${panel.index}`,
-            width
-        );
-
-    const geometry =
-        createSolidPlaneGeometry(
-            panel.corners,
-            ROOF_THICKNESS
+            `roof-${planeId}`,
+            plane.width
         );
 
     const mesh =
@@ -709,22 +553,19 @@ function createPanelMesh(
         );
 
     mesh.name =
-        `roof-panel-${panel.index}`;
+        `roof-plane-${planeId}`;
 
     mesh.userData.element =
         'roof';
 
-    mesh.userData.panelIndex =
-        panel.index;
+    mesh.userData.planeId =
+        planeId;
 
     mesh.userData.sourcePanelIndexes =
-        panel.sourcePanelIndexes ||
-        [
-            panel.index
-        ];
+        plane.sourcePanelIndexes;
 
-    mesh.userData.panelWidth =
-        width;
+    mesh.userData.planeWidth =
+        plane.width;
 
     mesh.userData.profileId =
         profileId;
@@ -755,26 +596,27 @@ function createPlaneGroup(
     group.name =
         `roof-${planeId}`;
 
-    const profilePanels =
-        groupPanelsForProfile(
-            panels,
-            profileId
+    const plane =
+        createContinuousPlane(
+            panels
         );
 
-    for (
-        const panel
-        of profilePanels
+    if (
+        !plane
     ) {
-        group.add(
-            createPanelMesh(
-                panel,
-                sourceMaterial,
-                profileId,
-                ceilingMaterial,
-                sideMaterial
-            )
-        );
+        return group;
     }
+
+    group.add(
+        createPlaneMesh(
+            plane,
+            planeId,
+            sourceMaterial,
+            profileId,
+            ceilingMaterial,
+            sideMaterial
+        )
+    );
 
     return group;
 }

@@ -1,206 +1,83 @@
 import * as THREE from 'three';
-
-import { SEASON_PROFILES } from '../config/SeasonProfiles.js';
 import { createTerrain } from './Terrain.js';
-import { createGroundTextureManager } from './GroundTextures.js';
 
 export function createGroundSystem(config = {}) {
-    let onNeedRender =
-        typeof config.onNeedRender === 'function'
-            ? config.onNeedRender
-            : null;
-
-    let currentSeason =
-        config.season || 'summer';
-
+    let onNeedRender = typeof config.onNeedRender === 'function' ? config.onNeedRender : null;
+    
     const group = new THREE.Group();
-
     group.name = 'environment-ground';
 
     const terrain = createTerrain({
-        size: config.size,
-        segments: config.segments,
-        maxHeight: config.maxHeight,
-        seed: config.seed
+        size: 3000,
+        segments: 128
     });
 
-    const textureManager =
-        createGroundTextureManager({
-            onNeedRender: () => {
-                const texture =
-                    textureManager.getCurrentTexture();
+    const groundMaterial = new THREE.MeshStandardMaterial({
+        color: 0xffffff,
+        vertexColors: true, // ВАЖНО! Применяет HSL-затемнение из геометрии
+        roughness: 0.9,
+        metalness: 0.1
+    });
 
-                if (
-                    texture &&
-                    groundMaterial.map !== texture
-                ) {
-                    groundMaterial.map =
-                        texture;
-
-                    groundMaterial.needsUpdate =
-                        true;
-                }
-
-                requestRender();
+    const textureLoader = new THREE.TextureLoader();
+    textureLoader.setCrossOrigin('anonymous');
+    textureLoader.load(
+        'https://cdn.jsdelivr.net/gh/mrdoob/three.js@r148/examples/textures/terrain/grasslight-big.jpg',
+        (texture) => {
+            texture.wrapS = THREE.RepeatWrapping;
+            texture.wrapT = THREE.RepeatWrapping;
+            texture.repeat.set(80, 80);
+            texture.anisotropy = 16;
+            
+            if ('colorSpace' in texture) {
+                texture.colorSpace = THREE.SRGBColorSpace;
+            } else if ('encoding' in texture) {
+                texture.encoding = THREE.sRGBEncoding;
             }
-        });
 
-    const initialProfile =
-        SEASON_PROFILES[currentSeason] ||
-        SEASON_PROFILES.summer;
-
-    const initialTexture =
-        textureManager.getTexture(
-            currentSeason
-        );
-
-    const groundMaterial =
-        new THREE.MeshStandardMaterial({
-            color:
-                initialProfile.groundColor,
-
-            map:
-                initialTexture,
-
-            roughness:
-                initialProfile.groundRoughness,
-
-            metalness:
-                initialProfile.groundMetalness
-        });
-
-    const mesh = new THREE.Mesh(
-        terrain.geometry,
-        groundMaterial
+            groundMaterial.map = texture;
+            groundMaterial.bumpMap = texture;
+            groundMaterial.bumpScale = 0.5;
+            
+            groundMaterial.needsUpdate = true;
+            if (onNeedRender) onNeedRender();
+        },
+        undefined,
+        (err) => console.error("Failed to load grass texture", err)
     );
 
+    const mesh = new THREE.Mesh(terrain.geometry, groundMaterial);
     mesh.name = 'environment-ground-mesh';
-
-    mesh.position.y =
-        Number(config.y) || -0.01;
-
+    mesh.position.y = -0.02;
     mesh.receiveShadow = true;
 
     group.add(mesh);
 
-    textureManager.preload();
-
     function requestRender() {
-        if (
-            typeof onNeedRender === 'function'
-        ) {
-            onNeedRender();
-        }
+        if (onNeedRender) onNeedRender();
     }
 
-    function update(input = {}) {
-        const nextSeason =
-            input.season || currentSeason;
-
-        currentSeason =
-            nextSeason;
-
-        const profile =
-            SEASON_PROFILES[currentSeason] ||
-            SEASON_PROFILES.summer;
-
-        const texture =
-            textureManager.getTexture(
-                currentSeason
-            );
-
-        groundMaterial.color.setHex(
-            profile.groundColor
-        );
-
-        groundMaterial.roughness =
-            profile.groundRoughness;
-
-        groundMaterial.metalness =
-            profile.groundMetalness;
-
-        if (texture) {
-            groundMaterial.map =
-                texture;
-        }
-
-        groundMaterial.needsUpdate =
-            true;
-
-        requestRender();
-
-        return getState();
-    }
-
+    function update() { return Object.freeze({}); }
+    
     function updateBounds(buildingBounds) {
-        terrain.updateBounds(
-            buildingBounds
-        );
-
-        if (
-            buildingBounds &&
-            buildingBounds.center
-        ) {
-            mesh.position.x =
-                buildingBounds.center.x || 0;
-
-            mesh.position.z =
-                buildingBounds.center.z || 0;
-        }
-
-        requestRender();
+        // Старая логика bounds для динамической генерации нам больше не нужна, так как мы вернули жесткий террейн
     }
-
-    function setOnNeedRender(fn) {
-        onNeedRender =
-            typeof fn === 'function'
-                ? fn
-                : null;
+    
+    function setOnNeedRender(fn) { 
+        onNeedRender = typeof fn === 'function' ? fn : null; 
     }
-
-    function getState() {
-        return Object.freeze({
-            season:
-                currentSeason,
-
-            color:
-                groundMaterial.color.getHexString(),
-
-            roughness:
-                groundMaterial.roughness,
-
-            metalness:
-                groundMaterial.metalness,
-
-            hasMap:
-                Boolean(
-                    groundMaterial.map
-                ),
-
-            position: Object.freeze({
-                x: mesh.position.x,
-                y: mesh.position.y,
-                z: mesh.position.z
-            })
-        });
-    }
+    
+    function getState() { return Object.freeze({}); }
 
     function dispose() {
-        textureManager.dispose();
         terrain.dispose();
+        if (groundMaterial.map) groundMaterial.map.dispose();
         groundMaterial.dispose();
-
         group.clear();
         group.removeFromParent();
     }
 
     return Object.freeze({
-        group,
-        mesh,
-        update,
-        updateBounds,
-        setOnNeedRender,
-        getState,
-        dispose
+        group, mesh, update, updateBounds, setOnNeedRender, getState, dispose
     });
 }
