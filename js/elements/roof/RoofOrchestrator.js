@@ -82,21 +82,27 @@ function getSourceMaterial(
     );
 }
 
+function toVector3(
+    point
+) {
+    return new THREE.Vector3(
+        point.x,
+        point.y,
+        point.z
+    );
+}
+
 function getPanelWidth(
     corners
 ) {
     const first =
-        new THREE.Vector3(
-            corners[0].x,
-            corners[0].y,
-            corners[0].z
+        toVector3(
+            corners[0]
         );
 
     const second =
-        new THREE.Vector3(
-            corners[3].x,
-            corners[3].y,
-            corners[3].z
+        toVector3(
+            corners[3]
         );
 
     return first.distanceTo(
@@ -180,16 +186,6 @@ function createSideMaterial(
     );
 }
 
-function toVector3(
-    point
-) {
-    return new THREE.Vector3(
-        point.x,
-        point.y,
-        point.z
-    );
-}
-
 function createBottom(
     top,
     thickness
@@ -212,7 +208,8 @@ function addFace(
     a,
     b,
     c,
-    d
+    d,
+    faceUvs
 ) {
     const base =
         positions.length /
@@ -237,17 +234,17 @@ function addFace(
     );
 
     uvs.push(
-        0,
-        0,
+        faceUvs[0],
+        faceUvs[1],
 
-        1,
-        0,
+        faceUvs[2],
+        faceUvs[3],
 
-        1,
-        1,
+        faceUvs[4],
+        faceUvs[5],
 
-        0,
-        1
+        faceUvs[6],
+        faceUvs[7]
     );
 
     indices.push(
@@ -260,6 +257,36 @@ function addFace(
         base + 3
     );
 }
+
+const TOP_FACE_UVS =
+    Object.freeze([
+        0,
+        0,
+
+        0,
+        1,
+
+        1,
+        1,
+
+        1,
+        0
+    ]);
+
+const STANDARD_FACE_UVS =
+    Object.freeze([
+        0,
+        0,
+
+        1,
+        0,
+
+        1,
+        1,
+
+        0,
+        1
+    ]);
 
 function createSolidPlaneGeometry(
     corners,
@@ -296,6 +323,18 @@ function createSolidPlaneGeometry(
     const indices =
         [];
 
+    /*
+     * Roof panel direction is:
+     *
+     * corners[0] -> corners[3]
+     *
+     * This is the same direction used by
+     * PanelGeometry and getPanelWidth().
+     *
+     * U therefore follows the physical panel
+     * width rather than the longitudinal roof
+     * direction.
+     */
     addFace(
         positions,
         uvs,
@@ -303,7 +342,8 @@ function createSolidPlaneGeometry(
         top[0],
         top[1],
         top[2],
-        top[3]
+        top[3],
+        TOP_FACE_UVS
     );
 
     addFace(
@@ -313,7 +353,8 @@ function createSolidPlaneGeometry(
         bottom[3],
         bottom[2],
         bottom[1],
-        bottom[0]
+        bottom[0],
+        STANDARD_FACE_UVS
     );
 
     addFace(
@@ -323,7 +364,8 @@ function createSolidPlaneGeometry(
         bottom[0],
         bottom[1],
         top[1],
-        top[0]
+        top[0],
+        STANDARD_FACE_UVS
     );
 
     addFace(
@@ -333,7 +375,8 @@ function createSolidPlaneGeometry(
         bottom[1],
         bottom[2],
         top[2],
-        top[1]
+        top[1],
+        STANDARD_FACE_UVS
     );
 
     addFace(
@@ -343,7 +386,8 @@ function createSolidPlaneGeometry(
         bottom[2],
         bottom[3],
         top[3],
-        top[2]
+        top[2],
+        STANDARD_FACE_UVS
     );
 
     addFace(
@@ -353,7 +397,8 @@ function createSolidPlaneGeometry(
         bottom[3],
         bottom[0],
         top[0],
-        top[3]
+        top[3],
+        STANDARD_FACE_UVS
     );
 
     const geometry =
