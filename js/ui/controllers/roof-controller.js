@@ -137,15 +137,16 @@ export function createRoofController(
             : 1;
     }
 
-    function getPitchLimits() {
+    function getPitchLimits(
+        roofState =
+            runtime.model.roof
+    ) {
         const constraints =
             getConstraints();
 
         const profile =
             String(
-                runtime
-                    .model
-                    .roof
+                roofState
                     ?.profile ||
                 'awr'
             )
@@ -154,9 +155,7 @@ export function createRoofController(
 
         const roofType =
             String(
-                runtime
-                    .model
-                    .roof
+                roofState
                     ?.type ||
                 ROOF_TYPE_GABLED
             )
@@ -308,6 +307,20 @@ export function createRoofController(
                 max,
                 step
             }
+        );
+    }
+
+    function getPitchLimitsFor(
+        roof
+    ) {
+        const roofState =
+            {
+                ...runtime.model.roof,
+                ...roof
+            };
+
+        return getPitchLimits(
+            roofState
         );
     }
 
@@ -655,185 +668,34 @@ export function createRoofController(
         }
     }
 
-function getPitchLimitsFor(
-    roof = {}
-) {
-    const constraints =
-        getConstraints();
-
-    const roofState =
-        {
-            ...runtime.model.roof,
-            ...roof
-        };
-
-    const profile =
-        String(
-            roofState.profile ||
-            'awr'
-        )
-            .trim()
-            .toLowerCase();
-
-    const roofType =
-        String(
-            roofState.type ||
-            ROOF_TYPE_GABLED
-        )
-            .trim()
-            .toLowerCase();
-
-    const pitchEl =
-        document.getElementById(
-            'inputPitch'
-        ) ||
-        document.querySelector(
-            '#roof-pitch'
-        ) ||
-        document.querySelector(
-            '#slider-pitch'
-        );
-
-    let min =
-        Number(
-            constraints.pitch_min ??
-            0
-        );
-
-    let max =
-        getProfilePitchMax(
-            profile,
-            constraints
-        );
-
-    let step =
-        Number(
-            constraints.pitch_step ??
-            0.001
-        );
-
-    if (
-        SSR_PROFILE_PATTERN.test(
-            profile
-        )
-    ) {
-        const ssrMin =
-            Number(
-                constraints.pitch_ssr24_min
-            );
-
-        const ssrStep =
-            Number(
-                constraints.pitch_ssr24_step
-            );
-
-        if (
-            Number.isFinite(
-                ssrMin
-            ) &&
-            ssrMin >= 0
-        ) {
-            min =
-                ssrMin;
-        }
-
-        if (
-            Number.isFinite(
-                ssrStep
-            ) &&
-            ssrStep > 0
-        ) {
-            step =
-                ssrStep;
-        }
-    }
-
-    if (
-        roofType ===
-        ROOF_TYPE_LEFT_SLOPED ||
-        roofType ===
-        ROOF_TYPE_RIGHT_SLOPED
-    ) {
-        const slopedMax =
-            Number(
-                constraints.pitch_sloped_max ??
-            0.1667
-            );
-
-        max =
-            Math.min(
-                max,
-                Number.isFinite(
-                    slopedMax
-                ) &&
-                slopedMax > 0
-                    ? slopedMax
-                    : 0.1667
-            );
-    }
-
-    if (
-        Number.isFinite(
-            Number(
-                pitchEl?.min
-            )
-        ) &&
-        Number(
-            pitchEl.min
-        ) >= 0
-    ) {
-        min =
-            Math.max(
-                min,
-                Number(
-                    pitchEl.min
-                )
-            );
-    }
-
-    if (
-        !Number.isFinite(
-            min
-        ) ||
-        min < 0
-    ) {
-        min = 0;
-    }
-
-    if (
-        !Number.isFinite(
-            max
-        ) ||
-        max <= min
-    ) {
-        max =
-            Math.max(
-                1,
-                min + 0.001
-            );
-    }
-
-    if (
-        !Number.isFinite(
-            step
-        ) ||
-        step <= 0
-    ) {
-        step = 0.001;
-    }
-
-    return Object.freeze(
-        {
-            min,
-            max,
-            step
-        }
-    );
-}
-
     function applyRoofProfile(
         profile
     ) {
+        console.group(
+            '[Roof Profile] Change'
+        );
+
+        console.log(
+            '1. Selected profile:',
+            profile
+        );
+
+        console.log(
+            '2. Model before:',
+            {
+                roofProfile:
+                    runtime
+                        .model
+                        ?.roof
+                        ?.profile,
+
+                roof:
+                    runtime
+                        .model
+                        ?.roof
+            }
+        );
+
         const nextModel =
             {
                 ...runtime.model,
@@ -848,10 +710,29 @@ function getPitchLimitsFor(
                     }
             };
 
+        console.log(
+            '3. Model before update:',
+            {
+                roofProfile:
+                    nextModel
+                        .roof
+                        .profile,
+
+                roof:
+                    nextModel
+                        .roof
+            }
+        );
+
         const limits =
             getPitchLimitsFor(
                 nextModel.roof
             );
+
+        console.log(
+            '4. Pitch limits:',
+            limits
+        );
 
         const currentPitch =
             Number(
@@ -867,9 +748,58 @@ function getPitchLimitsFor(
                 limits
             );
 
-        runtime.update(
-            nextModel
+        console.log(
+            '5. Final model sent to runtime:',
+            {
+                roofProfile:
+                    nextModel
+                        .roof
+                        .profile,
+
+                pitchRatio:
+                    nextModel
+                        .roof
+                        .pitchRatio,
+
+                roof:
+                    nextModel
+                        .roof
+            }
         );
+
+        const result =
+            runtime.update(
+                nextModel
+            );
+
+        console.log(
+            '6. runtime.update() result:',
+            result
+        );
+
+        console.log(
+            '7. Runtime model after:',
+            {
+                roofProfile:
+                    runtime
+                        .model
+                        ?.roof
+                        ?.profile,
+
+                pitchRatio:
+                    runtime
+                        .model
+                        ?.roof
+                        ?.pitchRatio,
+
+                roof:
+                    runtime
+                        .model
+                        ?.roof
+            }
+        );
+
+        console.groupEnd();
 
         syncAll();
 

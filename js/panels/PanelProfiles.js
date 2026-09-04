@@ -9,6 +9,9 @@ const PANEL_TEXTURE_SIZE =
 const RIB_HEIGHT =
     1;
 
+const SSR24_RIB_HEIGHT =
+    1.5;
+
 const SMOOTH_HEIGHT =
     0;
 
@@ -22,7 +25,7 @@ const AWR_DENSITY =
     1.0;
 
 const SSR24_DENSITY =
-    1.5;
+    0.5;
 
 const DELTA_SPAN_DENSITY =
     1.2;
@@ -184,29 +187,20 @@ export const PROFILE_DEFINITIONS =
                 getProfileWidth(
                     SSR24_DENSITY
                 ),
-            height: RIB_HEIGHT,
+            height: SSR24_RIB_HEIGHT,
 
             profile: Object.freeze([
                 [0, 0],
-                [0.04, 0],
-                [0.04, 1],
-                [0.08, 1],
+
                 [0.08, 0],
+                [0.08, 1.5],
+                [0.16, 1.5],
+                [0.16, 0],
 
-                [0.29, 0],
-                [0.29, 1],
-                [0.33, 1],
-                [0.33, 0],
-
-                [0.54, 0],
-                [0.54, 1],
-                [0.58, 1],
-                [0.58, 0],
-
-                [0.79, 0],
-                [0.79, 1],
-                [0.83, 1],
-                [0.83, 0],
+                [0.84, 0],
+                [0.84, 1.5],
+                [0.92, 1.5],
+                [0.92, 0],
 
                 [1, 0]
             ])

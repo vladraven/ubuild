@@ -25,6 +25,9 @@ const DEFAULT_NORMAL_SCALE =
 const DEFAULT_BUMP_SCALE =
     0.25;
 
+const ROOF_SLOT_PREFIX =
+    'roof-';
+
 export const PanelMapType =
     Object.freeze({
         NONE:
@@ -100,11 +103,6 @@ function createNormalScale(
 function clearMaps(
     material
 ) {
-    /*
-     * Source materials may already have maps.
-     * Panel profile is the only geometry map that
-     * belongs to this generated panel material.
-     */
     material.normalMap =
         null;
 
@@ -119,6 +117,169 @@ function clearMaps(
 
     material.bumpScale =
         0;
+}
+
+function isRoofSlot(
+    slot
+) {
+    return (
+        typeof slot ===
+        'string'
+    ) &&
+    slot.startsWith(
+        ROOF_SLOT_PREFIX
+    ) &&
+    slot !==
+    'roof-ceiling' &&
+    slot !==
+    'roof-side';
+}
+
+function logRoofMaterial(
+    {
+        profileId,
+        slot,
+        span,
+        repeatX,
+        repeatY,
+        mapType,
+        material
+    }
+) {
+    if (
+        !isRoofSlot(
+            slot
+        )
+    ) {
+        return;
+    }
+
+    console.log(
+        '[Roof Panel Material]',
+        {
+            slot,
+
+            profileId,
+
+            mapType,
+
+            span,
+
+            repeatX,
+
+            repeatY,
+
+            sourceMap:
+                material.map
+                    ? {
+                        uuid:
+                            material.map.uuid,
+
+                        repeat:
+                            {
+                                x:
+                                    material
+                                        .map
+                                        .repeat
+                                        .x,
+
+                                y:
+                                    material
+                                        .map
+                                        .repeat
+                                        .y
+                            }
+                    }
+                    : null,
+
+            bumpMap:
+                material.bumpMap
+                    ? {
+                        uuid:
+                            material
+                                .bumpMap
+                                .uuid,
+
+                        profileId:
+                            material
+                                .bumpMap
+                                .userData
+                                ?.profileId,
+
+                        panelWidth:
+                            material
+                                .bumpMap
+                                .userData
+                                ?.panelWidth,
+
+                        repeat:
+                            {
+                                x:
+                                    material
+                                        .bumpMap
+                                        .repeat
+                                        .x,
+
+                                y:
+                                    material
+                                        .bumpMap
+                                        .repeat
+                                        .y
+                            }
+                    }
+                    : null,
+
+            normalMap:
+                material.normalMap
+                    ? {
+                        uuid:
+                            material
+                                .normalMap
+                                .uuid,
+
+                        profileId:
+                            material
+                                .normalMap
+                                .userData
+                                ?.profileId,
+
+                        panelWidth:
+                            material
+                                .normalMap
+                                .userData
+                                ?.panelWidth,
+
+                        repeat:
+                            {
+                                x:
+                                    material
+                                        .normalMap
+                                        .repeat
+                                        .x,
+
+                                y:
+                                    material
+                                        .normalMap
+                                        .repeat
+                                        .y
+                            }
+                    }
+                    : null,
+
+            bumpScale:
+                material.bumpScale,
+
+            normalScale:
+                material
+                    .normalScale
+                    ?.toArray(),
+
+            baseMapStillPresent:
+                Boolean(
+                    material.map
+                )
+        }
+    );
 }
 
 function applyNormalMap(
@@ -147,14 +308,14 @@ function applyNormalMap(
         0;
 
     material.normalScale =
-        map ?
-        createNormalScale(
-            normalScale
-        ) :
-        new THREE.Vector2(
-            0,
-            0
-        );
+        map
+            ? createNormalScale(
+                normalScale
+            )
+            : new THREE.Vector2(
+                0,
+                0
+            );
 }
 
 function applyHeightMap(
@@ -186,35 +347,18 @@ function applyHeightMap(
         map;
 
     material.bumpScale =
-        map ?
-        getPositive(
-            bumpScale,
-            DEFAULT_BUMP_SCALE
-        ) :
-        0;
+        map
+            ? getPositive(
+                bumpScale,
+                DEFAULT_BUMP_SCALE
+            )
+            : 0;
 }
 
 function resolveRepeatX(
     options,
     profileId
 ) {
-    /*
-     * UV / repeat contract (must be the same for roof, walls, wainscot):
-     *
-     * - Mesh UV.u runs 0..1 across the physical panel (or segment) width.
-     * - options.span is that physical width in metres.
-     * - repeatX = getPanelRepeat(span) = (span / profile.width) * TEXTURE_REPEATS_PER_PANEL
-     *
-     * Density of corrugation is therefore constant in periods per metre and
-     * does not depend on how the wall/roof is subdivided into panels.
-     *
-     * Partial end panels pass their actual width as span so the last
-     * period is proportional.
-     *
-     * Do NOT pass full-wall length as span when UV is 0..1 on a segment.
-     * Do NOT use metre-space UVs with span-proportional repeatX (that
-     * makes density proportional to panel width).
-     */
     if (
         Number.isFinite(
             options.repeatX
@@ -299,6 +443,28 @@ function applyMaps(
             options.normalScale
         );
 
+        logRoofMaterial(
+            {
+                profileId,
+
+                slot,
+
+                span:
+                    getPositive(
+                        options.span,
+                        DEFAULT_SPAN
+                    ),
+
+                repeatX,
+
+                repeatY,
+
+                mapType,
+
+                material
+            }
+        );
+
         return;
     }
 
@@ -313,6 +479,28 @@ function applyMaps(
             repeatX,
             repeatY,
             options.bumpScale
+        );
+
+        logRoofMaterial(
+            {
+                profileId,
+
+                slot,
+
+                span:
+                    getPositive(
+                        options.span,
+                        DEFAULT_SPAN
+                    ),
+
+                repeatX,
+
+                repeatY,
+
+                mapType,
+
+                material
+            }
         );
     }
 }
@@ -379,13 +567,6 @@ export function createPanelMaterial(
         source
     );
 
-    /*
-     * Each physical panel owns its material.
-     *
-     * Texture ownership remains in PanelProfiles:
-     * the material may be disposed without disposing
-     * the shared procedural profile texture.
-     */
     const material =
         source.clone();
 
@@ -413,6 +594,7 @@ export function createPanelMaterial(
         material,
         {
             ...options,
+
             slot
         }
     );

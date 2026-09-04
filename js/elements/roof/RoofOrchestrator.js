@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 
 import {
+    getPanelProfile,
     normalizePanelProfile
 } from '../../panels/PanelProfiles.js';
 
@@ -17,6 +18,9 @@ const DEFAULT_PROFILE =
 
 const BUMP_SCALE =
     0.5;
+
+const WIDTH_EPSILON =
+    0.000001;
 
 function assertContext(
     context
@@ -108,6 +112,31 @@ function getPanelWidth(
     return first.distanceTo(
         second
     );
+}
+
+function getPanelTargetWidth(
+    profileId
+) {
+    const profile =
+        getPanelProfile(
+            profileId
+        );
+
+    const width =
+        Number(
+            profile?.width
+        );
+
+    if (
+        Number.isFinite(
+            width
+        ) &&
+        width > 0
+    ) {
+        return width;
+    }
+
+    return 1;
 }
 
 function createRoofMaterial(
@@ -323,18 +352,6 @@ function createSolidPlaneGeometry(
     const indices =
         [];
 
-    /*
-     * Roof panel direction is:
-     *
-     * corners[0] -> corners[3]
-     *
-     * This is the same direction used by
-     * PanelGeometry and getPanelWidth().
-     *
-     * U therefore follows the physical panel
-     * width rather than the longitudinal roof
-     * direction.
-     */
     addFace(
         positions,
         uvs,
@@ -471,6 +488,189 @@ function createSolidPlaneGeometry(
     return geometry;
 }
 
+function createProfilePanel(
+    sourcePanels
+) {
+    if (
+        !Array.isArray(
+            sourcePanels
+        ) ||
+        sourcePanels.length ===
+        0
+    ) {
+        return null;
+    }
+
+    const first =
+        sourcePanels[0];
+
+    const last =
+        sourcePanels[
+            sourcePanels.length -
+            1
+        ];
+
+    if (
+        !Array.isArray(
+            first.corners
+        ) ||
+        !Array.isArray(
+            last.corners
+        ) ||
+        first.corners.length !==
+        4 ||
+        last.corners.length !==
+        4
+    ) {
+        return null;
+    }
+
+    const corners =
+        [
+            first.corners[0],
+            first.corners[1],
+            last.corners[2],
+            last.corners[3]
+        ];
+
+    return {
+        index:
+            first.index,
+
+        sourcePanelIndexes:
+            sourcePanels.map(
+                panel =>
+                    panel.index
+            ),
+
+        corners,
+
+        width:
+            getPanelWidth(
+                corners
+            )
+    };
+}
+
+function groupPanelsForProfile(
+    panels,
+    profileId
+) {
+    if (
+        !Array.isArray(
+            panels
+        ) ||
+        panels.length ===
+        0
+    ) {
+        return [];
+    }
+
+    const targetWidth =
+        getPanelTargetWidth(
+            profileId
+        );
+
+    const groups =
+        [];
+
+    let currentPanels =
+        [];
+
+    let currentWidth =
+        0;
+
+    for (
+        const panel
+        of panels
+    ) {
+        const width =
+            getPanelWidth(
+                panel.corners
+            );
+
+        if (
+            currentPanels.length > 0 &&
+            currentWidth +
+            width >
+            targetWidth +
+            WIDTH_EPSILON
+        ) {
+            const grouped =
+                createProfilePanel(
+                    currentPanels
+                );
+
+            if (
+                grouped
+            ) {
+                groups.push(
+                    grouped
+                );
+            }
+
+            currentPanels =
+                [];
+
+            currentWidth =
+                0;
+        }
+
+        currentPanels.push(
+            panel
+        );
+
+        currentWidth +=
+            width;
+
+        if (
+            Math.abs(
+                currentWidth -
+                targetWidth
+            ) <=
+            WIDTH_EPSILON
+        ) {
+            const grouped =
+                createProfilePanel(
+                    currentPanels
+                );
+
+            if (
+                grouped
+            ) {
+                groups.push(
+                    grouped
+                );
+            }
+
+            currentPanels =
+                [];
+
+            currentWidth =
+                0;
+        }
+    }
+
+    if (
+        currentPanels.length > 0
+    ) {
+        const grouped =
+            createProfilePanel(
+                currentPanels
+            );
+
+        if (
+            grouped
+        ) {
+            groups.push(
+                grouped
+            );
+        }
+    }
+
+    return groups;
+}
+
 function createPanelMesh(
     panel,
     sourceMaterial,
@@ -479,6 +679,7 @@ function createPanelMesh(
     sideMaterial
 ) {
     const width =
+        panel.width ??
         getPanelWidth(
             panel.corners
         );
@@ -516,6 +717,18 @@ function createPanelMesh(
     mesh.userData.panelIndex =
         panel.index;
 
+    mesh.userData.sourcePanelIndexes =
+        panel.sourcePanelIndexes ||
+        [
+            panel.index
+        ];
+
+    mesh.userData.panelWidth =
+        width;
+
+    mesh.userData.profileId =
+        profileId;
+
     mesh.userData.roofThickness =
         ROOF_THICKNESS;
 
@@ -542,9 +755,15 @@ function createPlaneGroup(
     group.name =
         `roof-${planeId}`;
 
+    const profilePanels =
+        groupPanelsForProfile(
+            panels,
+            profileId
+        );
+
     for (
         const panel
-        of panels
+        of profilePanels
     ) {
         group.add(
             createPanelMesh(

@@ -160,7 +160,6 @@ function intersectVertical(
 
     return shapePoint(
         x,
-
         a.y +
         (
             b.y -
@@ -252,12 +251,10 @@ function clipMinX(
 ) {
     return clipPolygon(
         polygon,
-
         vertex =>
             vertex.x >=
             minX -
             EPSILON,
-
         (
             previous,
             current
@@ -276,12 +273,10 @@ function clipMaxX(
 ) {
     return clipPolygon(
         polygon,
-
         vertex =>
             vertex.x <=
             maxX +
             EPSILON,
-
         (
             previous,
             current
@@ -514,7 +509,6 @@ function getWainscotShapePoints(
                             current.x
                         ) *
                         ratio,
-
                         height
                     )
                 );
@@ -622,12 +616,17 @@ function createRoofPanel(
             span
         );
 
+    const width =
+        distance(
+            panelStart,
+            panelEnd
+        );
+
     return Object.freeze({
         index:
             panel.index,
 
-        width:
-            panel.width,
+        width,
 
         isLast:
             panel.isLast,
