@@ -1,23 +1,51 @@
-Аудит: что реально влияет на цвет сцены
-
-Прогнал по всем файлам, которые трогают свет/цвет/environment. Нашёл кое-что важное, помимо того, что уже обсуждали.
-
-Действующие источники (реально влияют сейчас)
-#	Файл	Параметр	Текущее значение
-1	LightingSystem.js	ambientLight цвет/интенсивность	0xffffff, 0.5
-2	LightingSystem.js	hemisphereLight sky/ground цвет, интенсивность	0xffffff/0x999999, 0.5
-3	LightingSystem.js	sunLight цвет/интенсивность/позиция	0xffffff, 0.5, (150,250,120)
-4	runtimeRenderer.js	toneMapping тип	ACESFilmicToneMapping
-5	runtimeRenderer.js	toneMappingExposure	0.5
-6	runtimeLifecycle.js	PMREM RoomEnvironment → scene.environment, environmentIntensity	0.2
-7	EnvironmentSystem.js	scene.fog (FogExp2) цвет/плотность	0xdce7f3, 0.0006
-8	EnvironmentSystem.js	легаси cubemap-скайбокс → тоже scene.background И scene.environment	CDN skybox r148
-9	MaterialCatalog.js	roughness/metalness по типу материала	см. каталог
-10	GroundSystem.js	цвет/roughness/metalness земли	0xffffff + vertexColors, 0.9/0.1
-Находка, которую мы упустили за весь диалог
-
-Пункты 6 и 8 конкурируют друг с другом за scene.environment. runtimeLifecycle.js ставит туда PMREM от RoomEnvironment. Отдельно EnvironmentSystem.js.applyToScene() асинхронно грузит cubemap с CDN и тоже пишет его в scene.environment (комментарий в коде прямо говорит: "И КАРТОЙ ОТРАЖЕНИЙ! Металл будет реалистичным."). Какой из двух реально останется — зависит от того, чья текстура догрузится позже (оба асинхронные, гонка). Это значит, что весь наш разговор про "убрать IBL из runtimeLifecycle.js" мог не решать проблему полностью — второй IBL из EnvironmentSystem.js всё это время мог перезаписывать твою правку в зависимости от скорости сети.
-
-Мёртвый код — не влияет ни на что, но сбивает с толку
-
-SkyProfiles.js, SkySystem.js, SkyShader.js, GroundTextures.js (сезонная система земли), SeasonProfiles.js, Seasons.js, WeatherProfiles.js — ни один из этих файлов не импортируется EnvironmentSystem.js. Реально используется только жёстко захардкоженный CDN-скайбокс и CDN-текстура травы внутри GroundSystem.js, отдельно от всей "сезонной" инфраструктуры. Если будешь резать код позже — это кандидаты на удаление, но пока не трогал, раз не просил.
+Таблица параметров освещения, ambient и материалов
+#	Файл	Параметр	Тип ввода	Текущее значение
+Свет — LightingSystem.js				
+1	js/Lighting/LightingSystem.js:11	ambientLight цвет	HTML color	0xffffff
+2	js/Lighting/LightingSystem.js:11	ambientLight интенсивность	ползунок	0.5
+3	js/Lighting/LightingSystem.js:14	hemisphereLight sky цвет	HTML color	0xffffff
+4	js/Lighting/LightingSystem.js:14	hemisphereLight ground цвет	HTML color	0x999999
+5	js/Lighting/LightingSystem.js:14	hemisphereLight интенсивность	ползунок	0.5
+6	js/Lighting/LightingSystem.js:19	sunLight цвет	HTML color	0xffffff
+7	js/Lighting/LightingSystem.js:19	sunLight интенсивность	ползунок	0.5
+8	js/Lighting/LightingSystem.js:20	sunLight позиция (x,y,z)	3× ползунок	(150, 250, 120)
+9	js/Lighting/LightingSystem.js:23-27	sunLight.shadow bias/normalBias/radius/mapSize	ползунки	-0.001 / 0.05 / 2.5 / 4096
+Рендерер — runtimeRenderer.js				
+10	js/runtime/runtime/runtimeRenderer.js	toneMapping тип	выпадающий список	ACESFilmicToneMapping
+11	js/runtime/runtime/runtimeRenderer.js	toneMappingExposure	ползунок	0.5
+12	js/runtime/runtime/runtimeRenderer.js	outputEncoding	выпадающий список	sRGBEncoding
+Окружение — EnvironmentSystem.js (переписан в этом коммите)				
+13	js/Environment/EnvironmentSystem.js:11	FOG_COLOR	HTML color	0xdce7f3
+14	js/Environment/EnvironmentSystem.js:14	FOG_DENSITY	ползунок	0.0006
+15	js/Environment/EnvironmentSystem.js:17	ENVIRONMENT_BLUR (PMREM blur)	ползунок	0.14
+16	js/Environment/EnvironmentSystem.js:20	ENVIRONMENT_INTENSITY (scene.environmentIntensity)	ползунок	0.27 (было 0.2 — кто-то уже подвинул)
+17	js/Environment/EnvironmentSystem.js:23	SKY_PATH (CDN cubemap, только scene.background, больше не гонка с environment — race condition пофиксили в этом коммите)	— (текстура, не число)	CDN r148
+Земля — GroundSystem.js (не тронут в этом коммите)				
+18	js/Environment/ground/GroundSystem.js:16	цвет базового материала земли	HTML color	0xffffff
+19	js/Environment/ground/GroundSystem.js:17	vertexColors (HSL-затемнение из геометрии)	чекбокс on/off	true
+20	js/Environment/ground/GroundSystem.js:18	roughness земли	ползунок	0.9
+21	js/Environment/ground/GroundSystem.js:19	metalness земли	ползунок	0.1
+22	js/Environment/ground/GroundSystem.js:40	bumpScale травяной текстуры	ползунок	0.5
+Материалы здания — MaterialCatalog.js				
+23	steel	roughness / metalness	2× ползунок	1 / 1
+24	structuralSteel	roughness / metalness	2× ползунок	1 / 1
+25	wallMetal	roughness / metalness	2× ползунок	0.75 / 0
+26	wainscotMetal	roughness / metalness	2× ползунок	0.75 / 0
+27	roofMetal	roughness / metalness	2× ползунок	0.75 / 0
+28	trimMetal	roughness / metalness	2× ползунок	0.75 / 0
+29	concrete	roughness / metalness	2× ползунок	1 / 0
+30	glass	roughness / metalness / opacity	3× ползунок	0.08 / 0 / 0.45
+31	ceiling	roughness / metalness	2× ползунок	1 / 0
+32	interiorWall	roughness / metalness	2× ползунок	1 / 0
+33	mezzanine	roughness / metalness	2× ползунок	1 / 1
+Цвета самих панелей — задаются отдельно через палитру, не в каталоге				
+34	js/resources/materials/MaterialFactory.js (MATERIAL_COLOR_KEYS)	wall, wainscot, roof, trim, frame, concrete, glass, ceiling, interiorWall, mezzanine, steel — hex из UI-палитры (Roof/Wall/Trim/Eave/Wainscot Color)	HTML color × 11	берётся из runtime.model.colors
+Рифлёность панелей (профиль/bump) — PanelProfiles.js				
+35	js/panels/PanelProfiles.js:9	AWR_RIB_HEIGHT (высота ребра профиля AWR)	ползунок	1.0
+36	js/panels/PanelProfiles.js:12	SSR24_RIB_HEIGHT	ползунок	1.5
+37	js/panels/PanelProfiles.js:15	SMOOTH_HEIGHT (плоский профиль IMP)	ползунок	0
+38	js/panels/PanelProfiles.js:18	NORMAL_STRENGTH (сила normal-карты рифления)	ползунок	1.5
+39	js/panels/PanelProfiles.js:21	NORMAL_SAMPLE_PIXELS (шаг сэмплирования нормалей)	ползунок (целое)	2
+40	js/panels/PanelProfiles.js:6	PANEL_TEXTURE_SIZE (разрешение bump/normal текстуры)	ползунок (целое, степень 2)	1024
+41	js/panels/PanelProfiles.js:24	TEXTURE_REPEATS_PER_PANEL	ползунок	1
+42	js/panels/PanelMaterialFactory.js:21	DEFAULT_BUMP_SCALE (глубина рельефа при наложении на материал)	ползунок	0.5
