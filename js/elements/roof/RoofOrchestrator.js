@@ -18,9 +18,6 @@ const DEFAULT_PROFILE =
 const BUMP_SCALE =
     0.5;
 
-const SIDE_MAP_TYPE =
-    PanelMapType.NONE;
-
 function assertContext(
     context
 ) {
@@ -97,9 +94,9 @@ function getPanelWidth(
 
     const second =
         new THREE.Vector3(
-            corners[1].x,
-            corners[1].y,
-            corners[1].z
+            corners[3].x,
+            corners[3].y,
+            corners[3].z
         );
 
     return first.distanceTo(
@@ -130,7 +127,31 @@ function createRoofMaterial(
                 BUMP_SCALE,
 
             side:
-                THREE.DoubleSide
+                THREE.FrontSide
+        }
+    );
+}
+
+function createCeilingMaterial(
+    source
+) {
+    return createPanelMaterial(
+        source,
+        {
+            profileId:
+                DEFAULT_PROFILE,
+
+            slot:
+                'roof-ceiling',
+
+            span:
+                1,
+
+            mapType:
+                PanelMapType.NONE,
+
+            side:
+                THREE.FrontSide
         }
     );
 }
@@ -151,11 +172,92 @@ function createSideMaterial(
                 1,
 
             mapType:
-                SIDE_MAP_TYPE,
+                PanelMapType.NONE,
 
             side:
-                THREE.DoubleSide
+                THREE.FrontSide
         }
+    );
+}
+
+function toVector3(
+    point
+) {
+    return new THREE.Vector3(
+        point.x,
+        point.y,
+        point.z
+    );
+}
+
+function createBottom(
+    top,
+    thickness
+) {
+    return top.map(
+        vertex =>
+            new THREE.Vector3(
+                vertex.x,
+                vertex.y -
+                thickness,
+                vertex.z
+            )
+    );
+}
+
+function addFace(
+    positions,
+    uvs,
+    indices,
+    a,
+    b,
+    c,
+    d
+) {
+    const base =
+        positions.length /
+        3;
+
+    positions.push(
+        a.x,
+        a.y,
+        a.z,
+
+        b.x,
+        b.y,
+        b.z,
+
+        c.x,
+        c.y,
+        c.z,
+
+        d.x,
+        d.y,
+        d.z
+    );
+
+    uvs.push(
+        0,
+        0,
+
+        1,
+        0,
+
+        1,
+        1,
+
+        0,
+        1
+    );
+
+    indices.push(
+        base,
+        base + 1,
+        base + 2,
+
+        base,
+        base + 2,
+        base + 3
     );
 }
 
@@ -176,23 +278,13 @@ function createSolidPlaneGeometry(
 
     const top =
         corners.map(
-            corner =>
-                new THREE.Vector3(
-                    corner.x,
-                    corner.y,
-                    corner.z
-                )
+            toVector3
         );
 
     const bottom =
-        top.map(
-            vertex =>
-                new THREE.Vector3(
-                    vertex.x,
-                    vertex.y -
-                    thickness,
-                    vertex.z
-                )
+        createBottom(
+            top,
+            thickness
         );
 
     const positions =
@@ -204,67 +296,10 @@ function createSolidPlaneGeometry(
     const indices =
         [];
 
-    function addFace(
-        a,
-        b,
-        c,
-        d
-    ) {
-        const base =
-            positions.length /
-            3;
-
-        positions.push(
-            a.x,
-            a.y,
-            a.z,
-
-            b.x,
-            b.y,
-            b.z,
-
-            c.x,
-            c.y,
-            c.z,
-
-            d.x,
-            d.y,
-            d.z
-        );
-
-        uvs.push(
-            0,
-            0,
-
-            1,
-            0,
-
-            1,
-            1,
-
-            0,
-            1
-        );
-
-        indices.push(
-            base,
-            base + 1,
-            base + 2,
-
-            base,
-            base + 2,
-            base + 3
-        );
-    }
-
     addFace(
-        bottom[0],
-        bottom[2],
-        bottom[1],
-        bottom[3]
-    );
-
-    addFace(
+        positions,
+        uvs,
+        indices,
         top[0],
         top[1],
         top[2],
@@ -272,6 +307,19 @@ function createSolidPlaneGeometry(
     );
 
     addFace(
+        positions,
+        uvs,
+        indices,
+        bottom[3],
+        bottom[2],
+        bottom[1],
+        bottom[0]
+    );
+
+    addFace(
+        positions,
+        uvs,
+        indices,
         bottom[0],
         bottom[1],
         top[1],
@@ -279,6 +327,9 @@ function createSolidPlaneGeometry(
     );
 
     addFace(
+        positions,
+        uvs,
+        indices,
         bottom[1],
         bottom[2],
         top[2],
@@ -286,6 +337,9 @@ function createSolidPlaneGeometry(
     );
 
     addFace(
+        positions,
+        uvs,
+        indices,
         bottom[2],
         bottom[3],
         top[3],
@@ -293,6 +347,9 @@ function createSolidPlaneGeometry(
     );
 
     addFace(
+        positions,
+        uvs,
+        indices,
         bottom[3],
         bottom[0],
         top[0],
@@ -322,24 +379,18 @@ function createSolidPlaneGeometry(
         indices
     );
 
-    geometry.computeVertexNormals();
-
-    geometry.computeBoundingBox();
-
-    geometry.computeBoundingSphere();
-
     geometry.clearGroups();
 
     geometry.addGroup(
         0,
         6,
-        1
+        0
     );
 
     geometry.addGroup(
         6,
         6,
-        0
+        1
     );
 
     geometry.addGroup(
@@ -366,6 +417,12 @@ function createSolidPlaneGeometry(
         2
     );
 
+    geometry.computeVertexNormals();
+
+    geometry.computeBoundingBox();
+
+    geometry.computeBoundingSphere();
+
     return geometry;
 }
 
@@ -373,6 +430,7 @@ function createPanelMesh(
     panel,
     sourceMaterial,
     profileId,
+    ceilingMaterial,
     sideMaterial
 ) {
     const width =
@@ -385,14 +443,6 @@ function createPanelMesh(
             sourceMaterial,
             profileId,
             `roof-${panel.index}`,
-            width
-        );
-
-    const ceilingMaterial =
-        createRoofMaterial(
-            sourceMaterial,
-            profileId,
-            `ceiling-${panel.index}`,
             width
         );
 
@@ -411,6 +461,9 @@ function createPanelMesh(
                 sideMaterial
             ]
         );
+
+    mesh.name =
+        `roof-panel-${panel.index}`;
 
     mesh.userData.element =
         'roof';
@@ -435,6 +488,7 @@ function createPlaneGroup(
     panels,
     sourceMaterial,
     profileId,
+    ceilingMaterial,
     sideMaterial
 ) {
     const group =
@@ -452,6 +506,7 @@ function createPlaneGroup(
                 panel,
                 sourceMaterial,
                 profileId,
+                ceilingMaterial,
                 sideMaterial
             )
         );
@@ -498,6 +553,11 @@ function createObject(
         );
     }
 
+    const ceilingMaterial =
+        createCeilingMaterial(
+            sourceMaterial
+        );
+
     const sideMaterial =
         createSideMaterial(
             sourceMaterial
@@ -527,6 +587,7 @@ function createObject(
                 panels,
                 sourceMaterial,
                 profileId,
+                ceilingMaterial,
                 sideMaterial
             )
         );

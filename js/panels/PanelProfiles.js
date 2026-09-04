@@ -4,7 +4,7 @@ const PANEL_TEXTURE_SIZE =
     512;
 
 const PANEL_WIDTH_M =
-    0.9144;
+    1.0;
 
 const TEXTURE_REPEATS_PER_PANEL =
     2;
@@ -246,19 +246,30 @@ export function getPanelRepeat(
     widthM,
     profileId = 'awr'
 ) {
+    const width =
+        Number(
+            widthM
+        );
+
     const profile =
         getPanelProfile(
             profileId
         );
 
-    return Math.max(
-        1,
-        (
-            widthM /
-            profile.width
-        ) *
-        TEXTURE_REPEATS_PER_PANEL
-    );
+    if (
+        !Number.isFinite(
+            width
+        ) ||
+        width <= 0
+    ) {
+        return TEXTURE_REPEATS_PER_PANEL;
+    }
+
+    return (
+        width /
+        profile.width
+    ) *
+    TEXTURE_REPEATS_PER_PANEL;
 }
 
 function getHeightAt(
@@ -579,9 +590,6 @@ function createHeightMapTexture(
     texture.colorSpace =
         THREE.NoColorSpace;
 
-    texture.needsUpdate =
-        true;
-
     texture.userData = {
         isSharedProcedural:
             true,
@@ -592,9 +600,18 @@ function createHeightMapTexture(
         profileId:
             profile.id,
 
+        panelWidth:
+            PANEL_WIDTH_M,
+
+        repeatsPerPanel:
+            TEXTURE_REPEATS_PER_PANEL,
+
         panelDirection:
             'vertical'
     };
+
+    texture.needsUpdate =
+        true;
 
     return texture;
 }
@@ -643,9 +660,6 @@ function createPanelNormalMapTexture(
     texture.colorSpace =
         THREE.NoColorSpace;
 
-    texture.needsUpdate =
-        true;
-
     texture.userData = {
         isSharedProcedural:
             true,
@@ -656,9 +670,18 @@ function createPanelNormalMapTexture(
         profileId:
             profile.id,
 
+        panelWidth:
+            PANEL_WIDTH_M,
+
+        repeatsPerPanel:
+            TEXTURE_REPEATS_PER_PANEL,
+
         panelDirection:
             'vertical'
     };
+
+    texture.needsUpdate =
+        true;
 
     return texture;
 }
@@ -730,7 +753,8 @@ export function generatePanelNormalMap(
 function createSlotTexture(
     base,
     slot,
-    kind
+    kind,
+    profileId
 ) {
     if (
         !base
@@ -751,7 +775,10 @@ function createSlotTexture(
             true,
 
         slot,
-        kind
+
+        kind,
+
+        profileId
     };
 
     texture.needsUpdate =
@@ -792,19 +819,20 @@ function getSlotTexture(
     ) {
         const base =
             kind ===
-            'height' ?
-            generatePanelHeightMap(
-                profile.id
-            ) :
-            generatePanelNormalMap(
-                profile.id
-            );
+            'height'
+                ? generatePanelHeightMap(
+                    profile.id
+                )
+                : generatePanelNormalMap(
+                    profile.id
+                );
 
         texture =
             createSlotTexture(
                 base,
                 slot,
-                kind
+                kind,
+                profile.id
             );
 
         slotMapCache.set(
@@ -827,7 +855,7 @@ function getSlotTexture(
 export function getPanelHeightMapForUse(
     profileId = 'awr',
     slot = 'default',
-    repeatX = 1,
+    repeatX = TEXTURE_REPEATS_PER_PANEL,
     repeatY = 1
 ) {
     return getSlotTexture(
@@ -842,7 +870,7 @@ export function getPanelHeightMapForUse(
 export function getPanelNormalMapForUse(
     profileId = 'awr',
     slot = 'default',
-    repeatX = 1,
+    repeatX = TEXTURE_REPEATS_PER_PANEL,
     repeatY = 1
 ) {
     return getSlotTexture(
@@ -857,24 +885,36 @@ export function getPanelNormalMapForUse(
 export function clonePanelNormalMap(
     profileId = 'awr'
 ) {
+    const profile =
+        getPanelProfile(
+            profileId
+        );
+
     return createSlotTexture(
         generatePanelNormalMap(
-            profileId
+            profile.id
         ),
         'clone',
-        'normal'
+        'normal',
+        profile.id
     );
 }
 
 export function clonePanelHeightMap(
     profileId = 'awr'
 ) {
+    const profile =
+        getPanelProfile(
+            profileId
+        );
+
     return createSlotTexture(
         generatePanelHeightMap(
-            profileId
+            profile.id
         ),
         'clone',
-        'height'
+        'height',
+        profile.id
     );
 }
 
@@ -883,7 +923,7 @@ export function disposePanelNormalMaps() {
         const texture
         of slotMapCache.values()
     ) {
-        texture.dispose();
+        texture?.dispose();
     }
 
     slotMapCache.clear();
@@ -892,7 +932,7 @@ export function disposePanelNormalMaps() {
         const texture
         of normalMapCache.values()
     ) {
-        texture.dispose();
+        texture?.dispose();
     }
 
     normalMapCache.clear();
@@ -901,7 +941,7 @@ export function disposePanelNormalMaps() {
         const texture
         of heightMapCache.values()
     ) {
-        texture.dispose();
+        texture?.dispose();
     }
 
     heightMapCache.clear();

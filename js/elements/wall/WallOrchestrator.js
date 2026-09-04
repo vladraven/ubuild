@@ -15,6 +15,9 @@ const DEFAULT_PROFILE =
 const BUMP_SCALE =
     0.95;
 
+const EPSILON =
+    1e-9;
+
 const SIDE_MAP =
     Object.freeze({
         front: 'F',
@@ -52,6 +55,14 @@ function assertContext(
     }
 
     if (
+        !context.panelGeometry?.walls
+    ) {
+        throw new TypeError(
+            'Wall panel geometry is required'
+        );
+    }
+
+    if (
         !context.materials
     ) {
         throw new TypeError(
@@ -67,20 +78,6 @@ function getProfileId(
         context.model?.panels?.profile ||
         DEFAULT_PROFILE
     );
-}
-
-function getWallWidth(
-    wallKey,
-    envelope
-) {
-    if (
-        wallKey === 'left' ||
-        wallKey === 'right'
-    ) {
-        return envelope.length;
-    }
-
-    return envelope.width;
 }
 
 function getMaterial(
@@ -101,11 +98,55 @@ function getMaterial(
     );
 }
 
+function getPanelSpan(
+    panel
+) {
+    if (
+        Number.isFinite(
+            panel?.width
+        ) &&
+        panel.width > 0
+    ) {
+        return panel.width;
+    }
+
+    const min =
+        panel?.bounds?.min;
+
+    const max =
+        panel?.bounds?.max;
+
+    if (
+        !min ||
+        !max
+    ) {
+        return 1;
+    }
+
+    const xSpan =
+        Math.abs(
+            max.x -
+            min.x
+        );
+
+    const zSpan =
+        Math.abs(
+            max.z -
+            min.z
+        );
+
+    return Math.max(
+        xSpan,
+        zSpan,
+        EPSILON
+    );
+}
+
 function createMaterial(
     source,
     profileId,
     wallKey,
-    width
+    panel
 ) {
     return createPanelMaterial(
         source,
@@ -113,10 +154,12 @@ function createMaterial(
             profileId,
 
             slot:
-                `wall-${wallKey}`,
+                `wall-${wallKey}-${panel.index}`,
 
             span:
-                width,
+                getPanelSpan(
+                    panel
+                ),
 
             mapType:
                 PanelMapType.HEIGHT,
@@ -130,65 +173,258 @@ function createMaterial(
     );
 }
 
-function createShape(
-    wallData,
-    wallKey,
-    envelope
+function getPanelInterval(
+    panel,
+    sideCode
 ) {
+    const bounds =
+        panel?.bounds;
+
+    if (
+        !bounds?.min ||
+        !bounds?.max
+    ) {
+        throw new TypeError(
+            'Wall panel bounds are required'
+        );
+    }
+
+    if (
+        sideCode === 'F' ||
+        sideCode === 'B'
+    ) {
+        return Object.freeze({
+            start:
+                Math.min(
+                    bounds.min.x,
+                    bounds.max.x
+                ),
+
+            end:
+                Math.max(
+                    bounds.min.x,
+                    bounds.max.x
+                ),
+
+            minY:
+                bounds.min.y
+        });
+    }
+
+    return Object.freeze({
+        start:
+            Math.min(
+                bounds.min.z,
+                bounds.max.z
+            ),
+
+        end:
+            Math.max(
+                bounds.min.z,
+                bounds.max.z
+            ),
+
+        minY:
+            bounds.min.y
+    });
+}
+
+function getTopYAtX(
+    points,
+    x
+) {
+    if (
+        !Array.isArray(
+            points
+        ) ||
+        points.length < 3
+    ) {
+        throw new TypeError(
+            'Wall shape points are required'
+        );
+    }
+
+    let topY =
+        -Infinity;
+
+    for (
+        let index = 0;
+        index < points.length;
+        index++
+    ) {
+        const a =
+            points[index];
+
+        const b =
+            points[
+                (
+                    index + 1
+                ) %
+                points.length
+            ];
+
+        const minX =
+            Math.min(
+                a.x,
+                b.x
+            );
+
+        const maxX =
+            Math.max(
+                a.x,
+                b.x
+            );
+
+        if (
+            x < minX - EPSILON ||
+            x > maxX + EPSILON
+        ) {
+            continue;
+        }
+
+        const deltaX =
+            b.x -
+            a.x;
+
+        if (
+            Math.abs(
+                deltaX
+            ) <= EPSILON
+        ) {
+            if (
+                Math.abs(
+                    x - a.x
+                ) <= EPSILON
+            ) {
+                topY =
+                    Math.max(
+                        topY,
+                        a.y,
+                        b.y
+                    );
+            }
+
+            continue;
+        }
+
+        const t =
+            (
+                x -
+                a.x
+            ) /
+            deltaX;
+
+        if (
+            t < -EPSILON ||
+            t > 1 + EPSILON
+        ) {
+            continue;
+        }
+
+        const y =
+            a.y +
+            (
+                b.y -
+                a.y
+            ) *
+            t;
+
+        topY =
+            Math.max(
+                topY,
+                y
+            );
+    }
+
+    if (
+        !Number.isFinite(
+            topY
+        )
+    ) {
+        throw new Error(
+            `Unable to resolve wall top at x=${x}`
+        );
+    }
+
+    return topY;
+}
+
+function createPanelShape(
+    wallData,
+    panel,
+    sideCode
+) {
+    const interval =
+        getPanelInterval(
+            panel,
+            sideCode
+        );
+
+    const minX =
+        interval.start;
+
+    const maxX =
+        interval.end;
+
+    const minY =
+        interval.minY;
+
+    const isEndWall =
+        sideCode === 'F' ||
+        sideCode === 'B';
+
+    const topLeft =
+        isEndWall
+            ? getTopYAtX(
+                wallData.shapePoints,
+                minX
+            )
+            : getTopYAtX(
+                wallData.shapePoints,
+                minX
+            );
+
+    const topRight =
+        isEndWall
+            ? getTopYAtX(
+                wallData.shapePoints,
+                maxX
+            )
+            : getTopYAtX(
+                wallData.shapePoints,
+                maxX
+            );
+
+    if (
+        topLeft <= minY ||
+        topRight <= minY
+    ) {
+        throw new Error(
+            `Invalid wall panel shape: ${sideCode}:${panel.index}`
+        );
+    }
+
     const shape =
         new THREE.Shape();
 
-    const sideCode =
-        SIDE_MAP[wallKey];
+    shape.moveTo(
+        minX,
+        minY
+    );
 
-    let points =
-        wallData.shapePoints;
+    shape.lineTo(
+        maxX,
+        minY
+    );
 
-    if (
-        sideCode === 'L' ||
-        sideCode === 'R'
-    ) {
-        points = [
-            {
-                x: 0,
-                y: points[0].y
-            },
-            {
-                x: envelope.length,
-                y: points[1].y
-            },
-            {
-                x: envelope.length,
-                y: points[2].y
-            },
-            {
-                x: 0,
-                y: points[3].y
-            }
-        ];
-    }
+    shape.lineTo(
+        maxX,
+        topRight
+    );
 
-    points.forEach(
-        (
-            point,
-            index
-        ) => {
-            if (
-                index === 0
-            ) {
-                shape.moveTo(
-                    point.x,
-                    point.y
-                );
-
-                return;
-            }
-
-            shape.lineTo(
-                point.x,
-                point.y
-            );
-        }
+    shape.lineTo(
+        minX,
+        topLeft
     );
 
     shape.closePath();
@@ -196,12 +432,19 @@ function createShape(
     return shape;
 }
 
-function addOpenings(
+function addPanelOpenings(
     shape,
     openings,
     sideCode,
+    panel,
     envelope
 ) {
+    const interval =
+        getPanelInterval(
+            panel,
+            sideCode
+        );
+
     for (
         const opening
         of openings
@@ -214,32 +457,73 @@ function addOpenings(
         }
 
         const width =
-            opening.dimensions.width;
+            opening.dimensions?.width;
 
         const height =
-            opening.dimensions.height;
+            opening.dimensions?.height;
 
         const y =
-            opening.bounds.min.y;
+            opening.bounds?.min?.y;
+
+        if (
+            !Number.isFinite(
+                width
+            ) ||
+            !Number.isFinite(
+                height
+            ) ||
+            !Number.isFinite(
+                y
+            )
+        ) {
+            continue;
+        }
 
         let centerX =
             opening.x;
+
+        if (
+            !Number.isFinite(
+                centerX
+            )
+        ) {
+            continue;
+        }
 
         if (
             sideCode === 'R'
         ) {
             centerX =
                 envelope.length -
-                opening.x;
+                centerX;
         }
 
-        const minX =
+        const openingMinX =
             centerX -
             width / 2;
 
-        const maxX =
+        const openingMaxX =
             centerX +
             width / 2;
+
+        const minX =
+            Math.max(
+                interval.start,
+                openingMinX
+            );
+
+        const maxX =
+            Math.min(
+                interval.end,
+                openingMaxX
+            );
+
+        if (
+            maxX - minX <=
+            EPSILON
+        ) {
+            continue;
+        }
 
         const hole =
             new THREE.Path();
@@ -274,21 +558,23 @@ function addOpenings(
 
 function createGeometry(
     wallData,
+    panel,
     openings,
-    wallKey,
+    sideCode,
     envelope
 ) {
     const shape =
-        createShape(
+        createPanelShape(
             wallData,
-            wallKey,
-            envelope
+            panel,
+            sideCode
         );
 
-    addOpenings(
+    addPanelOpenings(
         shape,
         openings,
-        SIDE_MAP[wallKey],
+        sideCode,
+        panel,
         envelope
     );
 
@@ -362,19 +648,24 @@ function placeMesh(
         Math.PI / 2;
 }
 
-function createWallMesh(
+function createWallPanelMesh(
     wallData,
+    panel,
     openings,
     wallKey,
     sourceMaterial,
     envelope,
     profileId
 ) {
+    const sideCode =
+        SIDE_MAP[wallKey];
+
     const geometry =
         createGeometry(
             wallData,
+            panel,
             openings,
-            wallKey,
+            sideCode,
             envelope
         );
 
@@ -383,10 +674,7 @@ function createWallMesh(
             sourceMaterial,
             profileId,
             wallKey,
-            getWallWidth(
-                wallKey,
-                envelope
-            )
+            panel
         );
 
     const mesh =
@@ -395,11 +683,20 @@ function createWallMesh(
             material
         );
 
-    const sideCode =
-        SIDE_MAP[wallKey];
-
     mesh.name =
-        `wall-mesh-${sideCode}`;
+        `wall-panel-${sideCode}-${panel.index}`;
+
+    mesh.userData.wallKey =
+        wallKey;
+
+    mesh.userData.panelIndex =
+        panel.index;
+
+    mesh.userData.panelWidth =
+        panel.width;
+
+    mesh.userData.isLast =
+        panel.isLast === true;
 
     placeMesh(
         mesh,
@@ -434,6 +731,42 @@ function isWallVisible(
         false;
 }
 
+function createWallGroup(
+    context,
+    wallKey,
+    wallData,
+    panels,
+    sourceMaterial,
+    profileId,
+    openings,
+    envelope
+) {
+    const group =
+        new THREE.Group();
+
+    group.name =
+        `wall-${SIDE_MAP[wallKey]}`;
+
+    for (
+        const panel
+        of panels
+    ) {
+        group.add(
+            createWallPanelMesh(
+                wallData,
+                panel,
+                openings,
+                wallKey,
+                sourceMaterial,
+                envelope,
+                profileId
+            )
+        );
+    }
+
+    return group;
+}
+
 function createObject(
     context
 ) {
@@ -446,6 +779,13 @@ function createObject(
 
     root.name =
         'walls';
+
+    if (
+        context.model?.visibility?.walls ===
+        false
+    ) {
+        return root;
+    }
 
     const profileId =
         getProfileId(
@@ -470,9 +810,12 @@ function createObject(
 
     for (
         const wallKey
-        of Object.keys(
-            context.geometry.walls
-        )
+        of [
+            'front',
+            'back',
+            'left',
+            'right'
+        ]
     ) {
         if (
             !isWallVisible(
@@ -488,28 +831,56 @@ function createObject(
                 wallKey
             ];
 
+        const panels =
+            context.panelGeometry.walls[
+                wallKey
+            ];
+
         if (
-            !wallData
+            !wallData ||
+            !Array.isArray(
+                panels
+            ) ||
+            panels.length === 0
         ) {
             continue;
         }
 
-        const mesh =
-            createWallMesh(
-                wallData,
-                openings,
-                wallKey,
-                sourceMaterial,
-                envelope,
-                profileId
-            );
-
         root.add(
-            mesh
+            createWallGroup(
+                context,
+                wallKey,
+                wallData,
+                panels,
+                sourceMaterial,
+                profileId,
+                openings,
+                envelope
+            )
         );
     }
 
     return root;
+}
+
+function disposeMaterial(
+    material,
+    disposed
+) {
+    if (
+        !material ||
+        disposed.has(
+            material
+        )
+    ) {
+        return;
+    }
+
+    disposed.add(
+        material
+    );
+
+    material.dispose();
 }
 
 function disposeObject(
@@ -521,7 +892,7 @@ function disposeObject(
         return;
     }
 
-    const materials =
+    const disposedMaterials =
         new Set();
 
     object.traverse(
@@ -534,21 +905,29 @@ function disposeObject(
 
             child.geometry?.dispose();
 
-            child.geometry =
-                null;
-
             if (
-                child.material &&
-                !materials.has(
+                Array.isArray(
                     child.material
                 )
             ) {
-                materials.add(
-                    child.material
+                for (
+                    const material
+                    of child.material
+                ) {
+                    disposeMaterial(
+                        material,
+                        disposedMaterials
+                    );
+                }
+            } else {
+                disposeMaterial(
+                    child.material,
+                    disposedMaterials
                 );
-
-                child.material.dispose();
             }
+
+            child.geometry =
+                null;
 
             child.material =
                 null;

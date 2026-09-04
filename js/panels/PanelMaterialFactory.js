@@ -14,13 +14,13 @@ const DEFAULT_SLOT =
     'panel';
 
 const DEFAULT_SPAN =
-    1;
+    1.0;
 
 const DEFAULT_REPEAT_Y =
-    1;
+    1.0;
 
 const DEFAULT_NORMAL_SCALE =
-    1;
+    1.0;
 
 const DEFAULT_BUMP_SCALE =
     0.25;
@@ -82,7 +82,7 @@ function getPositive(
     return fallback;
 }
 
-function createScale(
+function createNormalScale(
     value
 ) {
     const scale =
@@ -100,6 +100,11 @@ function createScale(
 function clearMaps(
     material
 ) {
+    /*
+     * Source materials may already have maps.
+     * Panel profile is the only geometry map that
+     * belongs to this generated panel material.
+     */
     material.normalMap =
         null;
 
@@ -143,7 +148,7 @@ function applyNormalMap(
 
     material.normalScale =
         map ?
-        createScale(
+        createNormalScale(
             normalScale
         ) :
         new THREE.Vector2(
@@ -189,6 +194,50 @@ function applyHeightMap(
         0;
 }
 
+function resolveRepeatX(
+    options,
+    profileId
+) {
+    /*
+     * Physical panel width controls the profile repeat.
+     *
+     * PanelSystem / PanelGeometry split the building into
+     * physical 1.0 m panels. Therefore:
+     *
+     * 1.0 m panel = 2 profile repeats
+     *
+     * The final partial panel receives a proportional repeat.
+     */
+    if (
+        Number.isFinite(
+            options.repeatX
+        ) &&
+        options.repeatX > 0
+    ) {
+        return options.repeatX;
+    }
+
+    const span =
+        getPositive(
+            options.span,
+            DEFAULT_SPAN
+        );
+
+    return getPanelRepeat(
+        span,
+        profileId
+    );
+}
+
+function resolveRepeatY(
+    options
+) {
+    return getPositive(
+        options.repeatY,
+        DEFAULT_REPEAT_Y
+    );
+}
+
 function applyMaps(
     material,
     options
@@ -219,22 +268,15 @@ function applyMaps(
         options.slot ||
         DEFAULT_SLOT;
 
-    const span =
-        getPositive(
-            options.span,
-            DEFAULT_SPAN
-        );
-
     const repeatX =
-        getPanelRepeat(
-            span,
+        resolveRepeatX(
+            options,
             profileId
         );
 
     const repeatY =
-        getPositive(
-            options.repeatY,
-            DEFAULT_REPEAT_Y
+        resolveRepeatY(
+            options
         );
 
     if (
@@ -253,14 +295,19 @@ function applyMaps(
         return;
     }
 
-    applyHeightMap(
-        material,
-        profileId,
-        slot,
-        repeatX,
-        repeatY,
-        options.bumpScale
-    );
+    if (
+        mapType ===
+        PanelMapType.HEIGHT
+    ) {
+        applyHeightMap(
+            material,
+            profileId,
+            slot,
+            repeatX,
+            repeatY,
+            options.bumpScale
+        );
+    }
 }
 
 function applySide(
@@ -280,6 +327,43 @@ function applyName(
         `panel-${slot}`;
 }
 
+function applyMetadata(
+    material,
+    options,
+    slot
+) {
+    const profileId =
+        normalizePanelProfile(
+            options.profileId ||
+            DEFAULT_PROFILE
+        );
+
+    material.userData =
+        {
+            ...material.userData,
+
+            panelMaterial:
+                true,
+
+            panelProfile:
+                profileId,
+
+            panelSlot:
+                slot,
+
+            panelMapType:
+                normalizeMapType(
+                    options.mapType
+                ),
+
+            panelSpan:
+                getPositive(
+                    options.span,
+                    DEFAULT_SPAN
+                )
+        };
+}
+
 export function createPanelMaterial(
     source,
     options = {}
@@ -288,6 +372,13 @@ export function createPanelMaterial(
         source
     );
 
+    /*
+     * Each physical panel owns its material.
+     *
+     * Texture ownership remains in PanelProfiles:
+     * the material may be disposed without disposing
+     * the shared procedural profile texture.
+     */
     const material =
         source.clone();
 
@@ -303,6 +394,12 @@ export function createPanelMaterial(
     applySide(
         material,
         options.side
+    );
+
+    applyMetadata(
+        material,
+        options,
+        slot
     );
 
     applyMaps(

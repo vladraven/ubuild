@@ -1,24 +1,24 @@
 const ROOF_TYPES = Object.freeze([
-    'gabled',
-    'left-sloped',
-    'right-sloped'
-]);
+            'gabled',
+            'left-sloped',
+            'right-sloped'
+        ]);
 
 const SIDES = Object.freeze([
-    'F',
-    'B',
-    'L',
-    'R'
-]);
+            'F',
+            'B',
+            'L',
+            'R'
+        ]);
 
 const OPENING_TYPES = Object.freeze([
-    'Window',
-    'Walk Door Solid',
-    'Walk Door Solid Double',
-    'Overhead Panel Door',
-    'Bi-Fold Door',
-    'Hydraulic Door'
-]);
+            'Window',
+            'Walk Door Solid',
+            'Walk Door Solid Double',
+            'Overhead Panel Door',
+            'Bi-Fold Door',
+            'Hydraulic Door'
+        ]);
 
 const OPENING_DEFS = Object.freeze({
     'Window': Object.freeze({
@@ -104,15 +104,15 @@ const DEFAULTS = Object.freeze({
         type: 'gabled',
 
         pitchRatio:
-            0.1666666667,
+        0.1666666667,
 
         overhangs:
-            Object.freeze({
-                front: 0,
-                back: 0,
-                left: 0,
-                right: 0
-            })
+        Object.freeze({
+            front: 0,
+            back: 0,
+            left: 0,
+            right: 0
+        })
     }),
 
     walls: Object.freeze({
@@ -123,10 +123,10 @@ const DEFAULTS = Object.freeze({
         profile: 'awr',
 
         wallHeight:
-            4.8768,
+        4.8768,
 
         wainscotHeight:
-            0.9144
+        0.9144
     }),
 
     colors: DEFAULT_COLORS,
@@ -135,14 +135,14 @@ const DEFAULTS = Object.freeze({
         enabled: true,
 
         height:
-            0.3048
+        0.3048
     }),
 
     openings:
-        Object.freeze([]),
+    Object.freeze([]),
 
     awnings:
-        DEFAULT_AWNINGS,
+    DEFAULT_AWNINGS,
 
     liner: Object.freeze({
         enabled: false,
@@ -194,34 +194,34 @@ const DEFAULTS = Object.freeze({
         margin: 0
     }),
 
-visibility: Object.freeze({
-    walls: true,
+    visibility: Object.freeze({
+        walls: true,
 
-    wallFront: true,
-    wallBack: true,
-    wallLeft: true,
-    wallRight: true,
+        wallFront: true,
+        wallBack: true,
+        wallLeft: true,
+        wallRight: true,
 
-    roof: true,
-    foundation: true,
-    panels: true,
-    wainscot: true,
-    openings: true,
-    frames: true,
-    girts: true,
-    purlins: true,
-    endWallColumns: true,
-    trims: true,
-    ridge: true,
-    gutters: true,
-    awnings: true,
-    liner: true,
-    mezzanine: true,
-    crane: true,
-    driveway: true,
-    logo: true,
-    labels: true
-})
+        roof: true,
+        foundation: true,
+        panels: true,
+        wainscot: true,
+        openings: true,
+        frames: true,
+        girts: true,
+        purlins: true,
+        endWallColumns: true,
+        trims: true,
+        ridge: true,
+        gutters: true,
+        awnings: true,
+        liner: true,
+        mezzanine: true,
+        crane: true,
+        driveway: true,
+        logo: true,
+        labels: true
+    })
 });
 
 const LIMITS = Object.freeze({
@@ -256,10 +256,10 @@ const LIMITS = Object.freeze({
     }),
 
     craneZPercent:
-        Object.freeze({
-            min: 0,
-            max: 1
-        })
+    Object.freeze({
+        min: 0,
+        max: 1
+    })
 });
 
 function clone(value) {
@@ -269,16 +269,13 @@ function clone(value) {
 
     if (
         value &&
-        typeof value === 'object'
-    ) {
+        typeof value === 'object') {
         return Object.fromEntries(
             Object.entries(value).map(
                 ([key, item]) => [
                     key,
                     clone(item)
-                ]
-            )
-        );
+                ]));
     }
 
     return value;
@@ -287,15 +284,13 @@ function clone(value) {
 function freeze(value) {
     if (
         !value ||
-        typeof value !== 'object'
-    ) {
+        typeof value !== 'object') {
         return value;
     }
 
     for (
         const item
-        of Object.values(value)
-    ) {
+        of Object.values(value)) {
         freeze(item);
     }
 
@@ -304,35 +299,30 @@ function freeze(value) {
 
 function merge(
     base,
-    override
-) {
+    override) {
     const result =
         clone(base);
 
     if (
         !override ||
-        typeof override !== 'object'
-    ) {
+        typeof override !== 'object') {
         return result;
     }
 
     for (
         const [key, value]
-        of Object.entries(override)
-    ) {
+        of Object.entries(override)) {
         if (
             value &&
             typeof value === 'object' &&
             !Array.isArray(value) &&
             result[key] &&
             typeof result[key] === 'object' &&
-            !Array.isArray(result[key])
-        ) {
+            !Array.isArray(result[key])) {
             result[key] =
                 merge(
                     result[key],
-                    value
-                );
+                    value);
 
             continue;
         }
@@ -346,14 +336,11 @@ function merge(
 
 function assertFinite(
     value,
-    path
-) {
+    path) {
     if (
-        !Number.isFinite(value)
-    ) {
+        !Number.isFinite(value)) {
         throw new TypeError(
-            `${path} must be a finite number`
-        );
+`${path} must be a finite number`);
     }
 }
 
@@ -361,261 +348,210 @@ function assertRange(
     value,
     min,
     max,
-    path
-) {
+    path) {
     assertFinite(
         value,
-        path
-    );
+        path);
 
     if (
         value < min ||
-        value > max
-    ) {
+        value > max) {
         throw new RangeError(
-            `${path} must be between ${min} and ${max}`
-        );
+`${path} must be between ${min} and ${max}`);
     }
 }
 
 function validateDimensions(
-    model
-) {
+    model) {
     assertRange(
         model.dimensions.width,
         LIMITS.width.min,
         LIMITS.width.max,
-        'dimensions.width'
-    );
+        'dimensions.width');
 
     assertRange(
         model.dimensions.length,
         LIMITS.length.min,
         LIMITS.length.max,
-        'dimensions.length'
-    );
+        'dimensions.length');
 
     assertRange(
         model.dimensions.height,
         LIMITS.height.min,
         LIMITS.height.max,
-        'dimensions.height'
-    );
+        'dimensions.height');
 }
 
 function validateRoof(
-    model
-) {
+    model) {
     if (
         !ROOF_TYPES.includes(
-            model.roof.type
-        )
-    ) {
+            model.roof.type)) {
         throw new RangeError(
-            `Unsupported roof type: ${model.roof.type}`
-        );
+`Unsupported roof type: ${model.roof.type}`);
     }
 
     assertFinite(
         model.roof.pitchRatio,
-        'roof.pitchRatio'
-    );
+        'roof.pitchRatio');
 
     if (
-        model.roof.pitchRatio <= 0
-    ) {
+        model.roof.pitchRatio <= 0) {
         throw new RangeError(
-            'roof.pitchRatio must be greater than zero'
-        );
+            'roof.pitchRatio must be greater than zero');
     }
 
     for (
         const side
-        of [
+        of[
             'front',
             'back',
             'left',
             'right'
-        ]
-    ) {
+        ]) {
         assertRange(
             model.roof.overhangs[
                 side
             ],
             LIMITS.overhang.min,
             LIMITS.overhang.max,
-            `roof.overhangs.${side}`
-        );
+`roof.overhangs.${side}`);
     }
 }
 
 function validateWalls(
-    model
-) {
+    model) {
     assertRange(
         model.walls.thickness,
         LIMITS.wallThickness.min,
         LIMITS.wallThickness.max,
-        'walls.thickness'
-    );
+        'walls.thickness');
 }
 
 function validatePanels(
-    model
-) {
+    model) {
     if (
         typeof model.panels.profile !==
-            'string' ||
+        'string' ||
         model.panels.profile.trim() ===
-            ''
-    ) {
+        '') {
         throw new TypeError(
-            'panels.profile is required'
-        );
+            'panels.profile is required');
     }
 
     assertFinite(
         model.panels.wallHeight,
-        'panels.wallHeight'
-    );
+        'panels.wallHeight');
 
     assertFinite(
         model.panels.wainscotHeight,
-        'panels.wainscotHeight'
-    );
+        'panels.wainscotHeight');
 
     if (
-        model.panels.wallHeight <= 0
-    ) {
+        model.panels.wallHeight <= 0) {
         throw new RangeError(
-            'panels.wallHeight must be greater than zero'
-        );
+            'panels.wallHeight must be greater than zero');
     }
 
     if (
         model.panels.wallHeight >
-        model.dimensions.height
-    ) {
+        model.dimensions.height) {
         throw new RangeError(
-            'panels.wallHeight cannot exceed building height'
-        );
+            'panels.wallHeight cannot exceed building height');
     }
 
     if (
-        model.panels.wainscotHeight < 0
-    ) {
+        model.panels.wainscotHeight < 0) {
         throw new RangeError(
-            'panels.wainscotHeight cannot be negative'
-        );
+            'panels.wainscotHeight cannot be negative');
     }
 
     if (
         model.panels.wainscotHeight >
-        model.panels.wallHeight
-    ) {
+        model.panels.wallHeight) {
         throw new RangeError(
-            'panels.wainscotHeight cannot exceed panel wall height'
-        );
+            'panels.wainscotHeight cannot exceed panel wall height');
     }
 }
 
 function validateColors(
-    model
-) {
+    model) {
     if (
         !model.colors ||
         typeof model.colors !== 'object' ||
-        Array.isArray(model.colors)
-    ) {
+        Array.isArray(model.colors)) {
         throw new TypeError(
-            'colors must be an object'
-        );
+            'colors must be an object');
     }
 
     for (
         const [name, value]
-        of Object.entries(DEFAULT_COLORS)
-    ) {
+        of Object.entries(DEFAULT_COLORS)) {
         const color =
             model.colors[name];
 
         if (
             typeof color !== 'string' ||
-            !/^#[0-9A-Fa-f]{6}$/.test(color)
-        ) {
+            !/^#[0-9A-Fa-f]{6}$/.test(color)) {
             throw new TypeError(
-                `colors.${name} must be a #RRGGBB color`
-            );
+`colors.${name} must be a #RRGGBB color`);
         }
     }
 }
 
 function validateFoundation(
-    model
-) {
+    model) {
     assertRange(
         model.foundation.height,
         LIMITS.foundationHeight.min,
         LIMITS.foundationHeight.max,
-        'foundation.height'
-    );
+        'foundation.height');
 }
 
 function validateAwningSide(
     side,
-    name
-) {
+    name) {
     if (
         !side ||
-        typeof side !== 'object'
-    ) {
+        typeof side !== 'object') {
         throw new TypeError(
-            `${name} must be an object`
-        );
+`${name} must be an object`);
     }
 
     for (
         const field
-        of [
+        of[
             'depth',
             'drop',
             'pitch',
             'cutL',
             'cutR'
-        ]
-    ) {
+        ]) {
         assertFinite(
             side[field],
-            `${name}.${field}`
-        );
+`${name}.${field}`);
 
         if (
-            side[field] < 0
-        ) {
+            side[field] < 0) {
             throw new RangeError(
-                `${name}.${field} cannot be negative`
-            );
+`${name}.${field} cannot be negative`);
         }
     }
 }
 
 function validateAwnings(
-    model
-) {
+    model) {
     for (
         const side
-        of SIDES
-    ) {
+        of SIDES) {
         validateAwningSide(
             model.awnings[side],
-            `awnings.${side}`
-        );
+`awnings.${side}`);
     }
 }
 
 function validateCrane(
-    model
-) {
+    model) {
     const crane =
         model.crane;
 
@@ -623,182 +559,141 @@ function validateCrane(
         crane.z,
         LIMITS.craneZPercent.min,
         LIMITS.craneZPercent.max,
-        'crane.z'
-    );
+        'crane.z');
 
     assertRange(
         crane.zPercent,
         LIMITS.craneZPercent.min,
         LIMITS.craneZPercent.max,
-        'crane.zPercent'
-    );
+        'crane.zPercent');
 
     if (
         crane.z !==
-        crane.zPercent
-    ) {
+        crane.zPercent) {
         throw new RangeError(
-            'crane.z and crane.zPercent must represent the same position'
-        );
+            'crane.z and crane.zPercent must represent the same position');
     }
 }
 
 function validateOpening(
     opening,
-    index
-) {
+    index) {
     if (
         !opening ||
-        typeof opening !== 'object'
-    ) {
+        typeof opening !== 'object') {
         throw new TypeError(
-            `openings[${index}] must be an object`
-        );
+`openings[${index}] must be an object`);
     }
 
     if (
         typeof opening.id !==
-            'string' ||
+        'string' ||
         opening.id.trim() ===
-            ''
-    ) {
+        '') {
         throw new TypeError(
-            `openings[${index}].id is required`
-        );
+`openings[${index}].id is required`);
     }
 
     if (
         !OPENING_TYPES.includes(
-            opening.type
-        )
-    ) {
+            opening.type)) {
         throw new RangeError(
-            `Unsupported opening type: ${opening.type}`
-        );
+`Unsupported opening type: ${opening.type}`);
     }
 
     if (
         !SIDES.includes(
-            opening.side
-        )
-    ) {
+            opening.side)) {
         throw new RangeError(
-            `Unsupported opening side: ${opening.side}`
-        );
+`Unsupported opening side: ${opening.side}`);
     }
 
     assertFinite(
         opening.width,
-        `openings[${index}].width`
-    );
+`openings[${index}].width`);
 
     assertFinite(
         opening.height,
-        `openings[${index}].height`
-    );
+`openings[${index}].height`);
 
     assertFinite(
         opening.x,
-        `openings[${index}].x`
-    );
+`openings[${index}].x`);
 
     assertFinite(
         opening.yOff,
-        `openings[${index}].yOff`
-    );
+`openings[${index}].yOff`);
 
     if (
-        opening.width <= 0
-    ) {
+        opening.width <= 0) {
         throw new RangeError(
-            `openings[${index}].width must be greater than zero`
-        );
+`openings[${index}].width must be greater than zero`);
     }
 
     if (
-        opening.height <= 0
-    ) {
+        opening.height <= 0) {
         throw new RangeError(
-            `openings[${index}].height must be greater than zero`
-        );
+`openings[${index}].height must be greater than zero`);
     }
 }
 
 function validateOpenings(
-    model
-) {
+    model) {
     if (
         !Array.isArray(
-            model.openings
-        )
-    ) {
+            model.openings)) {
         throw new TypeError(
-            'openings must be an array'
-        );
+            'openings must be an array');
     }
 
     model.openings.forEach(
-        validateOpening
-    );
+        validateOpening);
 }
 
 function validate(
-    model
-) {
+    model) {
     validateDimensions(
-        model
-    );
+        model);
 
     validateRoof(
-        model
-    );
+        model);
 
     validateWalls(
-        model
-    );
+        model);
 
     validatePanels(
-        model
-    );
+        model);
 
     validateColors(
-        model
-    );
+        model);
 
     validateFoundation(
-        model
-    );
+        model);
 
     validateAwnings(
-        model
-    );
+        model);
 
     validateCrane(
-        model
-    );
+        model);
 
     validateOpenings(
-        model
-    );
+        model);
 
     return model;
 }
 
 export function createBuildingModel(
-    overrides = {}
-) {
+    overrides = {}) {
     const model =
         merge(
             DEFAULTS,
-            overrides
-        );
+            overrides);
 
     if (
         model.crane.zPercent ===
         undefined &&
         model.crane.z !==
-            undefined
-    ) {
+        undefined) {
         model.crane.zPercent =
             model.crane.z;
     }
@@ -807,70 +702,56 @@ export function createBuildingModel(
         model.crane.z ===
         undefined &&
         model.crane.zPercent !==
-            undefined
-    ) {
+        undefined) {
         model.crane.z =
             model.crane.zPercent;
     }
 
     validate(
-        model
-    );
+        model);
 
     return freeze(
-        model
-    );
+        model);
 }
 
 export function updateBuildingModel(
     current,
-    changes = {}
-) {
+    changes = {}) {
     if (
         !current ||
-        typeof current !== 'object'
-    ) {
+        typeof current !== 'object') {
         throw new TypeError(
-            'current building model is required'
-        );
+            'current building model is required');
     }
 
     return createBuildingModel(
         merge(
             current,
-            changes
-        )
-    );
+            changes));
 }
 
 export function validateBuildingModel(
-    model
-) {
+    model) {
     validate(
-        clone(model)
-    );
+        clone(model));
 
     return true;
 }
 
 export function cloneBuildingModel(
-    model
-) {
+    model) {
     return clone(
-        model
-    );
+        model);
 }
 
 export function getBuildingModelDefaults() {
     return clone(
-        DEFAULTS
-    );
+        DEFAULTS);
 }
 
 export function getBuildingModelLimits() {
     return clone(
-        LIMITS
-    );
+        LIMITS);
 }
 
 export {

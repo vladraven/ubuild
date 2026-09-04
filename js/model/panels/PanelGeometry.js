@@ -1,10 +1,32 @@
-const EPSILON = 1e-9;
+const EPSILON =
+    1e-9;
 
-function point(x, y, z) {
-    return Object.freeze({ x, y, z });
+function point(
+    x,
+    y,
+    z
+) {
+    return Object.freeze({
+        x,
+        y,
+        z
+    });
 }
 
-function distance(a, b) {
+function shapePoint(
+    x,
+    y
+) {
+    return Object.freeze({
+        x,
+        y
+    });
+}
+
+function distance(
+    a,
+    b
+) {
     return Math.hypot(
         b.x - a.x,
         b.y - a.y,
@@ -12,8 +34,16 @@ function distance(a, b) {
     );
 }
 
-function interpolate(a, b, distanceFromStart, totalDistance) {
-    if (totalDistance <= EPSILON) {
+function interpolate(
+    a,
+    b,
+    distanceFromStart,
+    totalDistance
+) {
+    if (
+        totalDistance <=
+        EPSILON
+    ) {
         return point(
             a.x,
             a.y,
@@ -22,96 +52,385 @@ function interpolate(a, b, distanceFromStart, totalDistance) {
     }
 
     const ratio =
-        distanceFromStart / totalDistance;
+        distanceFromStart /
+        totalDistance;
 
     return point(
-        a.x + (b.x - a.x) * ratio,
-        a.y + (b.y - a.y) * ratio,
-        a.z + (b.z - a.z) * ratio
+        a.x +
+        (
+            b.x -
+            a.x
+        ) *
+        ratio,
+
+        a.y +
+        (
+            b.y -
+            a.y
+        ) *
+        ratio,
+
+        a.z +
+        (
+            b.z -
+            a.z
+        ) *
+        ratio
     );
 }
 
-function createPanelBounds(
-    start,
-    end,
-    minY,
-    maxY
+function getShapeBounds(
+    points
 ) {
-    return Object.freeze({
-        min: point(
-            Math.min(start.x, end.x),
-            minY,
-            Math.min(start.z, end.z)
-        ),
+    let minX =
+        Infinity;
 
-        max: point(
-            Math.max(start.x, end.x),
-            maxY,
-            Math.max(start.z, end.z)
+    let maxX =
+        -Infinity;
+
+    let minY =
+        Infinity;
+
+    let maxY =
+        -Infinity;
+
+    for (
+        const vertex
+        of points
+    ) {
+        minX =
+            Math.min(
+                minX,
+                vertex.x
+            );
+
+        maxX =
+            Math.max(
+                maxX,
+                vertex.x
+            );
+
+        minY =
+            Math.min(
+                minY,
+                vertex.y
+            );
+
+        maxY =
+            Math.max(
+                maxY,
+                vertex.y
+            );
+    }
+
+    return Object.freeze({
+        minX,
+        maxX,
+        minY,
+        maxY
+    });
+}
+
+function intersectVertical(
+    a,
+    b,
+    x
+) {
+    const deltaX =
+        b.x -
+        a.x;
+
+    if (
+        Math.abs(
+            deltaX
+        ) <= EPSILON
+    ) {
+        return shapePoint(
+            x,
+            a.y
+        );
+    }
+
+    const ratio =
+        (
+            x -
+            a.x
+        ) /
+        deltaX;
+
+    return shapePoint(
+        x,
+
+        a.y +
+        (
+            b.y -
+            a.y
+        ) *
+        ratio
+    );
+}
+
+function clipPolygon(
+    polygon,
+    isInside,
+    intersect
+) {
+    if (
+        polygon.length ===
+        0
+    ) {
+        return [];
+    }
+
+    const result =
+        [];
+
+    let previous =
+        polygon[
+            polygon.length -
+            1
+        ];
+
+    let previousInside =
+        isInside(
+            previous
+        );
+
+    for (
+        const current
+        of polygon
+    ) {
+        const currentInside =
+            isInside(
+                current
+            );
+
+        if (
+            currentInside
+        ) {
+            if (
+                !previousInside
+            ) {
+                result.push(
+                    intersect(
+                        previous,
+                        current
+                    )
+                );
+            }
+
+            result.push(
+                shapePoint(
+                    current.x,
+                    current.y
+                )
+            );
+        } else if (
+            previousInside
+        ) {
+            result.push(
+                intersect(
+                    previous,
+                    current
+                )
+            );
+        }
+
+        previous =
+            current;
+
+        previousInside =
+            currentInside;
+    }
+
+    return result;
+}
+
+function clipMinX(
+    polygon,
+    minX
+) {
+    return clipPolygon(
+        polygon,
+
+        vertex =>
+            vertex.x >=
+            minX -
+            EPSILON,
+
+        (
+            previous,
+            current
+        ) =>
+            intersectVertical(
+                previous,
+                current,
+                minX
+            )
+    );
+}
+
+function clipMaxX(
+    polygon,
+    maxX
+) {
+    return clipPolygon(
+        polygon,
+
+        vertex =>
+            vertex.x <=
+            maxX +
+            EPSILON,
+
+        (
+            previous,
+            current
+        ) =>
+            intersectVertical(
+                previous,
+                current,
+                maxX
+            )
+    );
+}
+
+function getPanelShapePoints(
+    wall,
+    panel
+) {
+    const bounds =
+        getShapeBounds(
+            wall.shapePoints
+        );
+
+    const minX =
+        bounds.minX +
+        panel.interval.start;
+
+    const maxX =
+        bounds.minX +
+        panel.interval.end;
+
+    let polygon =
+        wall.shapePoints.map(
+            vertex =>
+                shapePoint(
+                    vertex.x,
+                    vertex.y
+                )
+        );
+
+    polygon =
+        clipMinX(
+            polygon,
+            minX
+        );
+
+    polygon =
+        clipMaxX(
+            polygon,
+            maxX
+        );
+
+    return Object.freeze(
+        polygon.map(
+            vertex =>
+                shapePoint(
+                    vertex.x,
+                    vertex.y
+                )
         )
+    );
+}
+
+function getPanelBounds(
+    wall,
+    shapePoints
+) {
+    const shapeBounds =
+        getShapeBounds(
+            shapePoints
+        );
+
+    if (
+        wall.side === 'F' ||
+        wall.side === 'B'
+    ) {
+        return Object.freeze({
+            min:
+                point(
+                    shapeBounds.minX,
+                    shapeBounds.minY,
+                    wall.bounds.min.z
+                ),
+
+            max:
+                point(
+                    shapeBounds.maxX,
+                    shapeBounds.maxY,
+                    wall.bounds.max.z
+                )
+        });
+    }
+
+    return Object.freeze({
+        min:
+            point(
+                wall.bounds.min.x,
+                shapeBounds.minY,
+                shapeBounds.minX
+            ),
+
+        max:
+            point(
+                wall.bounds.max.x,
+                shapeBounds.maxY,
+                shapeBounds.maxX
+            )
     });
 }
 
 function createWallPanel(
     wall,
-    panel,
-    wallHeight
+    panel
 ) {
-    const isEndWall =
-        wall.side === 'F' ||
-        wall.side === 'B';
+    const shapePoints =
+        getPanelShapePoints(
+            wall,
+            panel
+        );
 
-    const min = wall.bounds.min;
-    const max = wall.bounds.max;
-
-    if (isEndWall) {
-        const x1 =
-            min.x + panel.interval.start;
-
-        const x2 =
-            min.x + panel.interval.end;
-
-        return Object.freeze({
-            index: panel.index,
-            width: panel.width,
-            isLast: panel.isLast,
-
-            bounds: createPanelBounds(
-                point(x1, 0, min.z),
-                point(x2, 0, max.z),
-                min.y,
-                Math.min(
-                    wallHeight,
-                    max.y
-                )
-            )
-        });
+    if (
+        shapePoints.length <
+        3
+    ) {
+        throw new Error(
+            `Invalid wall panel shape: ` +
+            `${wall.side}:${panel.index}`
+        );
     }
 
-    const z1 =
-        min.z + panel.interval.start;
-
-    const z2 =
-        min.z + panel.interval.end;
-
     return Object.freeze({
-        index: panel.index,
-        width: panel.width,
-        isLast: panel.isLast,
+        index:
+            panel.index,
 
-        bounds: createPanelBounds(
-            point(min.x, 0, z1),
-            point(max.x, 0, z2),
-            min.y,
-            Math.min(
-                wallHeight,
-                max.y
+        width:
+            panel.width,
+
+        isLast:
+            panel.isLast,
+
+        shapePoints,
+
+        bounds:
+            getPanelBounds(
+                wall,
+                shapePoints
             )
-        )
     });
 }
 
-function createWainscotPanel(
+function getWainscotShapePoints(
     wall,
     panel,
     height
@@ -119,13 +438,136 @@ function createWainscotPanel(
     const wallPanel =
         createWallPanel(
             wall,
+            panel
+        );
+
+    const polygon =
+        [];
+
+    for (
+        let index = 0;
+        index <
+        wallPanel.shapePoints.length;
+        index++
+    ) {
+        const current =
+            wallPanel.shapePoints[
+                index
+            ];
+
+        const next =
+            wallPanel.shapePoints[
+                (
+                    index +
+                    1
+                ) %
+                wallPanel.shapePoints.length
+            ];
+
+        const currentInside =
+            current.y <=
+            height +
+            EPSILON;
+
+        const nextInside =
+            next.y <=
+            height +
+            EPSILON;
+
+        if (
+            currentInside
+        ) {
+            polygon.push(
+                shapePoint(
+                    current.x,
+                    current.y
+                )
+            );
+        }
+
+        if (
+            currentInside !==
+            nextInside
+        ) {
+            const deltaY =
+                next.y -
+                current.y;
+
+            if (
+                Math.abs(
+                    deltaY
+                ) >
+                EPSILON
+            ) {
+                const ratio =
+                    (
+                        height -
+                        current.y
+                    ) /
+                    deltaY;
+
+                polygon.push(
+                    shapePoint(
+                        current.x +
+                        (
+                            next.x -
+                            current.x
+                        ) *
+                        ratio,
+
+                        height
+                    )
+                );
+            }
+        }
+    }
+
+    return Object.freeze(
+        polygon
+    );
+}
+
+function createWainscotPanel(
+    wall,
+    panel,
+    height
+) {
+    const shapePoints =
+        getWainscotShapePoints(
+            wall,
             panel,
             height
         );
 
+    if (
+        shapePoints.length <
+        3
+    ) {
+        throw new Error(
+            `Invalid wainscot panel shape: ` +
+            `${wall.side}:${panel.index}`
+        );
+    }
+
     return Object.freeze({
-        ...wallPanel,
-        height
+        index:
+            panel.index,
+
+        width:
+            panel.width,
+
+        height,
+
+        isLast:
+            panel.isLast,
+
+        shapePoints,
+
+        bounds:
+            getPanelBounds(
+                wall,
+                shapePoints
+            )
     });
 }
 
@@ -133,15 +575,20 @@ function createRoofPanel(
     plane,
     panel
 ) {
-    const corners = plane.corners;
+    const corners =
+        plane.corners;
 
-    const start = corners[0];
-    const end = corners[3];
+    const start =
+        corners[0];
 
-    const span = distance(
-        start,
-        end
-    );
+    const end =
+        corners[3];
+
+    const span =
+        distance(
+            start,
+            end
+        );
 
     const panelStart =
         interpolate(
@@ -176,39 +623,49 @@ function createRoofPanel(
         );
 
     return Object.freeze({
-        index: panel.index,
-        width: panel.width,
-        isLast: panel.isLast,
+        index:
+            panel.index,
 
-        corners: Object.freeze([
-            panelStart,
-            oppositeStart,
-            oppositeEnd,
-            panelEnd
-        ]),
+        width:
+            panel.width,
 
-        center: point(
-            (
-                panelStart.x +
-                oppositeStart.x +
-                oppositeEnd.x +
-                panelEnd.x
-            ) / 4,
+        isLast:
+            panel.isLast,
 
-            (
-                panelStart.y +
-                oppositeStart.y +
-                oppositeEnd.y +
-                panelEnd.y
-            ) / 4,
+        corners:
+            Object.freeze([
+                panelStart,
+                oppositeStart,
+                oppositeEnd,
+                panelEnd
+            ]),
 
-            (
-                panelStart.z +
-                oppositeStart.z +
-                oppositeEnd.z +
-                panelEnd.z
-            ) / 4
-        )
+        center:
+            point(
+                (
+                    panelStart.x +
+                    oppositeStart.x +
+                    oppositeEnd.x +
+                    panelEnd.x
+                ) /
+                4,
+
+                (
+                    panelStart.y +
+                    oppositeStart.y +
+                    oppositeEnd.y +
+                    panelEnd.y
+                ) /
+                4,
+
+                (
+                    panelStart.z +
+                    oppositeStart.z +
+                    oppositeEnd.z +
+                    panelEnd.z
+                ) /
+                4
+            )
     });
 }
 
@@ -217,102 +674,142 @@ export function createPanelGeometry(
     buildingGeometry,
     panelSystem
 ) {
-    if (!model) {
+    if (
+        !model
+    ) {
         throw new TypeError(
             'BuildingModel is required'
         );
     }
 
-    if (!buildingGeometry) {
+    if (
+        !buildingGeometry
+    ) {
         throw new TypeError(
             'BuildingGeometry is required'
         );
     }
 
-    if (!panelSystem) {
+    if (
+        !panelSystem
+    ) {
         throw new TypeError(
             'PanelSystem is required'
         );
     }
 
-    const walls = {};
+    const walls =
+        {};
 
-    for (const side of [
-        'front',
-        'back',
-        'left',
-        'right'
-    ]) {
+    const wainscot =
+        {};
+
+    for (
+        const side
+        of [
+            'front',
+            'back',
+            'left',
+            'right'
+        ]
+    ) {
         const wall =
-            buildingGeometry.walls[side];
+            buildingGeometry.walls[
+                side
+            ];
 
-        const layout =
-            panelSystem.walls[side];
+        const wallLayout =
+            panelSystem.walls[
+                side
+            ];
 
-        walls[side] = Object.freeze(
-            layout.panels.map(panel =>
-                createWallPanel(
-                    wall,
-                    panel,
-                    wall.bounds.height
+        walls[
+            side
+        ] =
+            Object.freeze(
+                wallLayout.panels.map(
+                    panel =>
+                        createWallPanel(
+                            wall,
+                            panel
+                        )
                 )
-            )
-        );
-    }
-
-    const wainscot = {};
-
-    for (const side of [
-        'front',
-        'back',
-        'left',
-        'right'
-    ]) {
-        const wall =
-            buildingGeometry.walls[side];
-
-        const layout =
-            panelSystem.wainscot[side];
-
-        wainscot[side] = Object.freeze(
-            layout.panels.map(panel =>
-                createWainscotPanel(
-                    wall,
-                    panel,
-                    model.panels.wainscotHeight
-                )
-            )
-        );
-    }
-
-    const roof = {};
-
-    for (const layout of panelSystem.roof) {
-        const plane =
-            buildingGeometry.roof.planes.find(
-                item => item.id === layout.plane
             );
 
-        if (!plane) {
+        const wainscotLayout =
+            panelSystem.wainscot[
+                side
+            ];
+
+        wainscot[
+            side
+        ] =
+            Object.freeze(
+                wainscotLayout.panels.map(
+                    panel =>
+                        createWainscotPanel(
+                            wall,
+                            panel,
+                            model.panels
+                                .wainscotHeight
+                        )
+                )
+            );
+    }
+
+    const roof =
+        {};
+
+    for (
+        const layout
+        of panelSystem.roof
+    ) {
+        const plane =
+            buildingGeometry.roof
+                .planes
+                .find(
+                    item =>
+                        item.id ===
+                        layout.plane
+                );
+
+        if (
+            !plane
+        ) {
             throw new Error(
-                `Roof plane not found: ${layout.plane}`
+                `Roof plane not found: ` +
+                layout.plane
             );
         }
 
-        roof[layout.plane] =
+        roof[
+            layout.plane
+        ] =
             Object.freeze(
-                layout.panels.map(panel =>
-                    createRoofPanel(
-                        plane,
-                        panel
-                    )
+                layout.panels.map(
+                    panel =>
+                        createRoofPanel(
+                            plane,
+                            panel
+                        )
                 )
             );
     }
 
     return Object.freeze({
-        walls: Object.freeze(walls),
-        wainscot: Object.freeze(wainscot),
-        roof: Object.freeze(roof)
+        walls:
+            Object.freeze(
+                walls
+            ),
+
+        wainscot:
+            Object.freeze(
+                wainscot
+            ),
+
+        roof:
+            Object.freeze(
+                roof
+            )
     });
 }

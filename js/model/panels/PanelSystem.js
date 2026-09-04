@@ -1,21 +1,26 @@
-const DEFAULT_PANEL_WIDTH = 1.0;
+const DEFAULT_PANEL_WIDTH = 1;
 
 const WALL_SIDES = Object.freeze([
-    'front',
-    'back',
-    'left',
-    'right'
-]);
+            'front',
+            'back',
+            'left',
+            'right'
+        ]);
 
-function assertPositive(value, name) {
-    if (!Number.isFinite(value) || value <= 0) {
+function assertPositive(
+    value,
+    name) {
+    if (
+        !Number.isFinite(value) ||
+        value <= 0) {
         throw new RangeError(
-            `${name} must be greater than zero`
-        );
+`${name} must be greater than zero`);
     }
 }
 
-function createInterval(start, end) {
+function createInterval(
+    start,
+    end) {
     return Object.freeze({
         start,
         end,
@@ -23,178 +28,207 @@ function createInterval(start, end) {
     });
 }
 
-function createPanel(index, start, end) {
+function createPanel(
+    index,
+    start,
+    end) {
     return Object.freeze({
         index,
-        interval: createInterval(start, end),
+        interval: createInterval(
+            start,
+            end),
         width: end - start,
         isLast: false
     });
 }
 
-function divideSpan(span, panelWidth) {
+function divideSpan(
+    span,
+    panelWidth) {
     const panels = [];
 
     let start = 0;
     let index = 0;
 
-    while (start < span) {
-        const end = Math.min(
-            start + panelWidth,
-            span
-        );
+    while (
+        start < span) {
+        const end =
+            Math.min(
+                start +
+                panelWidth,
+                span);
 
         panels.push(
             createPanel(
                 index,
                 start,
-                end
-            )
-        );
+                end));
+
+        if (
+            end === span) {
+            break;
+        }
 
         start = end;
         index++;
     }
 
-    if (panels.length > 0) {
-        const last = panels.length - 1;
+    if (
+        panels.length === 0) {
+        return Object.freeze(
+            panels);
+    }
 
-        panels[last] = Object.freeze({
+    const last =
+        panels.length - 1;
+
+    panels[last] =
+        Object.freeze({
             ...panels[last],
             isLast: true
         });
-    }
 
-    return Object.freeze(panels);
+    return Object.freeze(
+        panels);
 }
 
 function createWallLayout(
     wall,
-    panelWidth
-) {
-    const span =
+    panelWidth) {
+    const isFrontBack =
         wall.side === 'F' ||
-        wall.side === 'B'
-            ? wall.bounds.width
-            : wall.bounds.length;
+        wall.side === 'B';
 
-    const panels = divideSpan(
-        span,
-        panelWidth
-    );
+    const span =
+        isFrontBack ?
+        wall.bounds.width :
+        wall.bounds.length;
 
     return Object.freeze({
         side: wall.side,
         span,
         panelWidth,
-        panels
+
+        // Divide the wall into physical panels.
+        panels: divideSpan(
+            span,
+            panelWidth)
     });
 }
 
 function createWainscotLayout(
     wall,
     height,
-    panelWidth
-) {
-    const layout = createWallLayout(
-        wall,
-        panelWidth
-    );
-
+    panelWidth) {
     return Object.freeze({
-        ...layout,
+        ...createWallLayout(
+            wall,
+            panelWidth),
+
         height
     });
 }
 
 function createRoofLayout(
     roof,
-    panelWidth
-) {
+    panelWidth) {
     return Object.freeze(
-        roof.planes.map(plane => {
-            const start = plane.corners[0];
-            const end = plane.corners[3];
+        roof.planes.map(
+            plane => {
+            const start =
+                plane.corners[0];
 
-            const span = Math.hypot(
-                end.x - start.x,
-                end.y - start.y,
-                end.z - start.z
-            );
+            const end =
+                plane.corners[3];
+
+            const span =
+                Math.hypot(
+                    end.x -
+                    start.x,
+
+                    end.y -
+                    start.y,
+
+                    end.z -
+                    start.z);
 
             return Object.freeze({
-                plane: plane.id,
+                plane:
+                plane.id,
+
                 span,
                 panelWidth,
+
+                // Divide each roof plane identically.
                 panels: divideSpan(
                     span,
-                    panelWidth
-                )
+                    panelWidth)
             });
-        })
-    );
+        }));
 }
 
 export function createPanelSystem(
     model,
     buildingGeometry,
-    panelWidth = DEFAULT_PANEL_WIDTH
-) {
-    if (!model) {
+    panelWidth =
+        DEFAULT_PANEL_WIDTH) {
+    if (
+        !model) {
         throw new TypeError(
-            'BuildingModel is required'
-        );
+            'BuildingModel is required');
     }
 
-    if (!buildingGeometry) {
+    if (
+        !buildingGeometry) {
         throw new TypeError(
-            'BuildingGeometry is required'
-        );
+            'BuildingGeometry is required');
     }
 
     assertPositive(
         panelWidth,
-        'panelWidth'
-    );
+        'panelWidth');
 
-    const wallLayouts = Object.fromEntries(
-        WALL_SIDES.map(side => [
-            side,
-            createWallLayout(
-                buildingGeometry.walls[side],
-                panelWidth
-            )
-        ])
-    );
+    const wallLayouts =
+        Object.fromEntries(
+            WALL_SIDES.map(
+                side => [
+                    side,
+                    createWallLayout(
+                        buildingGeometry
+                        .walls[side],
+                        panelWidth)
+                ]));
 
     const wainscotLayouts =
         Object.fromEntries(
-            WALL_SIDES.map(side => [
-                side,
-                createWainscotLayout(
-                    buildingGeometry.walls[side],
-                    model.panels.wainscotHeight,
-                    panelWidth
-                )
-            ])
-        );
+            WALL_SIDES.map(
+                side => [
+                    side,
+                    createWainscotLayout(
+                        buildingGeometry
+                        .walls[side],
+                        model.panels
+                        .wainscotHeight,
+                        panelWidth)
+                ]));
 
-    const roofLayouts = createRoofLayout(
-        buildingGeometry.roof,
-        panelWidth
-    );
+    const roofLayouts =
+        createRoofLayout(
+            buildingGeometry.roof,
+            panelWidth);
 
     return Object.freeze({
         panelWidth,
 
-        walls: Object.freeze(
-            wallLayouts
-        ),
+        walls:
+        Object.freeze(
+            wallLayouts),
 
-        wainscot: Object.freeze(
-            wainscotLayouts
-        ),
+        wainscot:
+        Object.freeze(
+            wainscotLayouts),
 
-        roof: roofLayouts
+        roof:
+        roofLayouts
     });
 }
