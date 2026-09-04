@@ -1,69 +1,36 @@
 import * as THREE from 'three';
 
-const PANEL_TEXTURE_SIZE =
-    512;
-
 const PANEL_WIDTH_M =
     1.0;
 
-const TEXTURE_REPEATS_PER_PANEL =
-    2;
-
-const HEIGHT_UNITS =
-    4;
-
-const RIB_HEIGHT_UNITS =
-    1;
+const PANEL_TEXTURE_SIZE =
+    1024;
 
 const RIB_HEIGHT =
-    RIB_HEIGHT_UNITS /
-    HEIGHT_UNITS;
+    1;
 
 const SMOOTH_HEIGHT =
     0;
 
 const NORMAL_STRENGTH =
-    8;
+    1.5;
 
 const NORMAL_SAMPLE_PIXELS =
     2;
 
-const normalMapCache =
-    new Map();
+const TEXTURE_REPEATS_PER_PANEL =
+    1;
 
 const heightMapCache =
+    new Map();
+
+const normalMapCache =
     new Map();
 
 const slotMapCache =
     new Map();
 
-const PROFILE_ALIASES =
-    Object.freeze({
-        awr: 'awr',
-
-        ssr24: 'ssr24',
-        'ssr 24': 'ssr24',
-
-        deltaspan: 'deltaSpan',
-        'delta span': 'deltaSpan',
-        delta_span: 'deltaSpan',
-
-        eliterib: 'eliteRib',
-        'elite rib': 'eliteRib',
-        elite_rib: 'eliteRib',
-
-        imp: 'imp',
-
-        ultraspan: 'ultraSpan',
-        'ultra span': 'ultraSpan',
-        ultra_span: 'ultraSpan',
-
-        widespan: 'wideSpan',
-        'wide span': 'wideSpan',
-        wide_span: 'wideSpan'
-    });
-
-const PROFILE_DEFINITIONS =
+export const PROFILE_DEFINITIONS =
     Object.freeze({
 
         awr: Object.freeze({
@@ -74,26 +41,27 @@ const PROFILE_DEFINITIONS =
 
             profile: Object.freeze([
                 [0, 0],
-                [0, 1],
-                [3, 1],
-                [3, 0],
-                [4, 0],
-                [4, 1]
-            ])
-        }),
+                [0.08, 0],
+                [0.08, 1],
+                [0.16, 1],
+                [0.16, 0],
 
-        ssr24: Object.freeze({
-            id: 'ssr24',
-            name: 'SSR24',
-            width: PANEL_WIDTH_M,
-            height: RIB_HEIGHT,
+                [0.33, 0],
+                [0.33, 1],
+                [0.41, 1],
+                [0.41, 0],
 
-            profile: Object.freeze([
-                [0, 0],
-                [0, 1],
-                [3, 1],
-                [3, 0],
-                [4, 0]
+                [0.58, 0],
+                [0.58, 1],
+                [0.66, 1],
+                [0.66, 0],
+
+                [0.83, 0],
+                [0.83, 1],
+                [0.91, 1],
+                [0.91, 0],
+
+                [1, 0]
             ])
         }),
 
@@ -105,14 +73,27 @@ const PROFILE_DEFINITIONS =
 
             profile: Object.freeze([
                 [0, 0],
-                [0, 1],
-                [1, 1],
-                [1, 0],
-                [2, 0],
-                [2, 1],
-                [3, 1],
-                [3, 0],
-                [4, 0]
+                [0.08, 0],
+                [0.08, 1],
+                [0.16, 1],
+                [0.16, 0],
+
+                [0.33, 0],
+                [0.33, 1],
+                [0.41, 1],
+                [0.41, 0],
+
+                [0.58, 0],
+                [0.58, 1],
+                [0.66, 1],
+                [0.66, 0],
+
+                [0.83, 0],
+                [0.83, 1],
+                [0.91, 1],
+                [0.91, 0],
+
+                [1, 0]
             ])
         }),
 
@@ -124,9 +105,27 @@ const PROFILE_DEFINITIONS =
 
             profile: Object.freeze([
                 [0, 0],
-                [0, 1],
-                [3, 1],
-                [4, 0]
+                [0.05, 0],
+                [0.05, 1],
+                [0.12, 1],
+                [0.12, 0],
+
+                [0.30, 0],
+                [0.30, 1],
+                [0.37, 1],
+                [0.37, 0],
+
+                [0.55, 0],
+                [0.55, 1],
+                [0.62, 1],
+                [0.62, 0],
+
+                [0.80, 0],
+                [0.80, 1],
+                [0.87, 1],
+                [0.87, 0],
+
+                [1, 0]
             ])
         }),
 
@@ -138,7 +137,39 @@ const PROFILE_DEFINITIONS =
 
             profile: Object.freeze([
                 [0, 0],
-                [4, 0]
+                [1, 0]
+            ])
+        }),
+
+        ssr24: Object.freeze({
+            id: 'ssr24',
+            name: 'SSR24',
+            width: PANEL_WIDTH_M,
+            height: RIB_HEIGHT,
+
+            profile: Object.freeze([
+                [0, 0],
+                [0.04, 0],
+                [0.04, 1],
+                [0.08, 1],
+                [0.08, 0],
+
+                [0.29, 0],
+                [0.29, 1],
+                [0.33, 1],
+                [0.33, 0],
+
+                [0.54, 0],
+                [0.54, 1],
+                [0.58, 1],
+                [0.58, 0],
+
+                [0.79, 0],
+                [0.79, 1],
+                [0.83, 1],
+                [0.83, 0],
+
+                [1, 0]
             ])
         }),
 
@@ -150,13 +181,24 @@ const PROFILE_DEFINITIONS =
 
             profile: Object.freeze([
                 [0, 0],
-                [0, 1],
-                [1, 1],
-                [1, 0],
-                [3, 0],
-                [3, 1],
-                [4, 1],
-                [4, 0]
+                [0.06, 0],
+                [0.06, 1],
+                [0.14, 1],
+                [0.14, 0],
+
+                [0.36, 0],
+                [0.36, 1],
+                [0.44, 1],
+                [0.44, 0],
+
+                [0.66, 0],
+                [0.66, 1],
+                [0.74, 1],
+                [0.74, 0],
+
+                [0.94, 0],
+                [0.94, 1],
+                [1, 1]
             ])
         }),
 
@@ -195,6 +237,35 @@ export const ROOF_PANEL_PROFILES =
         'awr',
         'ssr24'
     ]);
+
+const PROFILE_ALIASES =
+    Object.freeze({
+
+        awr: 'awr',
+        'a wr': 'awr',
+
+        delta: 'deltaSpan',
+        'delta span': 'deltaSpan',
+        deltaspan: 'deltaSpan',
+
+        elite: 'eliteRib',
+        'elite rib': 'eliteRib',
+        eliterib: 'eliteRib',
+
+        imp: 'imp',
+
+        ssr: 'ssr24',
+        ssr24: 'ssr24',
+        'ssr 24': 'ssr24',
+
+        ultra: 'ultraSpan',
+        'ultra span': 'ultraSpan',
+        ultraspan: 'ultraSpan',
+
+        wide: 'wideSpan',
+        'wide span': 'wideSpan',
+        widespan: 'wideSpan'
+    });
 
 export function normalizePanelProfile(
     profileId = 'awr'
@@ -527,17 +598,20 @@ function createNormalMapData(
                 red;
 
             data[
-                index + 1
+                index +
+                1
             ] =
                 green;
 
             data[
-                index + 2
+                index +
+                2
             ] =
                 blue;
 
             data[
-                index + 3
+                index +
+                3
             ] =
                 255;
         }
@@ -766,7 +840,10 @@ function createSlotTexture(
         base.clone();
 
     texture.userData = {
-        ...(base.userData || {}),
+        ...(
+            base.userData ||
+            {}
+        ),
 
         isSharedProcedural:
             false,
@@ -853,9 +930,9 @@ function getSlotTexture(
 }
 
 export function getPanelHeightMapForUse(
-    profileId = 'awr',
-    slot = 'default',
-    repeatX = TEXTURE_REPEATS_PER_PANEL,
+    profileId,
+    slot,
+    repeatX,
     repeatY = 1
 ) {
     return getSlotTexture(
@@ -868,9 +945,9 @@ export function getPanelHeightMapForUse(
 }
 
 export function getPanelNormalMapForUse(
-    profileId = 'awr',
-    slot = 'default',
-    repeatX = TEXTURE_REPEATS_PER_PANEL,
+    profileId,
+    slot,
+    repeatX,
     repeatY = 1
 ) {
     return getSlotTexture(
@@ -882,67 +959,31 @@ export function getPanelNormalMapForUse(
     );
 }
 
-export function clonePanelNormalMap(
-    profileId = 'awr'
-) {
-    const profile =
-        getPanelProfile(
-            profileId
-        );
-
-    return createSlotTexture(
-        generatePanelNormalMap(
-            profile.id
-        ),
-        'clone',
-        'normal',
-        profile.id
-    );
-}
-
-export function clonePanelHeightMap(
-    profileId = 'awr'
-) {
-    const profile =
-        getPanelProfile(
-            profileId
-        );
-
-    return createSlotTexture(
-        generatePanelHeightMap(
-            profile.id
-        ),
-        'clone',
-        'height',
-        profile.id
-    );
-}
-
-export function disposePanelNormalMaps() {
+export function clearPanelTextureCache() {
     for (
         const texture
-        of slotMapCache.values()
+        of heightMapCache.values()
     ) {
-        texture?.dispose();
+        texture.dispose();
     }
-
-    slotMapCache.clear();
 
     for (
         const texture
         of normalMapCache.values()
     ) {
-        texture?.dispose();
+        texture.dispose();
     }
-
-    normalMapCache.clear();
 
     for (
         const texture
-        of heightMapCache.values()
+        of slotMapCache.values()
     ) {
-        texture?.dispose();
+        texture.dispose();
     }
 
     heightMapCache.clear();
+
+    normalMapCache.clear();
+
+    slotMapCache.clear();
 }
