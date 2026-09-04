@@ -1,0 +1,23 @@
+Аудит: что реально влияет на цвет сцены
+
+Прогнал по всем файлам, которые трогают свет/цвет/environment. Нашёл кое-что важное, помимо того, что уже обсуждали.
+
+Действующие источники (реально влияют сейчас)
+#	Файл	Параметр	Текущее значение
+1	LightingSystem.js	ambientLight цвет/интенсивность	0xffffff, 0.5
+2	LightingSystem.js	hemisphereLight sky/ground цвет, интенсивность	0xffffff/0x999999, 0.5
+3	LightingSystem.js	sunLight цвет/интенсивность/позиция	0xffffff, 0.5, (150,250,120)
+4	runtimeRenderer.js	toneMapping тип	ACESFilmicToneMapping
+5	runtimeRenderer.js	toneMappingExposure	0.5
+6	runtimeLifecycle.js	PMREM RoomEnvironment → scene.environment, environmentIntensity	0.2
+7	EnvironmentSystem.js	scene.fog (FogExp2) цвет/плотность	0xdce7f3, 0.0006
+8	EnvironmentSystem.js	легаси cubemap-скайбокс → тоже scene.background И scene.environment	CDN skybox r148
+9	MaterialCatalog.js	roughness/metalness по типу материала	см. каталог
+10	GroundSystem.js	цвет/roughness/metalness земли	0xffffff + vertexColors, 0.9/0.1
+Находка, которую мы упустили за весь диалог
+
+Пункты 6 и 8 конкурируют друг с другом за scene.environment. runtimeLifecycle.js ставит туда PMREM от RoomEnvironment. Отдельно EnvironmentSystem.js.applyToScene() асинхронно грузит cubemap с CDN и тоже пишет его в scene.environment (комментарий в коде прямо говорит: "И КАРТОЙ ОТРАЖЕНИЙ! Металл будет реалистичным."). Какой из двух реально останется — зависит от того, чья текстура догрузится позже (оба асинхронные, гонка). Это значит, что весь наш разговор про "убрать IBL из runtimeLifecycle.js" мог не решать проблему полностью — второй IBL из EnvironmentSystem.js всё это время мог перезаписывать твою правку в зависимости от скорости сети.
+
+Мёртвый код — не влияет ни на что, но сбивает с толку
+
+SkyProfiles.js, SkySystem.js, SkyShader.js, GroundTextures.js (сезонная система земли), SeasonProfiles.js, Seasons.js, WeatherProfiles.js — ни один из этих файлов не импортируется EnvironmentSystem.js. Реально используется только жёстко захардкоженный CDN-скайбокс и CDN-текстура травы внутри GroundSystem.js, отдельно от всей "сезонной" инфраструктуры. Если будешь резать код позже — это кандидаты на удаление, но пока не трогал, раз не просил.

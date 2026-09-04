@@ -9,10 +9,6 @@ import {
     createReferenceModelInteraction
 } from './runtimeImports.js';
 
-import {
-    RoomEnvironment
-} from 'https://unpkg.com/three@0.136.0/examples/jsm/environments/RoomEnvironment.js';
-
 export function createLifecycle({
     scene,
     camera,
@@ -32,39 +28,6 @@ export function createLifecycle({
         );
     };
 
-    const pmremGenerator =
-        new THREE.PMREMGenerator(
-            renderer
-        );
-
-    pmremGenerator.compileEquirectangularShader();
-
-    const roomEnvironment =
-        new RoomEnvironment();
-
-    const envRT =
-        pmremGenerator.fromScene(
-            roomEnvironment,
-            0.14
-        );
-
-    scene.environment =
-        envRT.texture;
-
-    if (
-        'environmentIntensity' in scene
-    ) {
-        scene.environmentIntensity =
-            0.2;
-    }
-
-    if (
-        typeof roomEnvironment.dispose ===
-        'function'
-    ) {
-        roomEnvironment.dispose();
-    }
-
     const environmentSystem =
         createEnvironmentSystem({
             ...environment,
@@ -83,7 +46,8 @@ export function createLifecycle({
     }
 
     environmentSystem.applyToScene(
-        scene
+        scene,
+        renderer
     );
 
     const lightingSystem =
@@ -185,7 +149,8 @@ export function createLifecycle({
             );
 
         environmentSystem.applyToScene(
-            scene
+            scene,
+            renderer
         );
 
         render();
@@ -330,30 +295,6 @@ export function createLifecycle({
         ) {
             environmentSystem.dispose();
         }
-
-        if (
-            scene.environment
-        ) {
-            if (
-                typeof scene.environment.dispose ===
-                'function'
-            ) {
-                scene.environment.dispose();
-            }
-
-            scene.environment =
-                null;
-        }
-
-        if (
-            envRT &&
-            typeof envRT.dispose ===
-            'function'
-        ) {
-            envRT.dispose();
-        }
-
-        pmremGenerator.dispose();
     }
 
     return Object.freeze({

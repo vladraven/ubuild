@@ -9,6 +9,11 @@ const GIRT_BEAM = 0.08;
 const PURLIN_BEAM = 0.08;
 const END_COLUMN_BEAM = 0.14;
 const CLEARANCE = 0.002;
+const GABLE_SLOPE_TOLERANCE = 1e-9;
+const ROOF_THICKNESS = 0.10;
+const GIRT_ROOF_CLEARANCE = 0.002;
+const PURLIN_END_CLEARANCE = 0.12;
+const PURLIN_ROOF_CLEARANCE = 0.035;
 
 function point(
     x,
@@ -45,7 +50,9 @@ function createPositions(
     spacing
 ) {
     if (
-        !Number.isFinite(spacing) ||
+        !Number.isFinite(
+            spacing
+        ) ||
         spacing <= 0
     ) {
         throw new RangeError(
@@ -83,7 +90,8 @@ function createPositions(
             positions[
                 positions.length - 1
             ] - end
-        ) > 1e-9
+        ) >
+        GABLE_SLOPE_TOLERANCE
     ) {
         positions.push(
             end
@@ -93,79 +101,116 @@ function createPositions(
     return positions;
 }
 
-function getMonoSlopeRoofHeightAtX(
-    x,
-    envelope,
-    roof,
-    wallOffset
+function clamp(
+    value,
+    min,
+    max
 ) {
-    const halfWidth =
-        envelope.width / 2;
+    return Math.min(
+        max,
+        Math.max(
+            min,
+            value
+        )
+    );
+}
 
-    const baseHeight =
-        envelope.height;
-
-    const rise =
-        roof.rise;
+function interpolateYAtX(
+    x,
+    start,
+    end
+) {
+    const span =
+        end.x -
+        start.x;
 
     if (
-        roof.type === 'left-sloped'
+        Math.abs(
+            span
+        ) <=
+        GABLE_SLOPE_TOLERANCE
     ) {
-        const leftRoofX =
-            -halfWidth -
-            (
-                roof.overhangs?.left ??
-                0
-            );
+        throw new RangeError(
+            'Roof interpolation span must be greater than zero'
+        );
+    }
 
-        const leftRoofY =
-            baseHeight -
-            (
-                roof.overhangs?.left ??
-                0
-            ) *
-            roof.pitchRatio;
-
-        return (
-            leftRoofY +
+    const fraction =
+        clamp(
             (
                 x -
-                leftRoofX
-            ) *
-            roof.pitchRatio
+                start.x
+            ) /
+            span,
+            0,
+            1
+        );
+
+    return (
+        start.y +
+        (
+            end.y -
+            start.y
+        ) *
+        fraction
+    );
+}
+
+function getRoofHeightAtX(
+    x,
+    roof
+) {
+    const left =
+        roof.eaves?.left?.front;
+
+    const right =
+        roof.eaves?.right?.front;
+
+    if (
+        !left ||
+        !right
+    ) {
+        throw new Error(
+            'Roof eave geometry is required'
         );
     }
 
     if (
-        roof.type === 'right-sloped'
+        roof.type ===
+        'gabled'
     ) {
-        const leftRoofX =
-            -halfWidth -
-            (
-                roof.overhangs?.left ??
-                0
+        const ridge =
+            roof.ridge?.front;
+
+        if (!ridge) {
+            throw new Error(
+                'Gabled roof ridge geometry is required'
             );
+        }
 
-        const leftRoofY =
-            baseHeight +
-            rise +
-            (
-                roof.overhangs?.left ??
-                0
-            ) *
-            roof.pitchRatio;
+        if (
+            x <=
+            ridge.x
+        ) {
+            return interpolateYAtX(
+                x,
+                left,
+                ridge
+            );
+        }
 
-        return (
-            leftRoofY -
-            (
-                x -
-                leftRoofX
-            ) *
-            roof.pitchRatio
+        return interpolateYAtX(
+            x,
+            ridge,
+            right
         );
     }
 
-    return baseHeight;
+    return interpolateYAtX(
+        x,
+        left,
+        right
+    );
 }
 
 function createFrame(
@@ -177,9 +222,6 @@ function createFrame(
 ) {
     const halfWidth =
         envelope.width / 2;
-
-    const baseHeight =
-        envelope.height;
 
     const wallOffset =
         wallThickness / 2 +
@@ -208,28 +250,48 @@ function createFrame(
             z
         );
 
+	const leftRoofHeight =
+		getRoofHeightAtX(
+			leftX,
+			roof
+		) -
+		ROOF_THICKNESS;
+
+	const rightRoofHeight =
+		getRoofHeightAtX(
+			rightX,
+			roof
+		) -
+    ROOF_THICKNESS;
+
     const leftTop =
         point(
             leftX,
-            baseHeight,
+            leftRoofHeight,
             z
         );
 
     const rightTop =
         point(
             rightX,
-            baseHeight,
+            rightRoofHeight,
             z
         );
 
     if (
-        roof.type === 'gabled'
+        roof.type ===
+        'gabled'
     ) {
+        const ridgeHeight =
+            getRoofHeightAtX(
+                0,
+                roof
+            );
+
         const ridge =
             point(
                 0,
-                baseHeight +
-                    roof.rise,
+                ridgeHeight,
                 z
             );
 
@@ -263,123 +325,28 @@ function createFrame(
         });
     }
 
-    if (
-        roof.type === 'left-sloped'
-    ) {
-        const leftRoofHeight =
-            getMonoSlopeRoofHeightAtX(
-                leftX,
-                envelope,
-                roof,
-                wallOffset
-            );
+    return Object.freeze({
+        index,
+        position: z,
 
-        const rightRoofHeight =
-            getMonoSlopeRoofHeightAtX(
-                rightX,
-                envelope,
-                roof,
-                wallOffset
-            );
+        leftColumn:
+            line(
+                leftBase,
+                leftTop
+            ),
 
-        const leftHighTop =
-            point(
-                leftX,
-                leftRoofHeight,
-                z
-            );
+        rafter:
+            line(
+                leftTop,
+                rightTop
+            ),
 
-        const rightLowTop =
-            point(
-                rightX,
-                rightRoofHeight,
-                z
-            );
-
-        return Object.freeze({
-            index,
-            position: z,
-
-            leftColumn:
-                line(
-                    leftBase,
-                    leftHighTop
-                ),
-
-            rafter:
-                line(
-                    leftHighTop,
-                    rightLowTop
-                ),
-
-            rightColumn:
-                line(
-                    rightLowTop,
-                    rightBase
-                )
-        });
-    }
-
-    if (
-        roof.type === 'right-sloped'
-    ) {
-        const leftRoofHeight =
-            getMonoSlopeRoofHeightAtX(
-                leftX,
-                envelope,
-                roof,
-                wallOffset
-            );
-
-        const rightRoofHeight =
-            getMonoSlopeRoofHeightAtX(
-                rightX,
-                envelope,
-                roof,
-                wallOffset
-            );
-
-        const leftLowTop =
-            point(
-                leftX,
-                leftRoofHeight,
-                z
-            );
-
-        const rightHighTop =
-            point(
-                rightX,
-                rightRoofHeight,
-                z
-            );
-
-        return Object.freeze({
-            index,
-            position: z,
-
-            leftColumn:
-                line(
-                    leftBase,
-                    leftLowTop
-                ),
-
-            rafter:
-                line(
-                    leftLowTop,
-                    rightHighTop
-                ),
-
-            rightColumn:
-                line(
-                    rightHighTop,
-                    rightBase
-                )
-        });
-    }
-
-    throw new RangeError(
-        `Unsupported roof type: ${roof.type}`
-    );
+        rightColumn:
+            line(
+                rightTop,
+                rightBase
+            )
+    });
 }
 
 function resolveOpeningInterval(
@@ -395,8 +362,12 @@ function resolveOpeningInterval(
         0;
 
     if (
-        !Number.isFinite(center) ||
-        !Number.isFinite(width) ||
+        !Number.isFinite(
+            center
+        ) ||
+        !Number.isFinite(
+            width
+        ) ||
         width <= 0
     ) {
         return null;
@@ -430,7 +401,8 @@ function splitSpan(
         openings
             .filter(
                 opening =>
-                    opening.side === side
+                    opening.side ===
+                    side
             )
             .filter(
                 opening =>
@@ -747,32 +719,65 @@ function getGableHalfWidthAtHeight(
     const halfWidth =
         envelope.width / 2;
 
-    const baseHeight =
-        envelope.height;
-
     if (
-        y <= baseHeight
+        roof.type !==
+        'gabled'
     ) {
         return halfWidth;
     }
 
+    const left =
+        roof.eaves?.left?.front;
+
+    const right =
+        roof.eaves?.right?.front;
+
+    const ridge =
+        roof.ridge?.front;
+
     if (
-        roof.type !== 'gabled'
+        !left ||
+        !right ||
+        !ridge
+    ) {
+        throw new Error(
+            'Gabled roof geometry is required'
+        );
+    }
+
+    const baseHeight =
+        Math.max(
+            left.y,
+            right.y
+        );
+
+    if (
+        y <=
+        baseHeight
+    ) {
+        return halfWidth;
+    }
+
+    const roofHeight =
+        ridge.y -
+        baseHeight;
+
+    if (
+        roofHeight <=
+        GABLE_SLOPE_TOLERANCE
     ) {
         return halfWidth;
     }
 
     const fraction =
-        Math.min(
-            1,
-            Math.max(
-                0,
-                (
-                    y -
-                    baseHeight
-                ) /
-                roof.rise
-            )
+        clamp(
+            (
+                y -
+                baseHeight
+            ) /
+            roofHeight,
+            0,
+            1
         );
 
     return Math.max(
@@ -798,99 +803,16 @@ function createGirts(
     const halfWidth =
         envelope.width / 2;
 
-    const ROOF_THICKNESS =
-        0.10;
-
-    const GIRT_ROOF_CLEARANCE =
-        0.002;
-
     const girtHalfHeight =
         GIRT_BEAM / 2;
 
-    function roofTopHeightAtX(x) {
-        const rise =
-            Number(roof.rise) || 0;
-
-        if (
-            roof.type === 'gabled'
-        ) {
-            const distance =
-                Math.abs(x);
-
-            const fraction =
-                Math.min(
-                    1,
-                    Math.max(
-                        0,
-                        distance /
-                        halfWidth
-                    )
-                );
-
-            return (
-                baseHeight +
-                rise *
-                (
-                    1 -
-                    fraction
-                )
-            );
-        }
-
-        if (
-            roof.type === 'left-sloped'
-        ) {
-            const fraction =
-                Math.min(
-                    1,
-                    Math.max(
-                        0,
-                        (
-                            x +
-                            halfWidth
-                        ) /
-                        envelope.width
-                    )
-                );
-
-            return (
-                baseHeight +
-                rise -
-                fraction *
-                rise
-            );
-        }
-
-        if (
-            roof.type === 'right-sloped'
-        ) {
-            const fraction =
-                Math.min(
-                    1,
-                    Math.max(
-                        0,
-                        (
-                            x +
-                            halfWidth
-                        ) /
-                        envelope.width
-                    )
-                );
-
-            return (
-                baseHeight +
-                fraction *
-                rise
-            );
-        }
-
-        return baseHeight;
-    }
-
-    function maxGirtCenterHeightAtX(x) {
+    function maxGirtCenterHeightAtX(
+        x
+    ) {
         const roofTop =
-            roofTopHeightAtX(
-                x
+            getRoofHeightAtX(
+                x,
+                roof
             );
 
         const roofBottom =
@@ -1019,6 +941,7 @@ function createGirts(
         )
     );
 }
+
 function createPurlins(
     envelope,
     roof,
@@ -1030,19 +953,7 @@ function createPurlins(
     const length =
         envelope.length;
 
-    const baseHeight =
-        envelope.height;
-
-    const rise =
-        roof.rise;
-
     const result = [];
-
-    const PURLIN_END_CLEARANCE =
-        0.12;
-
-    const PURLIN_ROOF_CLEARANCE =
-        0.035;
 
     const startZ =
         PURLIN_END_CLEARANCE;
@@ -1052,7 +963,8 @@ function createPurlins(
         PURLIN_END_CLEARANCE;
 
     if (
-        endZ <= startZ
+        endZ <=
+        startZ
     ) {
         return Object.freeze(
             result
@@ -1064,15 +976,51 @@ function createPurlins(
         PURLIN_ROOF_CLEARANCE;
 
     if (
-        roof.type === 'gabled'
+        roof.type ===
+        'gabled'
     ) {
+        const ridge =
+            roof.ridge?.front;
+
+        const left =
+            roof.eaves?.left?.front;
+
+        const right =
+            roof.eaves?.right?.front;
+
+        if (
+            !left ||
+            !right ||
+            !ridge
+        ) {
+            throw new Error(
+                'Gabled roof geometry is required'
+            );
+        }
+
+        const leftSlopeLength =
+            Math.hypot(
+                ridge.x -
+                    left.x,
+                ridge.y -
+                    left.y
+            );
+
+        const rightSlopeLength =
+            Math.hypot(
+                right.x -
+                    ridge.x,
+                right.y -
+                    ridge.y
+            );
+
         const count =
             Math.max(
                 2,
                 Math.round(
-                    Math.hypot(
-                        halfWidth,
-                        rise
+                    Math.max(
+                        leftSlopeLength,
+                        rightSlopeLength
                     ) /
                     spacing
                 ) + 1
@@ -1084,25 +1032,37 @@ function createPurlins(
             i++
         ) {
             const t =
-                i / count;
+                i /
+                count;
 
             const xLeft =
-                -halfWidth +
-                t *
-                    halfWidth;
+                left.x +
+                (
+                    ridge.x -
+                    left.x
+                ) *
+                t;
 
             const xRight =
-                halfWidth -
-                t *
-                    halfWidth;
+                right.x +
+                (
+                    ridge.x -
+                    right.x
+                ) *
+                t;
 
-            const roofY =
-                baseHeight +
-                t *
-                    rise;
+            const leftY =
+                getRoofHeightAtX(
+                    xLeft,
+                    roof
+                ) -
+                underRoof;
 
-            const y =
-                roofY -
+            const rightY =
+                getRoofHeightAtX(
+                    xRight,
+                    roof
+                ) -
                 underRoof;
 
             result.push(
@@ -1116,12 +1076,12 @@ function createPurlins(
                                 line(
                                     point(
                                         xLeft,
-                                        y,
+                                        leftY,
                                         startZ
                                     ),
                                     point(
                                         xLeft,
-                                        y,
+                                        leftY,
                                         endZ
                                     )
                                 ),
@@ -1130,12 +1090,12 @@ function createPurlins(
                                 line(
                                     point(
                                         xRight,
-                                        y,
+                                        rightY,
                                         startZ
                                     ),
                                     point(
                                         xRight,
-                                        y,
+                                        rightY,
                                         endZ
                                     )
                                 )
@@ -1143,121 +1103,91 @@ function createPurlins(
                 })
             );
         }
-    } else if (
-        roof.type === 'left-sloped'
+
+        return Object.freeze(
+            result
+        );
+    }
+
+    const left =
+        roof.eaves?.left?.front;
+
+    const right =
+        roof.eaves?.right?.front;
+
+    if (
+        !left ||
+        !right
     ) {
-        const count =
-            Math.max(
-                2,
-                Math.round(
-                    Math.hypot(
-                        envelope.width,
-                        rise
-                    ) /
-                    spacing
-                ) + 1
+        throw new Error(
+            'Mono-slope roof geometry is required'
+        );
+    }
+
+    const slopeLength =
+        Math.hypot(
+            right.x -
+                left.x,
+            right.y -
+                left.y
+        );
+
+    const count =
+        Math.max(
+            2,
+            Math.round(
+                slopeLength /
+                spacing
+            ) + 1
+        );
+
+    for (
+        let i = 1;
+        i < count;
+        i++
+    ) {
+        const t =
+            i /
+            count;
+
+        const x =
+            left.x +
+            (
+                right.x -
+                left.x
+            ) *
+            t;
+
+        const roofY =
+            getRoofHeightAtX(
+                x,
+                roof
             );
 
-        for (
-            let i = 1;
-            i < count;
-            i++
-        ) {
-            const t =
-                i / count;
+        const y =
+            roofY -
+            underRoof;
 
-            const x =
-                -halfWidth +
-                t *
-                    envelope.width;
+        result.push(
+            Object.freeze({
+                index:
+                    result.length,
 
-            const roofY =
-                baseHeight +
-                rise -
-                t *
-                    rise;
-
-            const y =
-                roofY -
-                underRoof;
-
-            result.push(
-                Object.freeze({
-                    index:
-                        result.length,
-
-                    plane:
-                        line(
-                            point(
-                                x,
-                                y,
-                                startZ
-                            ),
-                            point(
-                                x,
-                                y,
-                                endZ
-                            )
+                plane:
+                    line(
+                        point(
+                            x,
+                            y,
+                            startZ
+                        ),
+                        point(
+                            x,
+                            y,
+                            endZ
                         )
-                })
-            );
-        }
-    } else {
-        const count =
-            Math.max(
-                2,
-                Math.round(
-                    Math.hypot(
-                        envelope.width,
-                        rise
-                    ) /
-                    spacing
-                ) + 1
-            );
-
-        for (
-            let i = 1;
-            i < count;
-            i++
-        ) {
-            const t =
-                i / count;
-
-            const x =
-                -halfWidth +
-                t *
-                    envelope.width;
-
-            const roofY =
-                baseHeight +
-                t *
-                    rise;
-
-            const y =
-                roofY -
-                underRoof;
-
-            result.push(
-                Object.freeze({
-                    index:
-                        result.length,
-
-                    plane:
-                        line(
-                            point(
-                                x,
-                                y,
-                                startZ
-                            ),
-                            point(
-                                x,
-                                y,
-                                endZ
-                            )
-                        )
-                })
-            );
-        }
+                    )
+            })
+        );
     }
 
     return Object.freeze(
@@ -1279,9 +1209,6 @@ function createEndWallColumns(
     const quarterWidth =
         halfWidth / 2;
 
-    const baseHeight =
-        envelope.height;
-
     const wallOffset =
         wallThickness / 2 +
         END_COLUMN_BEAM / 2 +
@@ -1294,11 +1221,17 @@ function createEndWallColumns(
         length -
         wallOffset;
 
-    const topHeight =
-        roof.type === 'gabled'
-            ? baseHeight +
-                roof.rise / 2
-            : baseHeight;
+    const leftTopHeight =
+        getRoofHeightAtX(
+            -quarterWidth,
+            roof
+        );
+
+    const rightTopHeight =
+        getRoofHeightAtX(
+            quarterWidth,
+            roof
+        );
 
     return Object.freeze([
         Object.freeze({
@@ -1313,7 +1246,7 @@ function createEndWallColumns(
                     ),
                     point(
                         -quarterWidth,
-                        topHeight,
+                        leftTopHeight,
                         frontZ
                     )
                 ),
@@ -1327,7 +1260,7 @@ function createEndWallColumns(
                     ),
                     point(
                         quarterWidth,
-                        topHeight,
+                        rightTopHeight,
                         frontZ
                     )
                 )
@@ -1345,7 +1278,7 @@ function createEndWallColumns(
                     ),
                     point(
                         -quarterWidth,
-                        topHeight,
+                        leftTopHeight,
                         backZ
                     )
                 ),
@@ -1359,7 +1292,7 @@ function createEndWallColumns(
                     ),
                     point(
                         quarterWidth,
-                        topHeight,
+                        rightTopHeight,
                         backZ
                     )
                 )
