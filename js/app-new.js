@@ -14,6 +14,10 @@ import {
     deserializeModelFromURL
 } from './integration/URLSerializer.js';
 
+import {
+    createCalibrationOverlay
+} from './calibration/CalibrationOverlay.js';
+
 const WEATHER_OPTIONS =
     Object.freeze([
         'clear',
@@ -231,6 +235,29 @@ function getInitialModel() {
     };
 }
 
+function createCalibration(
+    runtime
+) {
+    if (
+        window.UBUILD_CALIBRATION_ENABLED !==
+        true
+    ) {
+        return null;
+    }
+
+    const calibration =
+        createCalibrationOverlay({
+            runtime
+        });
+
+    calibration.start();
+
+    window.UBuildCalibration =
+        calibration;
+
+    return calibration;
+}
+
 function bootstrap() {
     try {
         const container =
@@ -268,6 +295,10 @@ function bootstrap() {
 
         window.UBuildRuntime =
             runtime;
+
+        createCalibration(
+            runtime
+        );
 
         window.UBuild =
             Object.freeze({
