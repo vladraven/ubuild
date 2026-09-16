@@ -1779,7 +1779,54 @@ export class CalibrationOverlay {
         this.applyGround();
         this.applyPanels();
 
+        // BUGFIX: every apply* method above only mutates in-memory
+        // renderer/scene/material state. Three.js never redraws on
+        // its own -- the app only calls renderer.render() on demand
+        // (camera move, resize, model rebuild). Without an explicit
+        // forced render here, none of the calibration changes were
+        // ever visible until the user happened to orbit the camera.
+        this.requestRender();
+
         return this;
+    }
+
+    // BUGFIX: added -- forces an immediate redraw so every slider /
+    // input change is reflected on screen right away, instead of
+    // silently waiting for some unrelated camera/resize event.
+    requestRender() {
+        const runtime =
+            this.runtime;
+
+        if (
+            runtime &&
+            typeof runtime.render ===
+            'function'
+        ) {
+            runtime.render();
+
+            return;
+        }
+
+        const renderer =
+            this.getRenderer();
+
+        const scene =
+            this.getScene();
+
+        const camera =
+            runtime?.camera ??
+            null;
+
+        if (
+            renderer &&
+            scene &&
+            camera
+        ) {
+            renderer.render(
+                scene,
+                camera
+            );
+        }
     }
 
     applyRenderer() {
@@ -1817,8 +1864,12 @@ export class CalibrationOverlay {
                     .outputEncoding
             );
 
-        renderer.needsUpdate =
-            true;
+        // BUGFIX: `renderer.needsUpdate` is not a real Three.js
+        // WebGLRenderer property (it exists on textures/materials,
+        // not the renderer) -- it was a silent no-op that gave the
+        // false impression this method was "telling" the renderer to
+        // refresh. The actual redraw is now forced centrally by
+        // apply() -> requestRender().
     }
 
     applyLighting() {
@@ -2059,70 +2110,101 @@ export class CalibrationOverlay {
     }
 
     applyMaterials() {
-        const scene =
-            this.getScene();
+        // BUGFIX: this used to scene.traverse() every mesh and try to
+        // guess a material's logical name from material.userData or
+        // material.name. Neither is ever set anywhere in the actual
+        // material pipeline (resources/materials/MaterialFactory.js
+        // only sets userData.ubuildMaterial = true), so
+        // resolveMaterialName() always returned null and this method
+        // was a complete no-op -- none of the material sliders ever
+        // touched a real material.
+        //
+        // The runtime already exposes every named material directly
+        // via runtime.materials.get(name) (see
+        // js/runtime/runtime/runtimeMaterials.js), keyed by exactly
+        // the same names as MATERIAL_NAMES / config.materials. Use
+        // that authoritative lookup instead of guessing from the
+        // scene graph.
+        const runtime =
+            this.runtime;
+
+        const materialMap =
+            runtime?.materials;
 
         if (
-            !scene
+            !materialMap ||
+            typeof materialMap.get !==
+            'function'
         ) {
             return;
         }
 
-        this.captureMaterials(
-            scene
-        );
+        for (
+            const name of
+            MATERIAL_NAMES
+        ) {
+            const material =
+                materialMap.get(
+                    name
+                );
 
-        scene.traverse(
-            object => {
-                if (
-                    !object.isMesh ||
-                    !object.material
-                ) {
-                    return;
-                }
+            const definition =
+                this.config
+                    .materials[
+                        name
+                    ];
 
-                const materials =
-                    Array.isArray(
-                        object.material
-                    )
-                        ? object.material
-                        : [
-                            object.material
-                        ];
+            if (
+                !material ||
+                !definition
+            ) {
+                continue;
+            }
 
-                for (
-                    const material of
-                    materials
-                ) {
-                    const materialName =
-                        this.resolveMaterialName(
-                            material
-                        );
+            this.captureMaterialOriginalState(
+                name,
+                material
+            );
 
-                    if (
-                        !materialName
-                    ) {
-                        continue;
-                    }
+            this.applyMaterialDefinition(
+                material,
+                name,
+                definition
+            );
+        }
+    }
 
-                    const definition =
-                        this.config
-                            .materials[
-                                materialName
-                            ];
+    // BUGFIX: added -- captures original per-material values the
+    // first time we ever touch a given named material, keyed by name
+    // (not by uuid from a traversal that never matched anything).
+    captureMaterialOriginalState(
+        name,
+        material
+    ) {
+        if (
+            this.originalState.materials.has(
+                name
+            )
+        ) {
+            return;
+        }
 
-                    if (
-                        !definition
-                    ) {
-                        continue;
-                    }
+        this.originalState.materials.set(
+            name,
+            {
+                material,
 
-                    this.applyMaterialDefinition(
-                        material,
-                        materialName,
-                        definition
-                    );
-                }
+                roughness:
+                    material.roughness,
+
+                metalness:
+                    material.metalness,
+
+                opacity:
+                    material.opacity,
+
+                transparent:
+                    material.transparent
             }
         );
     }
