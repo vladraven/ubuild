@@ -53,10 +53,14 @@ export function createRenderer(
 
 
 
+// BUGFIX: exposure was compensating for an overexposed scene (see
+// LightingSystem.js). Now that total light energy is realistic, a
+// neutral exposure of 1.0 reproduces material albedo colors correctly
+// instead of crushing them toward white via ACES tone mapping.
 renderer.outputColorSpace = THREE.SRGBColorSpace; 
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
 renderer.outputEncoding = THREE.sRGBEncoding;
-    renderer.toneMappingExposure = .5;
+    renderer.toneMappingExposure = 1.0;
 
     container.appendChild(
         renderer.domElement

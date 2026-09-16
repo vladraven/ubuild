@@ -17,8 +17,12 @@ const FOG_DENSITY =
 const ENVIRONMENT_BLUR =
     0.14;
 
+// BUGFIX: reduced from 0.27 -- environment reflections add a whitish
+// specular tint on top of every dielectric material's albedo (Fresnel
+// reflectance of the bright grey RoomEnvironment), which combined with
+// the previous overexposed lighting washed all colors toward pastel.
 const ENVIRONMENT_INTENSITY =
-    0.27;
+    0.12;
 
 const SKY_PATH =
     'https://cdn.jsdelivr.net/gh/mrdoob/three.js@r148/examples/textures/cube/skyboxsun25deg/';

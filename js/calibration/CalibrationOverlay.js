@@ -25,7 +25,7 @@ const DEFAULT_CONFIG =
                             '#ffffff',
 
                         intensity:
-                            0.5
+                            0.25
                     },
 
                 hemisphere:
@@ -40,7 +40,7 @@ const DEFAULT_CONFIG =
                             '#999999',
 
                         intensity:
-                            0.5
+                            0.25
                     },
 
                 sun:
@@ -52,7 +52,7 @@ const DEFAULT_CONFIG =
                             '#ffffff',
 
                         intensity:
-                            0.5,
+                            1.0,
 
                         position:
                             {
@@ -89,7 +89,7 @@ const DEFAULT_CONFIG =
                     'ACESFilmicToneMapping',
 
                 toneMappingExposure:
-                    0.5,
+                    1.0,
 
                 outputEncoding:
                     'sRGBEncoding'
@@ -113,7 +113,7 @@ const DEFAULT_CONFIG =
                     0.14,
 
                 intensity:
-                    0.27
+                    0.12
             },
 
         ground:
