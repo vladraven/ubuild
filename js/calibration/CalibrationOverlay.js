@@ -1605,9 +1605,16 @@ export class CalibrationOverlay {
                             ? light.position.clone()
                             : null,
 
+                    // BUGFIX: THREE.HemisphereLight has no
+                    // `.skyColor` property -- the sky color is
+                    // stored in `.color` (see three.js source). Using
+                    // `.skyColor` was `undefined`, which made
+                    // hemisphere.skyColor.set(...) throw in
+                    // applyLighting() and crash the whole bootstrap.
                     skyColor:
-                        light.skyColor
-                            ? `#${light.skyColor.getHexString()}`
+                        light.isHemisphereLight &&
+                        light.color
+                            ? `#${light.color.getHexString()}`
                             : null,
 
                     groundColor:
@@ -1919,7 +1926,13 @@ export class CalibrationOverlay {
                     .hemisphere
                     .enabled;
 
-            hemisphere.skyColor.set(
+            // BUGFIX: THREE.HemisphereLight's sky color lives in
+            // `.color`, there is no `.skyColor` property. Reading
+            // `hemisphere.skyColor.set(...)` threw
+            // "Cannot read properties of undefined (reading 'set')"
+            // on every apply(), which aborted bootstrap() entirely
+            // and killed the whole scene init.
+            hemisphere.color.set(
                 this.config
                     .lighting
                     .hemisphere
@@ -2617,14 +2630,10 @@ export class CalibrationOverlay {
             light.intensity =
                 original.intensity;
 
-            if (
-                original.skyColor &&
-                light.skyColor
-            ) {
-                light.skyColor.set(
-                    original.skyColor
-                );
-            }
+            // NOTE: HemisphereLight's sky color is restored above via
+            // the generic `light.color` branch (light.color IS the
+            // sky color for this light type) -- `.skyColor` does not
+            // exist on the object, so no separate restore is needed.
 
             if (
                 original.groundColor &&
