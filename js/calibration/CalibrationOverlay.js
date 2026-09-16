@@ -1,3 +1,11 @@
+import {
+    setPanelCalibration
+} from '../panels/PanelProfiles.js';
+
+import {
+    setDefaultBumpScale
+} from '../panels/PanelMaterialFactory.js';
+
 const DEFAULT_CONFIG =
     Object.freeze({
         enabled:
@@ -2401,8 +2409,54 @@ export class CalibrationOverlay {
     }
 
     applyPanels() {
-        const global =
-            window;
+        // BUGFIX: this used to only write to unused
+        // `window.__UBUILD_CALIBRATION_*` globals and dispatch a
+        // `ubuild:calibration:panels` CustomEvent that nothing in the
+        // codebase ever listened to -- so no panel-profile slider
+        // (rib height, texture size, bump scale, normal strength...)
+        // had ANY effect on the actual generated geometry/textures,
+        // even though no error was ever thrown.
+        //
+        // The real panel generation code
+        // (js/panels/PanelProfiles.js, js/panels/PanelMaterialFactory.js)
+        // bakes these values into cached DataTextures and into
+        // materials at creation time. There is no way to hot-patch an
+        // already-built mesh's baked rib profile -- the only correct
+        // fix is: push the new values into the actual generation
+        // modules, invalidate their texture caches, and rebuild the
+        // building geometry so it regenerates everything using the
+        // new values.
+        const panels =
+            this.config.panels;
+
+        setPanelCalibration(
+            {
+                panelTextureSize:
+                    panels.textureSize,
+
+                awrRibHeight:
+                    panels.awrRibHeight,
+
+                ssr24RibHeight:
+                    panels.ssr24RibHeight,
+
+                smoothHeight:
+                    panels.smoothHeight,
+
+                normalStrength:
+                    panels.normalStrength,
+
+                normalSamplePixels:
+                    panels.normalSamplePixels,
+
+                textureRepeatsPerPanel:
+                    panels.textureRepeatsPerPanel
+            }
+        );
+
+        setDefaultBumpScale(
+            panels.bumpScale
+        );
 
         for (
             const [
@@ -2413,36 +2467,49 @@ export class CalibrationOverlay {
                 PANEL_CONSTANT_NAMES
             )
         ) {
-            const value =
-                this.config
-                    .panels[key];
-
-            const overrideKey =
-                `__UBUILD_CALIBRATION_${constantName}`;
-
-            global[overrideKey] =
-                value;
-
             this.panelOverrides.set(
                 constantName,
-                value
+                panels[key]
             );
         }
 
-        global.dispatchEvent(
-            new CustomEvent(
-                'ubuild:calibration:panels',
-                {
-                    detail:
-                        {
-                            values:
-                                Object.fromEntries(
-                                    this.panelOverrides
-                                )
-                        }
-                }
-            )
-        );
+        const signature =
+            JSON.stringify(
+                panels
+            );
+
+        const changed =
+            signature !==
+            this._lastAppliedPanelsSignature;
+
+        this._lastAppliedPanelsSignature =
+            signature;
+
+        if (
+            !changed
+        ) {
+            return;
+        }
+
+        // Rebuild is only triggered when a panel value actually
+        // changed (not on every apply(), which also runs for
+        // lighting/environment/material-only changes) -- rebuilding
+        // regenerates all wall/roof panel geometry and materials so
+        // they pick up the new calibration values from
+        // PanelProfiles.js / PanelMaterialFactory.js.
+        const runtime =
+            this.runtime;
+
+        if (
+            runtime &&
+            typeof runtime.rebuild ===
+            'function' &&
+            runtime.model
+        ) {
+            runtime.rebuild(
+                runtime.model
+            );
+        }
     }
 
     set(

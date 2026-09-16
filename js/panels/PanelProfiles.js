@@ -3,26 +3,76 @@ import * as THREE from 'three';
 const PANEL_WIDTH_M =
     1.0;
 
-const PANEL_TEXTURE_SIZE =
-    1024;
+// BUGFIX: these used to be plain frozen `const` primitives, baked
+// directly into PROFILE_DEFINITIONS and read directly inside every
+// generation function. CalibrationOverlay's panel-profile sliders
+// wrote to unrelated `window.__UBUILD_CALIBRATION_*` globals that
+// nothing here ever read -- so no panel slider had any effect on the
+// actual geometry/texture generation. These are now a single mutable
+// state object, read live by every function below, with a setter
+// (setPanelCalibration) that the calibration overlay can call.
+const PANEL_CALIBRATION =
+    {
+        panelTextureSize:
+            1024,
 
-const AWR_RIB_HEIGHT =
-    1.0;
+        awrRibHeight:
+            1.0,
 
-const SSR24_RIB_HEIGHT =
-    1.5;
+        ssr24RibHeight:
+            1.5,
 
-const SMOOTH_HEIGHT =
-    0;
+        smoothHeight:
+            0,
 
-const NORMAL_STRENGTH =
-    1.5;
+        normalStrength:
+            1.5,
 
-const NORMAL_SAMPLE_PIXELS =
-    2;
+        normalSamplePixels:
+            2,
 
-const TEXTURE_REPEATS_PER_PANEL =
-    1;
+        textureRepeatsPerPanel:
+            1
+    };
+
+export function setPanelCalibration(
+    overrides = {}
+) {
+    for (
+        const key of
+        Object.keys(
+            PANEL_CALIBRATION
+        )
+    ) {
+        if (
+            overrides[key] === undefined ||
+            overrides[key] === null ||
+            !Number.isFinite(
+                Number(
+                    overrides[key]
+                )
+            )
+        ) {
+            continue;
+        }
+
+        PANEL_CALIBRATION[key] =
+            Number(
+                overrides[key]
+            );
+    }
+
+    // Cached DataTextures were baked from the previous calibration
+    // values -- they must be thrown away so the next request
+    // regenerates them from the new PANEL_CALIBRATION values.
+    clearPanelTextureCache();
+}
+
+export function getPanelCalibration() {
+    return {
+        ...PANEL_CALIBRATION
+    };
+}
 
 const heightMapCache =
     new Map();
@@ -46,8 +96,9 @@ export const PROFILE_DEFINITIONS =
             width:
                 PANEL_WIDTH_M,
 
-            height:
-                AWR_RIB_HEIGHT,
+            get height() {
+                return PANEL_CALIBRATION.awrRibHeight;
+            },
 
             profile:
                 Object.freeze([
@@ -87,8 +138,9 @@ export const PROFILE_DEFINITIONS =
             width:
                 PANEL_WIDTH_M,
 
-            height:
-                AWR_RIB_HEIGHT,
+            get height() {
+                return PANEL_CALIBRATION.awrRibHeight;
+            },
 
             profile:
                 Object.freeze([
@@ -123,8 +175,9 @@ export const PROFILE_DEFINITIONS =
             width:
                 PANEL_WIDTH_M,
 
-            height:
-                AWR_RIB_HEIGHT,
+            get height() {
+                return PANEL_CALIBRATION.awrRibHeight;
+            },
 
             profile:
                 Object.freeze([
@@ -164,8 +217,9 @@ export const PROFILE_DEFINITIONS =
             width:
                 PANEL_WIDTH_M,
 
-            height:
-                SMOOTH_HEIGHT,
+            get height() {
+                return PANEL_CALIBRATION.smoothHeight;
+            },
 
             profile:
                 Object.freeze([
@@ -184,8 +238,9 @@ export const PROFILE_DEFINITIONS =
             width:
                 PANEL_WIDTH_M,
 
-            height:
-                SSR24_RIB_HEIGHT,
+            get height() {
+                return PANEL_CALIBRATION.ssr24RibHeight;
+            },
 
             profile:
                 Object.freeze([
@@ -215,8 +270,9 @@ export const PROFILE_DEFINITIONS =
             width:
                 PANEL_WIDTH_M,
 
-            height:
-                AWR_RIB_HEIGHT,
+            get height() {
+                return PANEL_CALIBRATION.awrRibHeight;
+            },
 
             profile:
                 Object.freeze([
@@ -253,8 +309,9 @@ export const PROFILE_DEFINITIONS =
             width:
                 PANEL_WIDTH_M,
 
-            height:
-                AWR_RIB_HEIGHT,
+            get height() {
+                return PANEL_CALIBRATION.awrRibHeight;
+            },
 
             profile:
                 Object.freeze([
@@ -414,14 +471,14 @@ export function getPanelRepeat(
         ) ||
         width <= 0
     ) {
-        return TEXTURE_REPEATS_PER_PANEL;
+        return PANEL_CALIBRATION.textureRepeatsPerPanel;
     }
 
     return (
         width /
         PANEL_WIDTH_M
     ) *
-    TEXTURE_REPEATS_PER_PANEL;
+    PANEL_CALIBRATION.textureRepeatsPerPanel;
 }
 
 function getHeightAt(
@@ -512,7 +569,7 @@ function normalizeHeight(
             height
         ) ||
         profile.height <=
-        SMOOTH_HEIGHT
+        PANEL_CALIBRATION.smoothHeight
     ) {
         return 0;
     }
@@ -531,7 +588,7 @@ function createHeightMapData(
     profile
 ) {
     const size =
-        PANEL_TEXTURE_SIZE;
+        PANEL_CALIBRATION.panelTextureSize;
 
     const data =
         new Uint8Array(
@@ -617,7 +674,7 @@ function getNormalAt(
 
     const nx =
         -slope *
-        NORMAL_STRENGTH;
+        PANEL_CALIBRATION.normalStrength;
 
     const ny =
         0;
@@ -650,7 +707,7 @@ function createNormalMapData(
     profile
 ) {
     const size =
-        PANEL_TEXTURE_SIZE;
+        PANEL_CALIBRATION.panelTextureSize;
 
     const data =
         new Uint8Array(
@@ -660,7 +717,7 @@ function createNormalMapData(
         );
 
     const sampleStep =
-        NORMAL_SAMPLE_PIXELS /
+        PANEL_CALIBRATION.normalSamplePixels /
         size;
 
     for (
@@ -755,7 +812,7 @@ function createHeightMapTexture(
 
     if (
         profile.height ===
-        SMOOTH_HEIGHT
+        PANEL_CALIBRATION.smoothHeight
     ) {
         return null;
     }
@@ -765,8 +822,8 @@ function createHeightMapTexture(
             createHeightMapData(
                 profile
             ),
-            PANEL_TEXTURE_SIZE,
-            PANEL_TEXTURE_SIZE,
+            PANEL_CALIBRATION.panelTextureSize,
+            PANEL_CALIBRATION.panelTextureSize,
             THREE.RedFormat,
             THREE.UnsignedByteType
         );
@@ -803,7 +860,7 @@ function createHeightMapTexture(
             PANEL_WIDTH_M,
 
         repeatsPerPanel:
-            TEXTURE_REPEATS_PER_PANEL,
+            PANEL_CALIBRATION.textureRepeatsPerPanel,
 
         panelDirection:
             'vertical'
@@ -825,7 +882,7 @@ function createPanelNormalMapTexture(
 
     if (
         profile.height ===
-        SMOOTH_HEIGHT
+        PANEL_CALIBRATION.smoothHeight
     ) {
         return null;
     }
@@ -835,8 +892,8 @@ function createPanelNormalMapTexture(
             createNormalMapData(
                 profile
             ),
-            PANEL_TEXTURE_SIZE,
-            PANEL_TEXTURE_SIZE,
+            PANEL_CALIBRATION.panelTextureSize,
+            PANEL_CALIBRATION.panelTextureSize,
             THREE.RGBAFormat,
             THREE.UnsignedByteType
         );
@@ -873,7 +930,7 @@ function createPanelNormalMapTexture(
             PANEL_WIDTH_M,
 
         repeatsPerPanel:
-            TEXTURE_REPEATS_PER_PANEL,
+            PANEL_CALIBRATION.textureRepeatsPerPanel,
 
         panelDirection:
             'vertical'
@@ -939,7 +996,7 @@ function getSlotTexture(
 
     if (
         profile.height ===
-        SMOOTH_HEIGHT
+        PANEL_CALIBRATION.smoothHeight
     ) {
         return null;
     }

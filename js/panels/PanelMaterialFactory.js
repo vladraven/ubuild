@@ -18,8 +18,34 @@ const DEFAULT_SPAN =
 const DEFAULT_REPEAT_Y =
     1.0;
 
-const DEFAULT_BUMP_SCALE =
+// BUGFIX: made mutable + exported so CalibrationOverlay's "bump
+// scale" slider can actually influence newly (re)created panel
+// materials. This value is baked into each material at creation
+// time (see applyHeightMap below), so a calibration change only
+// takes effect after the owning geometry is rebuilt.
+let DEFAULT_BUMP_SCALE =
     0.5;
+
+export function setDefaultBumpScale(
+    value
+) {
+    const numeric =
+        Number(
+            value
+        );
+
+    if (
+        !Number.isFinite(
+            numeric
+        ) ||
+        numeric < 0
+    ) {
+        return;
+    }
+
+    DEFAULT_BUMP_SCALE =
+        numeric;
+}
 
 const DEFAULT_PROFILE_WIDTH =
     1.0;
