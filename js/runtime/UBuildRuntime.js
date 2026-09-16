@@ -1,6 +1,7 @@
 import {
     createBuildingModel,
-    createBuildingGeometry
+    createBuildingGeometry,
+    THREE
 } from './runtime/runtimeImports.js';
 
 import {
@@ -387,6 +388,19 @@ export function createUBuildRuntime({
             camera,
 
             renderer,
+
+            // BUGFIX: CalibrationOverlay looked for THREE via
+            // `options.THREE ?? window.THREE ?? this.runtime?.THREE`.
+            // Nothing ever passed `options.THREE`, and `window.THREE`
+            // is never set (this app uses ES module imports, not a
+            // global script-tag build) -- so `this.THREE` was always
+            // null. That silently made applyRenderer() (tone mapping /
+            // exposure / output encoding) and applyEnvironment() (fog /
+            // environment intensity) complete no-ops, since both bail
+            // out early when THREE is missing. Exposing THREE here
+            // lets CalibrationOverlay's `this.runtime.THREE` fallback
+            // actually resolve.
+            THREE,
 
             colors,
 
