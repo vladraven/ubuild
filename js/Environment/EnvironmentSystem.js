@@ -230,11 +230,15 @@ export function createEnvironmentSystem(
                 FOG_DENSITY
             );
 
-        createEnvironment(
-            scene,
-            renderer
-        );
-
+        // Matches legacy: legacy/js/scene.js never sets scene.environment
+        // (no PMREM IBL reflections) -- only a skybox background + fog +
+        // plain lights. The PMREM RoomEnvironment reflections added here
+        // put an extra whitish Fresnel tint on every dielectric material,
+        // which combined with ACES tone mapping forced a low exposure to
+        // compensate -- and that same exposure crushed the skybox
+        // background toward black. Removed to match the legacy look;
+        // createEnvironment() is left in place (unused) in case IBL
+        // reflections are wanted again later behind an explicit opt-in.
         createSky(
             scene
         );

@@ -53,12 +53,19 @@ export function createRenderer(
 
 
 
-// BUGFIX: exposure was compensating for an overexposed scene (see
-// LightingSystem.js). Now that total light energy is realistic, a
-// neutral exposure of 1.0 reproduces material albedo colors correctly
-// instead of crushing them toward white via ACES tone mapping.
+// Matches legacy/js/scene.js: legacy never set toneMapping/exposure at
+// all, so three.js used its default THREE.NoToneMapping -- lit surfaces
+// and the skybox background both rendered at their native brightness
+// with no extra tone-curve/exposure multiplier crushing either one.
+// ACESFilmicToneMapping + a low exposure was being used here to
+// compensate for overexposed material colors, but that same exposure
+// multiplies the ENTIRE framebuffer including scene.background, so any
+// exposure low enough to fix building colors also crushed the sky to
+// near-black. Removing tone mapping (like legacy) means colors are
+// corrected via light intensity instead of exposure, and the sky is no
+// longer collateral damage.
 renderer.outputColorSpace = THREE.SRGBColorSpace; 
-renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMapping = THREE.NoToneMapping;
 renderer.outputEncoding = THREE.sRGBEncoding;
     renderer.toneMappingExposure = 1.0;
 

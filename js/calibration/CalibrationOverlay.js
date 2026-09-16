@@ -25,7 +25,7 @@ const DEFAULT_CONFIG =
                             '#ffffff',
 
                         intensity:
-                            0.25
+                            0.75
                     },
 
                 hemisphere:
@@ -40,7 +40,7 @@ const DEFAULT_CONFIG =
                             '#999999',
 
                         intensity:
-                            0.25
+                            0.75
                     },
 
                 sun:
@@ -52,7 +52,7 @@ const DEFAULT_CONFIG =
                             '#ffffff',
 
                         intensity:
-                            1.0,
+                            1.5,
 
                         position:
                             {
@@ -85,8 +85,11 @@ const DEFAULT_CONFIG =
 
         renderer:
             {
+                // Matches legacy (which never set toneMapping at all,
+                // relying on three.js's THREE.NoToneMapping default) --
+                // see runtimeRenderer.js for the full rationale.
                 toneMapping:
-                    'ACESFilmicToneMapping',
+                    'NoToneMapping',
 
                 toneMappingExposure:
                     1.0,

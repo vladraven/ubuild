@@ -8,23 +8,21 @@ export function createLightingSystem(scene) {
     const lightsGroup = new THREE.Group();
     lightsGroup.name = 'lighting-system';
 
-    const ambientLight = new THREE.AmbientLight(0xffffff, 0.25);
+    const ambientLight = new THREE.AmbientLight(0xdedede, 0.75);
     lightsGroup.add(ambientLight);
 
-    const hemisphereLight = new THREE.HemisphereLight(0xffffff, 0x999999, 0.25);
+    const hemisphereLight = new THREE.HemisphereLight(0xdedede, 0x5a5a6a, 0.75);
     hemisphereLight.position.set(0, 200, 0);
     lightsGroup.add(hemisphereLight);
 
-    // BUGFIX: ambient(0.5) + hemisphere(0.5) + sun(0.5) + env reflections
-    // all stacked additively overexposed every surface, and ACES tone
-    // mapping crushes overexposed pixels toward white -- so saturated
-    // colors (e.g. #4169e1) always rendered as washed-out pastel
-    // (#92abd3) no matter what the user changed. Reduced the redundant
-    // ambient/hemisphere fill (they serve the same "general fill light"
-    // role and were double-counting each other) and made the directional
-    // sun the dominant light source instead, so material albedo actually
-    // reads close to its assigned hex color.
-    const sunLight = new THREE.DirectionalLight(0xffffff, 1.0);
+    // Matches legacy/js/scene.js exactly: plain lights with no
+    // ACES tone mapping / PMREM environment IBL to compensate for
+    // (see runtimeRenderer.js and EnvironmentSystem.js). Legacy never
+    // needed near-zero exposure to get correct material colors, so it
+    // never crushed the skybox either -- reproducing its light
+    // intensities/colors here instead of fighting overexposure with
+    // exposure tricks.
+    const sunLight = new THREE.DirectionalLight(0xdedede, 1.5);
     sunLight.position.set(150, 250, 120);
     sunLight.castShadow = true;
 
