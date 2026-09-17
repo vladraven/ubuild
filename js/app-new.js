@@ -18,15 +18,6 @@ import {
     createCalibrationOverlay
 } from './calibration/CalibrationOverlay.js';
 
-const WEATHER_OPTIONS =
-    Object.freeze([
-        'clear',
-        'cloudy',
-        'rain',
-        'snow',
-        'fog'
-    ]);
-
 function getContainer() {
     const container =
         document.getElementById(
@@ -102,97 +93,6 @@ function getDOMColors() {
     return colors;
 }
 
-function formatLocalDate(
-    date
-) {
-    const year =
-        date.getFullYear();
-
-    const month =
-        String(
-            date.getMonth() +
-            1
-        ).padStart(
-            2,
-            '0'
-        );
-
-    const day =
-        String(
-            date.getDate()
-        ).padStart(
-            2,
-            '0'
-        );
-
-    return [
-        year,
-        month,
-        day
-    ].join(
-        '-'
-    );
-}
-
-function formatLocalTime(
-    date
-) {
-    const hours =
-        String(
-            date.getHours()
-        ).padStart(
-            2,
-            '0'
-        );
-
-    const minutes =
-        String(
-            date.getMinutes()
-        ).padStart(
-            2,
-            '0'
-        );
-
-    return [
-        hours,
-        minutes
-    ].join(
-        ':'
-    );
-}
-
-function getRandomWeather() {
-    const index =
-        Math.floor(
-            Math.random() *
-            WEATHER_OPTIONS.length
-        );
-
-    return WEATHER_OPTIONS[
-        index
-    ];
-}
-
-function getInitialEnvironment() {
-    const now =
-        new Date();
-
-    return {
-        date:
-            formatLocalDate(
-                now
-            ),
-
-        time:
-            formatLocalTime(
-                now
-            ),
-
-        weather:
-            getRandomWeather()
-    };
-}
-
 function getInitialModel() {
     const domColors =
         getDOMColors();
@@ -266,17 +166,11 @@ function bootstrap() {
         const initialModel =
             getInitialModel();
 
-        const environment =
-            getInitialEnvironment();
-
         const runtime =
             createUBuildRuntime({
                 container,
-
                 model:
-                    initialModel,
-
-                environment
+                    initialModel
             });
 
         const uiAdapter =

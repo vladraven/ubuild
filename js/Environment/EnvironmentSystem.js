@@ -1,10 +1,6 @@
 import * as THREE from 'three';
 
 import {
-    RoomEnvironment
-} from 'https://unpkg.com/three@0.136.0/examples/jsm/environments/RoomEnvironment.js';
-
-import {
     createGroundSystem
 } from './ground/GroundSystem.js';
 
@@ -14,30 +10,8 @@ const FOG_COLOR =
 const FOG_DENSITY =
     0.0006;
 
-const ENVIRONMENT_BLUR =
-    0.14;
-
-// BUGFIX: reduced from 0.27 -- environment reflections add a whitish
-// specular tint on top of every dielectric material's albedo (Fresnel
-// reflectance of the bright grey RoomEnvironment), which combined with
-// the previous overexposed lighting washed all colors toward pastel.
-const ENVIRONMENT_INTENSITY =
-    0.12;
-
 const SKY_PATH =
     'https://cdn.jsdelivr.net/gh/mrdoob/three.js@r148/examples/textures/cube/skyboxsun25deg/';
-
-function disposeResource(
-    resource
-) {
-    if (
-        resource &&
-        typeof resource.dispose ===
-        'function'
-    ) {
-        resource.dispose();
-    }
-}
 
 export function createEnvironmentSystem(
     config = {}
@@ -47,15 +21,6 @@ export function createEnvironmentSystem(
         'function'
             ? config.onNeedRender
             : null;
-
-    let pmremGenerator =
-        null;
-
-    let environmentRenderTarget =
-        null;
-
-    let environmentTexture =
-        null;
 
     let skyTexture =
         null;
@@ -88,53 +53,6 @@ export function createEnvironmentSystem(
         groundSystem.group
     );
 
-    function createEnvironment(
-        scene,
-        renderer
-    ) {
-        if (
-            environmentTexture
-        ) {
-            scene.environment =
-                environmentTexture;
-
-            return;
-        }
-
-        pmremGenerator =
-            new THREE.PMREMGenerator(
-                renderer
-            );
-
-        pmremGenerator.compileEquirectangularShader();
-
-        const roomEnvironment =
-            new RoomEnvironment();
-
-        environmentRenderTarget =
-            pmremGenerator.fromScene(
-                roomEnvironment,
-                ENVIRONMENT_BLUR
-            );
-
-        environmentTexture =
-            environmentRenderTarget.texture;
-
-        scene.environment =
-            environmentTexture;
-
-        if (
-            'environmentIntensity' in scene
-        ) {
-            scene.environmentIntensity =
-                ENVIRONMENT_INTENSITY;
-        }
-
-        disposeResource(
-            roomEnvironment
-        );
-    }
-
     function createSky(
         scene
     ) {
@@ -161,26 +79,12 @@ export function createEnvironmentSystem(
                 SKY_PATH + 'pz.jpg',
                 SKY_PATH + 'nz.jpg'
             ],
-
             texture => {
                 if (
                     disposed
                 ) {
                     texture.dispose();
-
                     return;
-                }
-
-                if (
-                    'colorSpace' in texture
-                ) {
-                    texture.colorSpace =
-                        THREE.SRGBColorSpace;
-                } else if (
-                    'encoding' in texture
-                ) {
-                    texture.encoding =
-                        THREE.sRGBEncoding;
                 }
 
                 skyTexture =
@@ -211,12 +115,10 @@ export function createEnvironmentSystem(
     }
 
     function applyToScene(
-        scene,
-        renderer
+        scene
     ) {
         if (
-            !scene ||
-            !renderer
+            !scene
         ) {
             return;
         }
@@ -224,21 +126,15 @@ export function createEnvironmentSystem(
         appliedScene =
             scene;
 
+        scene.environment =
+            null;
+
         scene.fog =
             new THREE.FogExp2(
                 FOG_COLOR,
                 FOG_DENSITY
             );
 
-        // Matches legacy: legacy/js/scene.js never sets scene.environment
-        // (no PMREM IBL reflections) -- only a skybox background + fog +
-        // plain lights. The PMREM RoomEnvironment reflections added here
-        // put an extra whitish Fresnel tint on every dielectric material,
-        // which combined with ACES tone mapping forced a low exposure to
-        // compensate -- and that same exposure crushed the skybox
-        // background toward black. Removed to match the legacy look;
-        // createEnvironment() is left in place (unused) in case IBL
-        // reflections are wanted again later behind an explicit opt-in.
         createSky(
             scene
         );
@@ -268,14 +164,6 @@ export function createEnvironmentSystem(
             fogDensity:
                 FOG_DENSITY,
 
-            environmentIntensity:
-                ENVIRONMENT_INTENSITY,
-
-            hasEnvironment:
-                Boolean(
-                    environmentTexture
-                ),
-
             hasSky:
                 Boolean(
                     skyTexture
@@ -294,81 +182,51 @@ export function createEnvironmentSystem(
             true;
 
         if (
-            appliedScene?.environment ===
-            environmentTexture
+            appliedScene
         ) {
-            appliedScene.environment =
-                null;
-        }
+            if (
+                appliedScene.background ===
+                skyTexture
+            ) {
+                appliedScene.background =
+                    null;
+            }
 
-        if (
-            appliedScene?.background ===
-            skyTexture
-        ) {
-            appliedScene.background =
-                null;
-        }
-
-        if (
-            appliedScene?.fog?.isFogExp2 &&
-            appliedScene.fog.color.getHex() ===
-            FOG_COLOR &&
-            appliedScene.fog.density ===
-            FOG_DENSITY
-        ) {
-            appliedScene.fog =
-                null;
+            if (
+                appliedScene.fog?.isFogExp2 &&
+                appliedScene.fog.color.getHex() ===
+                FOG_COLOR
+            ) {
+                appliedScene.fog =
+                    null;
+            }
         }
 
         groundSystem.dispose();
 
-        disposeResource(
+        if (
             skyTexture
-        );
-
-        disposeResource(
-            environmentRenderTarget
-        );
-
-        disposeResource(
-            pmremGenerator
-        );
-
-        skyTexture =
-            null;
-
-        environmentTexture =
-            null;
-
-        environmentRenderTarget =
-            null;
-
-        pmremGenerator =
-            null;
+        ) {
+            skyTexture.dispose();
+            skyTexture =
+                null;
+        }
 
         appliedScene =
             null;
 
         group.clear();
-
         group.removeFromParent();
     }
 
     return Object.freeze({
         group,
-
         update,
-
         tick,
-
         updateBounds,
-
         applyToScene,
-
         setOnNeedRender,
-
         getState,
-
         dispose
     });
 }

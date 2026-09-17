@@ -8,66 +8,69 @@ export function createLightingSystem(scene) {
     const lightsGroup = new THREE.Group();
     lightsGroup.name = 'lighting-system';
 
+    const hemiLight = new THREE.HemisphereLight(0xdedede, 0x5a5a6a, 0.75);
+    hemiLight.position.set(0, 200, 0);
+    lightsGroup.add(hemiLight);
+
     const ambientLight = new THREE.AmbientLight(0xdedede, 0.75);
     lightsGroup.add(ambientLight);
 
-    const hemisphereLight = new THREE.HemisphereLight(0xdedede, 0x5a5a6a, 0.75);
-    hemisphereLight.position.set(0, 200, 0);
-    lightsGroup.add(hemisphereLight);
-
-    // Matches legacy/js/scene.js exactly: plain lights with no
-    // ACES tone mapping / PMREM environment IBL to compensate for
-    // (see runtimeRenderer.js and EnvironmentSystem.js). Legacy never
-    // needed near-zero exposure to get correct material colors, so it
-    // never crushed the skybox either -- reproducing its light
-    // intensities/colors here instead of fighting overexposure with
-    // exposure tricks.
     const sunLight = new THREE.DirectionalLight(0xdedede, 1.5);
     sunLight.position.set(150, 250, 120);
     sunLight.castShadow = true;
 
-    sunLight.shadow.bias = -0.001;        
-    sunLight.shadow.normalBias = 0.05;   
-    sunLight.shadow.radius = 2.5;            
-    sunLight.shadow.mapSize.width = 4096;  
+    sunLight.shadow.bias = -0.001;
+    sunLight.shadow.normalBias = 0.05;
+    sunLight.shadow.radius = 2.5;
+    sunLight.shadow.mapSize.width = 4096;
     sunLight.shadow.mapSize.height = 4096;
+
+    sunLight.shadow.camera.near = 10;
+    sunLight.shadow.camera.far = 600;
+    sunLight.shadow.camera.top = 80;
+    sunLight.shadow.camera.bottom = -20;
+    sunLight.shadow.camera.left = -180;
+    sunLight.shadow.camera.right = 180;
 
     lightsGroup.add(sunLight);
     lightsGroup.add(sunLight.target);
     scene.add(lightsGroup);
 
-    function update(solarState, buildingBounds = null) {
-        if (buildingBounds && buildingBounds.center) {
-            sunLight.target.position.copy(buildingBounds.center);
-            sunLight.target.updateMatrixWorld();
-
-            const maxDim = Math.max(
-                buildingBounds.width || 30,
-                buildingBounds.height || 10,
-                buildingBounds.length || 40
-            );
-
-            const shadowSize = Math.max(10, maxDim * 0.85);
-            sunLight.shadow.camera.near = 10;
-            sunLight.shadow.camera.far = 1000;
-            sunLight.shadow.camera.left = -shadowSize;
-            sunLight.shadow.camera.right = shadowSize;
-            sunLight.shadow.camera.top = shadowSize;
-            sunLight.shadow.camera.bottom = -shadowSize;
-            sunLight.shadow.camera.updateProjectionMatrix();
-        }
+    function update() {
+        // Статический legacy-свет: параметры зафиксированы, пересчет солнца отключен
     }
 
-    function getState() { return Object.freeze({}); }
+    function getState() {
+        return Object.freeze({
+            sun: {
+                position: { x: 150, y: 250, z: 120 },
+                intensity: 1.5,
+                color: 'dedede'
+            },
+            ambient: {
+                intensity: 0.75,
+                color: 'dedede'
+            },
+            hemisphere: {
+                intensity: 0.75,
+                skyColor: 'dedede',
+                groundColor: '5a5a6a'
+            }
+        });
+    }
+
     function dispose() {
         sunLight.dispose();
         ambientLight.dispose();
-        hemisphereLight.dispose();
+        hemiLight.dispose();
         lightsGroup.clear();
         lightsGroup.removeFromParent();
     }
 
     return Object.freeze({
-        lightsGroup, update, getState, dispose
+        lightsGroup,
+        update,
+        getState,
+        dispose
     });
 }
